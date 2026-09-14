@@ -19,8 +19,8 @@
 
 | 配置段 | 绑定类型 | 说明 |
 |--------|----------|------|
-| `Simulator` | `SimulatorConfig` | 运行时、协议端口、Web、档位、授权 |
-| `EssUnits` | `List<EssUnitConfig>` → `SimulatorConfig.Devices` | 储能单元清单（每单元 2 路 PCS + 2 路 BMS） |
+| `Simulator` | `SimulatorConfig` | 运行时、协议端口、Web、档位、授权；`PvUnits` 通常由组态 overlay 写入 |
+| `EssUnits` | `List<EssUnitConfig>` → `SimulatorConfig.Devices` | 储能单元清单（每单元 PCS/BMS 台数可配，未配默认 2） |
 | `DataExchange` | `DataExchangeOptions` | simEmu / simBms / simEm 遥测与控制轮询 |
 | `Pcc` | `PccConfig` | 220kV 并网点无功—电压模型 |
 | `Meter` | `MeterConfig` | 并网电表 PT/CT 与上报侧 |
@@ -29,7 +29,7 @@
 | `Load` | `LoadConfig` | 站内负载计划 |
 | `Pcs` | `PcsPhysicalConfig` | PCS 物理参数（全局，各通道共用） |
 
-> **注意**：单元列表写在顶层 **`EssUnits`** 数组，而非 `Simulator.Devices`。程序启动时通过 `PostConfigure` 将 `EssUnits` 绑定到 `SimulatorConfig.Devices`（见 `Program.cs`）。
+> **注意**：单元列表写在顶层 **`EssUnits`** 数组，而非 `Simulator.Devices`。程序启动时通过 `PostConfigure` 将 `EssUnits` 绑定到 `SimulatorConfig.Devices`（见 `Program.cs`）。光伏单元列表在 **`Simulator.PvUnits`**（工程模式由 overlay 覆盖；根配置通常为空）。
 
 ---
 
@@ -47,8 +47,10 @@
   - `BaseBmsModbusPort = 1501`，`BmsPortStep = 1`
   - `BaseEmuModbusPort = 1601`，`EmuPortStep = 1`
   - `EmModbusPort = 1500`
-  - `EnableLocalControl = false`
+  - `EnableLocalControl = true`
   - `BaseLocalControlModbusPort = 1701`，`LocalControlPortStep = 1`，`LocalControlEmuPerGroup = 4`
+  - `BasePvLoggerModbusPort = 1801`，`PvLoggerPortStep = 1`
+  - `BasePvMeterModbusPort = 1901`，`PvMeterPortStep = 1`
 - **`EssUnits`**
   - 共 **8** 个 Unit（Unit-1 ~ Unit-8），每单元 2 路 PCS + 2 路 BMS
   - BMS 拓扑一致：`ClusterCount=12`、`PackCount=4`、`CellSeriesCount=104`、`CellParallelCount=1`
@@ -141,6 +143,32 @@
 - `Simulator.Protocol.LocalControlEmuPerGroup`（int，默认 `4`）
   - **作用**：每路 LocalControl 聚合的 EMU 数量。
 
+- `Simulator.Protocol.BasePvLoggerModbusPort` / `PvLoggerPortStep`（int，默认 `1801` / `1`）
+  - **作用**：光伏 Logger（`simPvN`）起始端口与步长。仅当 `PvUnits` 非空时注册。
+
+- `Simulator.Protocol.BasePvMeterModbusPort` / `PvMeterPortStep`（int，默认 `1901` / `1`）
+  - **作用**：光伏低压电表（`simPvMeterN`）起始端口与步长。
+
+独立文件 **`configs/modbus-allowlist.json`**（非 appsettings 字段）：Modbus TCP 来源 IP 白名单。空名单不限制；非空时仅放行精确 IP 或 CIDR，可选放行本机回环。Web「协议端口」页可改，**保存后须重启进程**才作用于 Accept。
+
+### Simulator.PvUnits
+
+绑定到 `SimulatorConfig.PvUnits`。根 `appsettings.json` 通常为空数组；工程模式由组态 overlay 覆盖。无储能仅有光伏时 `EffectiveEssUnitCount=0`，不伪造 BMS/PCS。
+
+| 字段 | 默认 | 说明 |
+|------|------|------|
+| `Name` | `"PV"` | 展示名 |
+| `InverterCount` | 16 | 箱变下组串逆变器台数 |
+| `StringCount` / `ModulesPerString` | 16 / 30 | 单台逆变器簇数、每簇串联块数 |
+| `InverterRatedPowerKw` / `InverterMaxPowerKw` | 320 / 352 | 单台额定/最大功率（kW） |
+| `InverterEfficiency` | 0.99 | 逆变器效率 |
+| `InverterAcVoltageV` | 690 | 逆变器交流线电压 |
+| `UnitXfPrimaryV` / `UnitXfSecondaryV` / `UnitXfRatedKva` | 35000 / 690 / 5120 | 光伏箱变 |
+| `DcVoltageMin` / `DcVoltageMax` | 500 / 1500 | 直流电压范围 |
+| `ModuleModel` | `TSM-NEG21C.20Q` | 须在 `TrinaPvModuleCatalog` 内 |
+| `GroundAlbedo` | 0 | 方阵 A/B 反照率初值；0 关闭双面增益 |
+| `OperatingYears` | 0 | 投运年限；0 为新产品、无衰减 |
+
 ### Simulator.Web
 
 - `HttpPort` / `HttpBaseUrl`：浏览器与 REST 监听（默认 5050；macOS 勿用 5000）
@@ -174,14 +202,14 @@
 
 约定：
 
-- **每个 Unit 固定 2 路 PCS + 2 路 BMS**
-- Unit 数量决定 EMU 从站数、BMS 路数及通道扩展
+- **每个 Unit 的 PCS/BMS 台数可配**；未配置时默认 2 路（向后兼容）
+- Unit 数量决定 EMU 从站数、BMS 路数及通道扩展；纯光伏工程可以为 0
 
 ### EssUnits[i].Name
 
 - **作用**：单元名称（展示/占位，不参与电气计算）。
 
-### EssUnits[i].Pcs（数组，固定 2 项）
+### EssUnits[i].Pcs（数组；空则默认 2 项）
 
 - `Name`：PCS 名称（占位）
 - `PcsRamp`（可选）：覆盖该 PCS 的爬坡参数；为空时使用 `Simulator.Runtime.PcsRamp`
@@ -189,7 +217,7 @@
   - `IntervalMs`：每级更新间隔（ms）
   - `DelayMs`：新设定生效前延时（ms）
 
-### EssUnits[i].Bms（数组，固定 2 项）
+### EssUnits[i].Bms（数组；与 PCS 1:1，空则默认 2 项）
 
 - `Name`：BMS 名称（占位）
 - `ClusterCount` / `PackCount` / `CellSeriesCount` / `CellParallelCount`：电池拓扑
@@ -201,7 +229,7 @@
 
 ## DataExchange（Modbus 与模型同步）
 
-绑定到 `DataExchangeOptions`，用于 `simEmu*` / `simBms*` / `simEm` 的 `DataExchangeSession`。
+绑定到 `DataExchangeOptions`，用于 `simEmu*` / `simBms*` / `simEm` / `simPv*` / `simPvMeter*` 的 `DataExchangeSession`。
 
 - `DataExchange.TelemetryIntervalMs`（int，ms，默认 `500`）
   - **作用**：BMS / rack 遥测管道周期：读模型 → 写 Modbus 寄存器。
@@ -349,5 +377,6 @@ PT/CT 变比由一次/二次值自动计算，用于电表读数换算。
 ## 相关文件
 
 - 配置类：`Configuration/SimulatorConfig.cs`、`EditionConfig.cs`、`WebConfig.cs`、`LicenseConfig.cs`
-- 绑定逻辑：`Program.cs`（`EssUnits` → `SimulatorConfig.Devices`；组态 overlay）
+- 绑定逻辑：`Program.cs`（`EssUnits` → `SimulatorConfig.Devices`；组态 overlay 覆盖 `EssUnits` / `PvUnits` 等）
 - 档位模板：`configs/社区版.appsettings.json`、`商业版`、`定制版`、`演示版`（旧名充值版仍可存在，发布映射为商业版）
+- Modbus IP 白名单：`configs/modbus-allowlist.json`

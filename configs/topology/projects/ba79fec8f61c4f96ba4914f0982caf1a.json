@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0",
-  "id": "8d150d32fcbf44f095eac558e4b75de2",
-  "name": "\u5E38\u7528\u50A8\u80FD\u7535\u7AD9-10MW",
-  "updatedAtUtc": "2026-09-14T06:45:22.446747Z",
+  "id": "ba79fec8f61c4f96ba4914f0982caf1a",
+  "name": "\u5E38\u7528\u50A8\u80FD\u7535\u7AD9-5.5MW",
+  "updatedAtUtc": "2026-09-11T02:02:55.849567Z",
   "nodes": [
     {
       "id": "4a575f073f4ed1a037e5a2c9",
@@ -61,8 +61,8 @@
       "id": "4083f969d6e6581a037e74fff",
       "templateId": "pcs",
       "label": "PCS \u53D8\u6D41\u5668",
-      "x": 300,
-      "y": 1120,
+      "x": -280,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -79,8 +79,8 @@
       "id": "c2eed5d28a5961a037e76b23",
       "templateId": "pcs",
       "label": "PCS \u53D8\u6D41\u5668",
-      "x": 440,
-      "y": 1120,
+      "x": -140,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -107,8 +107,8 @@
       "id": "ab9897cce250281a037e82d9d",
       "templateId": "bms",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 280,
-      "y": 1380,
+      "x": -300,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -125,8 +125,8 @@
       "id": "5569f0019eaf281a037e83ff4",
       "templateId": "bms",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 460,
-      "y": 1380,
+      "x": -120,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -177,8 +177,8 @@
       "id": "47b78194b84a981a037e9c0a4",
       "templateId": "pcs",
       "label": "PCS \u53D8\u6D41\u5668",
-      "x": 600,
-      "y": 1120,
+      "x": 20,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -195,8 +195,8 @@
       "id": "627b127bb307b81a037e9cd69",
       "templateId": "pcs",
       "label": "PCS \u53D8\u6D41\u5668",
-      "x": 760,
-      "y": 1120,
+      "x": 180,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -213,8 +213,8 @@
       "id": "51a7fef4903471a037e9ed8f",
       "templateId": "bms",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 620,
-      "y": 1380,
+      "x": 40,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -231,8 +231,8 @@
       "id": "5a034b7f43b4c81a037e9f5bd",
       "templateId": "bms",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 760,
-      "y": 1380,
+      "x": 180,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -272,24 +272,11 @@
       }
     },
     {
-      "id": "0f63830db1e61a037ec92c6",
-      "templateId": "ac_bus",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 920,
-      "y": 620,
-      "parameters": {
-        "nominalVoltage": 35000,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "1a6e03cdab45681a037e5d999"
-      }
-    },
-    {
       "id": "6ad3b726e732981a037ed0f02",
       "templateId": "ac_bus",
       "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 340,
-      "y": 1040,
+      "x": -240,
+      "y": 720,
       "parameters": {
         "nominalVoltage": 690,
         "name": "AC\u6BCD\u7EBF",
@@ -301,183 +288,13 @@
       "id": "3404ca604a11b1a037ed4ac3",
       "templateId": "ac_bus",
       "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 700,
-      "y": 1040,
+      "x": 40,
+      "y": 720,
       "parameters": {
         "nominalVoltage": 690,
         "name": "AC\u6BCD\u7EBF",
         "energized": true,
         "sourceNodeId": "9752ca02ac9ef1a088d65de2"
-      }
-    },
-    {
-      "id": "6af1fc024482481a03ba2737d",
-      "templateId": "ac_bus",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 1060,
-      "y": 1040,
-      "parameters": {
-        "nominalVoltage": 690,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "5d0031f1f8d1f1a088d68578"
-      }
-    },
-    {
-      "id": "e1f8c95e7396281a03ba27bb8",
-      "templateId": "ac_bus",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 1520,
-      "y": 1040,
-      "parameters": {
-        "nominalVoltage": 690,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "5d0031f1f8d1f1a088d68578"
-      }
-    },
-    {
-      "id": "60eedca0c4d2d81a03ba299d8",
-      "templateId": "pcs",
-      "label": "PCS \u53D8\u6D41\u5668",
-      "x": 1060,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "3541efc02497e1a037e8e641",
-        "groupId": "ec536ef5be29e81a03bfdff7b"
-      }
-    },
-    {
-      "id": "5dfc8f5e9c8a31a03ba2a8cd",
-      "templateId": "pcs",
-      "label": "PCS \u53D8\u6D41\u5668",
-      "x": 1200,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "3541efc02497e1a037e8e641",
-        "groupId": "ec536ef5be29e81a03bfdff7b"
-      }
-    },
-    {
-      "id": "4684934fca1c71a03ba2d426",
-      "templateId": "bms",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 1100,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "b2d03e1f0b941a03ba2dbce",
-      "templateId": "bms",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 1240,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "d6ebdb30bb1e981a03ba300c6",
-      "templateId": "pcs",
-      "label": "PCS \u53D8\u6D41\u5668",
-      "x": 1520,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "3541efc02497e1a037e8e641",
-        "groupId": "ec536ef5be29e81a03bfdff7b"
-      }
-    },
-    {
-      "id": "b93c530a3de1c1a03ba30cc6",
-      "templateId": "pcs",
-      "label": "PCS \u53D8\u6D41\u5668",
-      "x": 1660,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "3541efc02497e1a037e8e641",
-        "groupId": "ec536ef5be29e81a03bfdff7b"
-      }
-    },
-    {
-      "id": "39fdf80b5cbf41a03ba34bde",
-      "templateId": "bms",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 1520,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "dd7bf50dc730181a03ba35ac8",
-      "templateId": "bms",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 1680,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
       }
     },
     {
@@ -496,8 +313,8 @@
       "templateId": "ac_breaker",
       "libraryItemId": "f67892b2406f4eb789c265453c14cdbb",
       "label": "\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
-      "x": 980,
-      "y": 440,
+      "x": -40,
+      "y": 280,
       "parameters": {
         "ratedVoltage": 35000,
         "closed": true,
@@ -547,8 +364,8 @@
       "templateId": "ac_bus",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 2120,
-      "y": 1040,
+      "x": 500,
+      "y": 720,
       "parameters": {
         "nominalVoltage": 690,
         "name": "AC\u6BCD\u7EBF",
@@ -561,8 +378,8 @@
       "templateId": "ac_bus",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 2580,
-      "y": 1040,
+      "x": 920,
+      "y": 720,
       "parameters": {
         "nominalVoltage": 690,
         "name": "AC\u6BCD\u7EBF",
@@ -571,40 +388,12 @@
       }
     },
     {
-      "id": "1fafc0e1d5bdf1a056c5fd6e",
-      "templateId": "ac_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 3020,
-      "y": 1040,
-      "parameters": {
-        "nominalVoltage": 690,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "d50bb9fad37e91a088d71143"
-      }
-    },
-    {
-      "id": "1d5581d9c992a1a056c61036",
-      "templateId": "ac_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 3500,
-      "y": 1040,
-      "parameters": {
-        "nominalVoltage": 690,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "d50bb9fad37e91a088d71143"
-      }
-    },
-    {
       "id": "08469567877c381a056c646be",
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 2120,
-      "y": 1120,
+      "x": 480,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -622,8 +411,8 @@
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 2260,
-      "y": 1120,
+      "x": 640,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -641,8 +430,8 @@
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 2520,
-      "y": 1120,
+      "x": 900,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -660,8 +449,8 @@
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 2680,
-      "y": 1120,
+      "x": 1060,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -675,88 +464,12 @@
       }
     },
     {
-      "id": "8765e54e10dc881a056c6f1e9",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 2980,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "0860158c34f5781a03dfa17c9",
-        "groupId": "f7c66f5e568461a03dfac998"
-      }
-    },
-    {
-      "id": "1835691042a6681a056c6ff2e",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 3140,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "0860158c34f5781a03dfa17c9",
-        "groupId": "f7c66f5e568461a03dfac998"
-      }
-    },
-    {
-      "id": "2071dee27de1d1a056c71638",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 3460,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "0860158c34f5781a03dfa17c9",
-        "groupId": "f7c66f5e568461a03dfac998"
-      }
-    },
-    {
-      "id": "43f69255fa2f281a056c7222c",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": 3620,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "0860158c34f5781a03dfa17c9",
-        "groupId": "f7c66f5e568461a03dfac998"
-      }
-    },
-    {
       "id": "f2cf9ac79e22881a056c74ca1",
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 2080,
-      "y": 1380,
+      "x": 460,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -774,8 +487,8 @@
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 2260,
-      "y": 1380,
+      "x": 640,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -793,8 +506,8 @@
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 2500,
-      "y": 1380,
+      "x": 880,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -812,84 +525,8 @@
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": 2700,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "013ac6f7d748c81a056c79c76",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 2960,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "34c9e140038e981a056c7a4c7",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 3160,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "a00ac7dd4be691a056c7bd5b",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 3460,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "4bdaab236de6f81a056c7c757",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": 3640,
-      "y": 1380,
+      "x": 1080,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -907,8 +544,8 @@
       "templateId": "ac_breaker",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
-      "x": 2760,
-      "y": 440,
+      "x": 800,
+      "y": 280,
       "parameters": {
         "ratedVoltage": 35000,
         "closed": true,
@@ -918,26 +555,12 @@
       }
     },
     {
-      "id": "194a6a17d555781a056cb05e0",
-      "templateId": "ac_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": 2700,
-      "y": 620,
-      "parameters": {
-        "nominalVoltage": 35000,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "1a6e03cdab45681a037e5d999"
-      }
-    },
-    {
       "id": "426bed719528c81a05ff544c6",
       "templateId": "ac_bus",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": -1560,
-      "y": 1040,
+      "x": 1280,
+      "y": 720,
       "parameters": {
         "nominalVoltage": 690,
         "name": "AC\u6BCD\u7EBF",
@@ -950,8 +573,8 @@
       "templateId": "ac_bus",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": -1100,
-      "y": 1040,
+      "x": 1740,
+      "y": 720,
       "parameters": {
         "nominalVoltage": 690,
         "name": "AC\u6BCD\u7EBF",
@@ -960,40 +583,12 @@
       }
     },
     {
-      "id": "756adc70297df1a05ff544c6",
-      "templateId": "ac_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": -660,
-      "y": 1040,
-      "parameters": {
-        "nominalVoltage": 690,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "56ad3bfcd14981a088d632e3"
-      }
-    },
-    {
-      "id": "ffe4834b90321a05ff544c6",
-      "templateId": "ac_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": -180,
-      "y": 1040,
-      "parameters": {
-        "nominalVoltage": 690,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "56ad3bfcd14981a088d632e3"
-      }
-    },
-    {
       "id": "528e3e940b41a05ff544c6",
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -1560,
-      "y": 1120,
+      "x": 1280,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -1011,8 +606,8 @@
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -1420,
-      "y": 1120,
+      "x": 1420,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -1030,8 +625,8 @@
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -1160,
-      "y": 1120,
+      "x": 1680,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -1049,8 +644,8 @@
       "templateId": "pcs",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -1000,
-      "y": 1120,
+      "x": 1840,
+      "y": 800,
       "parameters": {
         "acVoltage": 690,
         "pcsRatedPowerKw": 1725,
@@ -1064,88 +659,12 @@
       }
     },
     {
-      "id": "66d5f70d7de4e81a05ff544c6",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -700,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "4a95f03fb5c9381a05ff669a9",
-        "groupId": "f5a2c55d02e11a05ff6b83e"
-      }
-    },
-    {
-      "id": "f937f2744f0d31a05ff544c6",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -540,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "4a95f03fb5c9381a05ff669a9",
-        "groupId": "f5a2c55d02e11a05ff6b83e"
-      }
-    },
-    {
-      "id": "fa22fa822c48181a05ff544c6",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -220,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "4a95f03fb5c9381a05ff669a9",
-        "groupId": "f5a2c55d02e11a05ff6b83e"
-      }
-    },
-    {
-      "id": "c31604faf76a381a05ff544c6",
-      "templateId": "pcs",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
-      "x": -60,
-      "y": 1120,
-      "parameters": {
-        "acVoltage": 690,
-        "pcsRatedPowerKw": 1725,
-        "pcsMaxPowerKw": 1897.5,
-        "pcsEfficiency": 0.99,
-        "dcVoltageMin": 1000,
-        "dcVoltageMax": 1500,
-        "name": "PCS\u53D8\u6D41\u5668",
-        "emuId": "4a95f03fb5c9381a05ff669a9",
-        "groupId": "f5a2c55d02e11a05ff6b83e"
-      }
-    },
-    {
       "id": "c586153a272ce1a05ff544c6",
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": -1600,
-      "y": 1380,
+      "x": 1280,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -1163,8 +682,8 @@
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": -1420,
-      "y": 1380,
+      "x": 1420,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -1182,8 +701,8 @@
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": -1180,
-      "y": 1380,
+      "x": 1680,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -1201,84 +720,8 @@
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "BMS \u7535\u6C60\u5806",
-      "x": -980,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "35a310547845681a05ff544c6",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": -720,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "6b0b112e0810a81a05ff544c6",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": -520,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "017cfc2ac03521a05ff544c6",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": -220,
-      "y": 1380,
-      "parameters": {
-        "name": "BMS",
-        "clusterCount": 12,
-        "packCount": 4,
-        "cellSeriesCount": 104,
-        "cellParallelCount": 1,
-        "cellNominalVoltage": 3.2,
-        "cellNominalCapacity": 314,
-        "cellInitialSoc": 0.5,
-        "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "7a86e039b3e151a05ff544c6",
-      "templateId": "bms",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "BMS \u7535\u6C60\u5806",
-      "x": -40,
-      "y": 1380,
+      "x": 1840,
+      "y": 980,
       "parameters": {
         "name": "BMS",
         "clusterCount": 12,
@@ -1296,28 +739,14 @@
       "templateId": "ac_breaker",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
       "label": "\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
-      "x": -840,
-      "y": 440,
+      "x": 1600,
+      "y": 260,
       "parameters": {
         "ratedVoltage": 35000,
         "closed": true,
         "isMainBreaker": false,
         "name": "\u65AD\u8DEF\u5668",
         "emuId": "4a95f03fb5c9381a05ff669a9"
-      }
-    },
-    {
-      "id": "ccfcc1457fa031a05ff544c6",
-      "templateId": "ac_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u4E09\u76F8\u6BCD\u7EBF",
-      "x": -900,
-      "y": 620,
-      "parameters": {
-        "nominalVoltage": 35000,
-        "name": "AC\u6BCD\u7EBF",
-        "energized": true,
-        "sourceNodeId": "1a6e03cdab45681a037e5d999"
       }
     },
     {
@@ -1372,26 +801,8 @@
       "id": "bec4e886cd97081a088d5fed6",
       "templateId": "split_transformer",
       "label": "\u53CC\u8033\u53D8\u538B\u5668",
-      "x": -1280,
-      "y": 780,
-      "parameters": {
-        "primaryVoltage": 35000,
-        "secondaryVoltage": 690,
-        "ratedPowerKva": 6300,
-        "splitRatio": 0.5,
-        "impedancePercent": 6,
-        "splitImpedancePercent": 8,
-        "noLoadLossW": 80,
-        "loadLossW": 400,
-        "emuId": "4a95f03fb5c9381a05ff669a9"
-      }
-    },
-    {
-      "id": "56ad3bfcd14981a088d632e3",
-      "templateId": "split_transformer",
-      "label": "\u53CC\u8033\u53D8\u538B\u5668",
-      "x": -400,
-      "y": 760,
+      "x": 1560,
+      "y": 480,
       "parameters": {
         "primaryVoltage": 35000,
         "secondaryVoltage": 690,
@@ -1408,26 +819,8 @@
       "id": "9752ca02ac9ef1a088d65de2",
       "templateId": "split_transformer",
       "label": "\u53CC\u8033\u53D8\u538B\u5668",
-      "x": 540,
-      "y": 780,
-      "parameters": {
-        "primaryVoltage": 35000,
-        "secondaryVoltage": 690,
-        "ratedPowerKva": 6300,
-        "splitRatio": 0.5,
-        "impedancePercent": 6,
-        "splitImpedancePercent": 8,
-        "noLoadLossW": 80,
-        "loadLossW": 400,
-        "emuId": "3541efc02497e1a037e8e641"
-      }
-    },
-    {
-      "id": "5d0031f1f8d1f1a088d68578",
-      "templateId": "split_transformer",
-      "label": "\u53CC\u8033\u53D8\u538B\u5668",
-      "x": 1340,
-      "y": 780,
+      "x": -80,
+      "y": 480,
       "parameters": {
         "primaryVoltage": 35000,
         "secondaryVoltage": 690,
@@ -1444,26 +837,8 @@
       "id": "be59e556879c381a088d6b3dc",
       "templateId": "split_transformer",
       "label": "\u53CC\u8033\u53D8\u538B\u5668",
-      "x": 2400,
-      "y": 740,
-      "parameters": {
-        "primaryVoltage": 35000,
-        "secondaryVoltage": 690,
-        "ratedPowerKva": 6300,
-        "splitRatio": 0.5,
-        "impedancePercent": 6,
-        "splitImpedancePercent": 8,
-        "noLoadLossW": 80,
-        "loadLossW": 400,
-        "emuId": "0860158c34f5781a03dfa17c9"
-      }
-    },
-    {
-      "id": "d50bb9fad37e91a088d71143",
-      "templateId": "split_transformer",
-      "label": "\u53CC\u8033\u53D8\u538B\u5668",
-      "x": 3320,
-      "y": 760,
+      "x": 780,
+      "y": 480,
       "parameters": {
         "primaryVoltage": 35000,
         "secondaryVoltage": 690,
@@ -1668,90 +1043,6 @@
       "toPortId": "ac_c"
     },
     {
-      "id": "a8057213481545f2bb4067ef3be914c9",
-      "fromNodeId": "6af1fc024482481a03ba2737d",
-      "fromPortId": "a2",
-      "toNodeId": "60eedca0c4d2d81a03ba299d8",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "504c5e5aea404783a427b89c14c7ce75",
-      "fromNodeId": "6af1fc024482481a03ba2737d",
-      "fromPortId": "b2",
-      "toNodeId": "60eedca0c4d2d81a03ba299d8",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "ada39c85478d4828810b4209990f3236",
-      "fromNodeId": "6af1fc024482481a03ba2737d",
-      "fromPortId": "c2",
-      "toNodeId": "60eedca0c4d2d81a03ba299d8",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "2142bfcf4f8e4b8c996a061420733765",
-      "fromNodeId": "6af1fc024482481a03ba2737d",
-      "fromPortId": "a2",
-      "toNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "fd3c525fe7644d3084772a8b745dbed8",
-      "fromNodeId": "6af1fc024482481a03ba2737d",
-      "fromPortId": "b2",
-      "toNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "073a74fe61ef440f9820503641433dca",
-      "fromNodeId": "6af1fc024482481a03ba2737d",
-      "fromPortId": "c2",
-      "toNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "7468a909d892442b8b0922eccc6bd900",
-      "fromNodeId": "e1f8c95e7396281a03ba27bb8",
-      "fromPortId": "a2",
-      "toNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "fe8ccea75f144903bf7fedac7d036181",
-      "fromNodeId": "e1f8c95e7396281a03ba27bb8",
-      "fromPortId": "b2",
-      "toNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "e6e1abbbef8247d98839f25d567bd12b",
-      "fromNodeId": "e1f8c95e7396281a03ba27bb8",
-      "fromPortId": "c2",
-      "toNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "d9ca9ee563824813ac425b6017366475",
-      "fromNodeId": "e1f8c95e7396281a03ba27bb8",
-      "fromPortId": "a2",
-      "toNodeId": "b93c530a3de1c1a03ba30cc6",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "134c390717e34a23b92275bebd2919dc",
-      "fromNodeId": "e1f8c95e7396281a03ba27bb8",
-      "fromPortId": "b2",
-      "toNodeId": "b93c530a3de1c1a03ba30cc6",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "68e1941f44904e54b91dbe8245ccd4a8",
-      "fromNodeId": "e1f8c95e7396281a03ba27bb8",
-      "fromPortId": "c2",
-      "toNodeId": "b93c530a3de1c1a03ba30cc6",
-      "toPortId": "ac_c"
-    },
-    {
       "id": "1654d4fc04ab4ade886957058bd7a288",
       "fromNodeId": "c4836a62ed59581a037e61e2a",
       "fromPortId": "a2",
@@ -1773,27 +1064,6 @@
       "toPortId": "c"
     },
     {
-      "id": "749c3a3d3016499fb713675888f790a3",
-      "fromNodeId": "b57dcac4c256e1a03bfefdcf",
-      "fromPortId": "a2",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "a"
-    },
-    {
-      "id": "e0d12c5787df41aa8ea3a50ee917da2a",
-      "fromNodeId": "b57dcac4c256e1a03bfefdcf",
-      "fromPortId": "b2",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "b"
-    },
-    {
-      "id": "e9e78bab904d4f65b5fe89dbeb265104",
-      "fromNodeId": "b57dcac4c256e1a03bfefdcf",
-      "fromPortId": "c2",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "c"
-    },
-    {
       "id": "091d3c876dea486b9f9fcbad4d8af2dc",
       "fromNodeId": "c4836a62ed59581a037e61e2a",
       "fromPortId": "a2",
@@ -1812,27 +1082,6 @@
       "fromNodeId": "c4836a62ed59581a037e61e2a",
       "fromPortId": "c2",
       "toNodeId": "5a2c4d63f8a8c81a056c9b794",
-      "toPortId": "c"
-    },
-    {
-      "id": "cad5bc69ba734a2ea5ce63dd3963bfa5",
-      "fromNodeId": "5a2c4d63f8a8c81a056c9b794",
-      "fromPortId": "a2",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "a"
-    },
-    {
-      "id": "5b8aa6b7d3f544d0b379104dded9d991",
-      "fromNodeId": "5a2c4d63f8a8c81a056c9b794",
-      "fromPortId": "b2",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "b"
-    },
-    {
-      "id": "aac21c8a03244831971266bb05a298dd",
-      "fromNodeId": "5a2c4d63f8a8c81a056c9b794",
-      "fromPortId": "c2",
-      "toNodeId": "194a6a17d555781a056cb05e0",
       "toPortId": "c"
     },
     {
@@ -1920,111 +1169,6 @@
       "toPortId": "ac_c"
     },
     {
-      "id": "816ed85e2e754782a15c91c51e84332f",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "ac_a",
-      "toNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "toPortId": "a2"
-    },
-    {
-      "id": "98b302cb02bf4f1b8ef982980493290b",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "ac_b",
-      "toNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "toPortId": "b2"
-    },
-    {
-      "id": "806a055891504027bf5a3952e9323190",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "ac_c",
-      "toNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "toPortId": "c2"
-    },
-    {
-      "id": "4789da6c0dc047189aab430e60579344",
-      "fromNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "fromPortId": "a2",
-      "toNodeId": "1835691042a6681a056c6ff2e",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "71b73c80880142a7a592a4b76ece23fd",
-      "fromNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "fromPortId": "b2",
-      "toNodeId": "1835691042a6681a056c6ff2e",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "df37f166f1584490817236af729c9fc3",
-      "fromNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "fromPortId": "c2",
-      "toNodeId": "1835691042a6681a056c6ff2e",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "70baf9b1fd5d44fc855a548c894e34df",
-      "fromNodeId": "1d5581d9c992a1a056c61036",
-      "fromPortId": "a2",
-      "toNodeId": "2071dee27de1d1a056c71638",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "ab5f56044d614d9aab006241ba20529b",
-      "fromNodeId": "1d5581d9c992a1a056c61036",
-      "fromPortId": "b2",
-      "toNodeId": "2071dee27de1d1a056c71638",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "613c10b0c50a4bef8ad64f9e4370a395",
-      "fromNodeId": "1d5581d9c992a1a056c61036",
-      "fromPortId": "c2",
-      "toNodeId": "2071dee27de1d1a056c71638",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "d7b8b50a32cd4e86b7b900dc939f44fa",
-      "fromNodeId": "1d5581d9c992a1a056c61036",
-      "fromPortId": "a2",
-      "toNodeId": "43f69255fa2f281a056c7222c",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "ffc641b15b514aa6914fba2f923eb38f",
-      "fromNodeId": "1d5581d9c992a1a056c61036",
-      "fromPortId": "b2",
-      "toNodeId": "43f69255fa2f281a056c7222c",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "3d13ece846ed4efabd14b0bb50244d9a",
-      "fromNodeId": "1d5581d9c992a1a056c61036",
-      "fromPortId": "c2",
-      "toNodeId": "43f69255fa2f281a056c7222c",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "b262df490490281a05ff544c7",
-      "fromNodeId": "6c69c0a46028281a05ff544c6",
-      "fromPortId": "a2",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "a"
-    },
-    {
-      "id": "cc25e92fc24df1a05ff544c7",
-      "fromNodeId": "6c69c0a46028281a05ff544c6",
-      "fromPortId": "b2",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "b"
-    },
-    {
-      "id": "fd44a9910ec771a05ff544c7",
-      "fromNodeId": "6c69c0a46028281a05ff544c6",
-      "fromPortId": "c2",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "c"
-    },
-    {
       "id": "51cf56cc7244b81a05ff544c7",
       "fromNodeId": "426bed719528c81a05ff544c6",
       "fromPortId": "a2",
@@ -2106,90 +1250,6 @@
       "fromNodeId": "870b3ddee6c5481a05ff544c6",
       "fromPortId": "c2",
       "toNodeId": "97394bd3b9d51a05ff544c6",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "968e972c75a9f81a05ff544c7",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "ac_a",
-      "toNodeId": "756adc70297df1a05ff544c6",
-      "toPortId": "a2"
-    },
-    {
-      "id": "5d36628bc3e4b81a05ff544c7",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "ac_b",
-      "toNodeId": "756adc70297df1a05ff544c6",
-      "toPortId": "b2"
-    },
-    {
-      "id": "5de0aef16bd961a05ff544c7",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "ac_c",
-      "toNodeId": "756adc70297df1a05ff544c6",
-      "toPortId": "c2"
-    },
-    {
-      "id": "470c662edb5321a05ff544c7",
-      "fromNodeId": "756adc70297df1a05ff544c6",
-      "fromPortId": "a2",
-      "toNodeId": "f937f2744f0d31a05ff544c6",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "8261b31dfddf481a05ff544c7",
-      "fromNodeId": "756adc70297df1a05ff544c6",
-      "fromPortId": "b2",
-      "toNodeId": "f937f2744f0d31a05ff544c6",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "33eabf38bad7281a05ff544c7",
-      "fromNodeId": "756adc70297df1a05ff544c6",
-      "fromPortId": "c2",
-      "toNodeId": "f937f2744f0d31a05ff544c6",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "a1f4dbf7ab4531a05ff544c7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "a2",
-      "toNodeId": "fa22fa822c48181a05ff544c6",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "9c298463c55c581a05ff544c7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "b2",
-      "toNodeId": "fa22fa822c48181a05ff544c6",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "f60e10d405efe81a05ff544c7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "c2",
-      "toNodeId": "fa22fa822c48181a05ff544c6",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "0c01f7948ecf31a05ff544c7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "a2",
-      "toNodeId": "c31604faf76a381a05ff544c6",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "83e8c2aabf79d1a05ff544c7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "b2",
-      "toNodeId": "c31604faf76a381a05ff544c6",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "45ad416bed9a781a05ff544c7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "c2",
-      "toNodeId": "c31604faf76a381a05ff544c6",
       "toPortId": "ac_c"
     },
     {
@@ -2277,90 +1337,6 @@
       "toPortId": "c"
     },
     {
-      "id": "a1502100de764755b2a25d2252c053b4",
-      "fromNodeId": "bec4e886cd97081a088d5fed6",
-      "fromPortId": "pri_a",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "a2"
-    },
-    {
-      "id": "9647a0886b6c4fe6bef8f292a9530740",
-      "fromNodeId": "bec4e886cd97081a088d5fed6",
-      "fromPortId": "pri_b",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "b2"
-    },
-    {
-      "id": "7e0db56108994f08a258572ce44a5994",
-      "fromNodeId": "bec4e886cd97081a088d5fed6",
-      "fromPortId": "pri_c",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "c2"
-    },
-    {
-      "id": "2ede41209fda443da1b2dc0c770b7337",
-      "fromNodeId": "56ad3bfcd14981a088d632e3",
-      "fromPortId": "ear_l_a",
-      "toNodeId": "756adc70297df1a05ff544c6",
-      "toPortId": "a"
-    },
-    {
-      "id": "cd7b2fbd40144c5d8e47d107bc4c8f06",
-      "fromNodeId": "56ad3bfcd14981a088d632e3",
-      "fromPortId": "ear_l_b",
-      "toNodeId": "756adc70297df1a05ff544c6",
-      "toPortId": "b"
-    },
-    {
-      "id": "02525c5a492d44e1b6ccd4bca964d338",
-      "fromNodeId": "56ad3bfcd14981a088d632e3",
-      "fromPortId": "ear_l_c",
-      "toNodeId": "756adc70297df1a05ff544c6",
-      "toPortId": "c"
-    },
-    {
-      "id": "d46e7e55a1f34e5db4ebcc7d2a0d1f65",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "a",
-      "toNodeId": "56ad3bfcd14981a088d632e3",
-      "toPortId": "ear_r_a"
-    },
-    {
-      "id": "83b2456f6d074d1c91e317915e7ba1fd",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "b",
-      "toNodeId": "56ad3bfcd14981a088d632e3",
-      "toPortId": "ear_r_b"
-    },
-    {
-      "id": "660a46e43aa14d49ae15c4b8ca453ce7",
-      "fromNodeId": "ffe4834b90321a05ff544c6",
-      "fromPortId": "c",
-      "toNodeId": "56ad3bfcd14981a088d632e3",
-      "toPortId": "ear_r_c"
-    },
-    {
-      "id": "16f7eb649ec34fb3b292bf431754f17e",
-      "fromNodeId": "56ad3bfcd14981a088d632e3",
-      "fromPortId": "pri_a",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "a2"
-    },
-    {
-      "id": "2cfbb05f1d5d4727ae9ff0096882cb47",
-      "fromNodeId": "56ad3bfcd14981a088d632e3",
-      "fromPortId": "pri_b",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "b2"
-    },
-    {
-      "id": "2b2eb07cd3ad4b8bb7472d989fcdca0b",
-      "fromNodeId": "56ad3bfcd14981a088d632e3",
-      "fromPortId": "pri_c",
-      "toNodeId": "ccfcc1457fa031a05ff544c6",
-      "toPortId": "c2"
-    },
-    {
       "id": "ab31dad1d2cc428581b2b929328bcaf1",
       "fromNodeId": "6ad3b726e732981a037ed0f02",
       "fromPortId": "a",
@@ -2403,90 +1379,6 @@
       "toPortId": "ear_r_c"
     },
     {
-      "id": "7a397f0fd993470fac44db9d4e1ec506",
-      "fromNodeId": "9752ca02ac9ef1a088d65de2",
-      "fromPortId": "pri_a",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "a2"
-    },
-    {
-      "id": "0b1c5cc161e841a8b75ae8395a4eee4e",
-      "fromNodeId": "9752ca02ac9ef1a088d65de2",
-      "fromPortId": "pri_b",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "b2"
-    },
-    {
-      "id": "b557b0d26bfb4efea6a2b21693a5db10",
-      "fromNodeId": "9752ca02ac9ef1a088d65de2",
-      "fromPortId": "pri_c",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "c2"
-    },
-    {
-      "id": "b56790c522cc4b558bf564947e8bcdc2",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "ear_l_a",
-      "toNodeId": "6af1fc024482481a03ba2737d",
-      "toPortId": "a"
-    },
-    {
-      "id": "f6bda7173ca949c4b95a206189f33a2a",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "ear_l_b",
-      "toNodeId": "6af1fc024482481a03ba2737d",
-      "toPortId": "b"
-    },
-    {
-      "id": "b35ec9dd6498484392ec2a95107b5e1e",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "ear_l_c",
-      "toNodeId": "6af1fc024482481a03ba2737d",
-      "toPortId": "c"
-    },
-    {
-      "id": "aeca80267c67403e897bee1b1ab07f21",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "ear_r_a",
-      "toNodeId": "e1f8c95e7396281a03ba27bb8",
-      "toPortId": "a"
-    },
-    {
-      "id": "c11898aa61934801a33b2a825faf10fc",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "ear_r_b",
-      "toNodeId": "e1f8c95e7396281a03ba27bb8",
-      "toPortId": "b"
-    },
-    {
-      "id": "ee9a86b701c4494bb36bca101f649f62",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "ear_r_c",
-      "toNodeId": "e1f8c95e7396281a03ba27bb8",
-      "toPortId": "c"
-    },
-    {
-      "id": "69359535ce5642ecbba296fce5400b2f",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "pri_a",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "a2"
-    },
-    {
-      "id": "469254998c9a4d79af2471fb9f62eb93",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "pri_b",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "b2"
-    },
-    {
-      "id": "9e2b538747a64ad2968bffa28598c668",
-      "fromNodeId": "5d0031f1f8d1f1a088d68578",
-      "fromPortId": "pri_c",
-      "toNodeId": "0f63830db1e61a037ec92c6",
-      "toPortId": "c2"
-    },
-    {
       "id": "4bf43a160c4748fa99af2c2d0b6563e9",
       "fromNodeId": "be59e556879c381a088d6b3dc",
       "fromPortId": "ear_l_a",
@@ -2527,90 +1419,6 @@
       "fromPortId": "ear_r_c",
       "toNodeId": "ee1ef0b6001b21a056c5e948",
       "toPortId": "c"
-    },
-    {
-      "id": "9c7187c1dcfb45e09ea75664d4fc1b55",
-      "fromNodeId": "be59e556879c381a088d6b3dc",
-      "fromPortId": "pri_a",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "a2"
-    },
-    {
-      "id": "8bfd7ec498b84385a84190ff5ee14a34",
-      "fromNodeId": "be59e556879c381a088d6b3dc",
-      "fromPortId": "pri_b",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "b2"
-    },
-    {
-      "id": "3b69c33a8e4c4fc983b6a93b893a3bca",
-      "fromNodeId": "be59e556879c381a088d6b3dc",
-      "fromPortId": "pri_c",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "c2"
-    },
-    {
-      "id": "7c70e310d09b48bf924d1a7b15e36fa7",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "ear_l_a",
-      "toNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "toPortId": "a"
-    },
-    {
-      "id": "6e6be06cabce47cfae6ce418f778f221",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "ear_l_b",
-      "toNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "toPortId": "b"
-    },
-    {
-      "id": "e1a703c69c504a41a663c72482c41d44",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "ear_l_c",
-      "toNodeId": "1fafc0e1d5bdf1a056c5fd6e",
-      "toPortId": "c"
-    },
-    {
-      "id": "4a89fed6a97b455e83bc21882af7f002",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "ear_r_a",
-      "toNodeId": "1d5581d9c992a1a056c61036",
-      "toPortId": "a"
-    },
-    {
-      "id": "72e65489e1cc4f6a96eb1f05008b261a",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "ear_r_b",
-      "toNodeId": "1d5581d9c992a1a056c61036",
-      "toPortId": "b"
-    },
-    {
-      "id": "2106128a4761489d8b0323f735c7e5a0",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "ear_r_c",
-      "toNodeId": "1d5581d9c992a1a056c61036",
-      "toPortId": "c"
-    },
-    {
-      "id": "32b516e1cfc742199e3393a596ddd6fa",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "pri_a",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "a2"
-    },
-    {
-      "id": "a3bb5f4b8d66437e8e035d48304e5757",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "pri_b",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "b2"
-    },
-    {
-      "id": "35b8527da801478ca5ad7241f792d0e6",
-      "fromNodeId": "d50bb9fad37e91a088d71143",
-      "fromPortId": "pri_c",
-      "toNodeId": "194a6a17d555781a056cb05e0",
-      "toPortId": "c2"
     },
     {
       "id": "055f44abf49a46ba80f00585b87866eb",
@@ -2666,62 +1474,6 @@
       "fromNodeId": "97394bd3b9d51a05ff544c6",
       "fromPortId": "dc_neg",
       "toNodeId": "b6bcdea577ffd81a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "d2153633abcb4aaa89589b55f74cfe35",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "35a310547845681a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "c68664f83e9042f4bb78e5781f1104f8",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "35a310547845681a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "226cd361f8004943acdf4a0289b8ffd4",
-      "fromNodeId": "f937f2744f0d31a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "6b0b112e0810a81a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "86cec4d0fec547f7bf148bab5b858c61",
-      "fromNodeId": "f937f2744f0d31a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "6b0b112e0810a81a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "3accbb4cdeb44e86b893d89643ea232f",
-      "fromNodeId": "fa22fa822c48181a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "017cfc2ac03521a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "7c7bdffcb24e41f1934424404fa18647",
-      "fromNodeId": "fa22fa822c48181a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "017cfc2ac03521a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "ef833c48df6d4e3ca86b2c29a5f2cee7",
-      "fromNodeId": "c31604faf76a381a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7a86e039b3e151a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "3840b8108cb5482db9d08e27f195be19",
-      "fromNodeId": "c31604faf76a381a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7a86e039b3e151a05ff544c6",
       "toPortId": "dc_neg"
     },
     {
@@ -2781,62 +1533,6 @@
       "toPortId": "dc_neg"
     },
     {
-      "id": "7c280ba13c5445cb8f196c2d9f8b64cc",
-      "fromNodeId": "60eedca0c4d2d81a03ba299d8",
-      "fromPortId": "dc_pos",
-      "toNodeId": "4684934fca1c71a03ba2d426",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "f3bdff202f724e388d60952cafed87e8",
-      "fromNodeId": "60eedca0c4d2d81a03ba299d8",
-      "fromPortId": "dc_neg",
-      "toNodeId": "4684934fca1c71a03ba2d426",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "070c7f8e0b764d2a953f53d0495c67c9",
-      "fromNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "fromPortId": "dc_pos",
-      "toNodeId": "b2d03e1f0b941a03ba2dbce",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "0f25a776e54e4251a9d9de9f784126d6",
-      "fromNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "fromPortId": "dc_neg",
-      "toNodeId": "b2d03e1f0b941a03ba2dbce",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "e2ffc333d2cb4c6e92980699e3e2a7e7",
-      "fromNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "39fdf80b5cbf41a03ba34bde",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "0f05720bd6fd4381abd0a68e6c6d866c",
-      "fromNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "39fdf80b5cbf41a03ba34bde",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "d8b473fe73c340a8b0a9a56f38c4281a",
-      "fromNodeId": "b93c530a3de1c1a03ba30cc6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "dd7bf50dc730181a03ba35ac8",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "a2cc23b0a88541b1a58cd22013597e1a",
-      "fromNodeId": "b93c530a3de1c1a03ba30cc6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "dd7bf50dc730181a03ba35ac8",
-      "toPortId": "dc_neg"
-    },
-    {
       "id": "c76372b6438e40bc8294e388095d22a0",
       "fromNodeId": "08469567877c381a056c646be",
       "fromPortId": "dc_pos",
@@ -2893,60 +1589,67 @@
       "toPortId": "dc_neg"
     },
     {
-      "id": "950fc074e02f45669f2016dff4dc7d03",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "dc_pos",
-      "toNodeId": "013ac6f7d748c81a056c79c76",
-      "toPortId": "dc_pos"
+      "id": "b0b47378d9914b28bb3f82a11f7f6d9c",
+      "fromNodeId": "b57dcac4c256e1a03bfefdcf",
+      "fromPortId": "a2",
+      "toNodeId": "9752ca02ac9ef1a088d65de2",
+      "toPortId": "pri_a"
     },
     {
-      "id": "4755c9719b88493fa636123f1da1fac9",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "dc_neg",
-      "toNodeId": "013ac6f7d748c81a056c79c76",
-      "toPortId": "dc_neg"
+      "id": "3e91b0fb3415464fb4dc17a2877c90e5",
+      "fromNodeId": "b57dcac4c256e1a03bfefdcf",
+      "fromPortId": "b2",
+      "toNodeId": "9752ca02ac9ef1a088d65de2",
+      "toPortId": "pri_b"
     },
     {
-      "id": "f0052eda906442b18b365f8e77f3db21",
-      "fromNodeId": "1835691042a6681a056c6ff2e",
-      "fromPortId": "dc_pos",
-      "toNodeId": "34c9e140038e981a056c7a4c7",
-      "toPortId": "dc_pos"
+      "id": "99071641d4dd47d3bc7901d6ff0dd45c",
+      "fromNodeId": "b57dcac4c256e1a03bfefdcf",
+      "fromPortId": "c2",
+      "toNodeId": "9752ca02ac9ef1a088d65de2",
+      "toPortId": "pri_c"
     },
     {
-      "id": "82593acf86d44c9f8cab7d627e8657e0",
-      "fromNodeId": "1835691042a6681a056c6ff2e",
-      "fromPortId": "dc_neg",
-      "toNodeId": "34c9e140038e981a056c7a4c7",
-      "toPortId": "dc_neg"
+      "id": "5bdcad9205b342678138eec818e3e737",
+      "fromNodeId": "bec4e886cd97081a088d5fed6",
+      "fromPortId": "pri_a",
+      "toNodeId": "6c69c0a46028281a05ff544c6",
+      "toPortId": "a2"
     },
     {
-      "id": "0428476f3cd6453aaa44b702d0986db8",
-      "fromNodeId": "2071dee27de1d1a056c71638",
-      "fromPortId": "dc_pos",
-      "toNodeId": "a00ac7dd4be691a056c7bd5b",
-      "toPortId": "dc_pos"
+      "id": "bdd63a6a21d24a1ba5d54477bb4df5f9",
+      "fromNodeId": "bec4e886cd97081a088d5fed6",
+      "fromPortId": "pri_b",
+      "toNodeId": "6c69c0a46028281a05ff544c6",
+      "toPortId": "b2"
     },
     {
-      "id": "171d12f8e3044942ab462ecd11b6e079",
-      "fromNodeId": "2071dee27de1d1a056c71638",
-      "fromPortId": "dc_neg",
-      "toNodeId": "a00ac7dd4be691a056c7bd5b",
-      "toPortId": "dc_neg"
+      "id": "71c31a8d65534619988ad90c4f63ef53",
+      "fromNodeId": "bec4e886cd97081a088d5fed6",
+      "fromPortId": "pri_c",
+      "toNodeId": "6c69c0a46028281a05ff544c6",
+      "toPortId": "c2"
     },
     {
-      "id": "8f03e75418034c999f958e4809798cbb",
-      "fromNodeId": "43f69255fa2f281a056c7222c",
-      "fromPortId": "dc_pos",
-      "toNodeId": "4bdaab236de6f81a056c7c757",
-      "toPortId": "dc_pos"
+      "id": "9e3b5a99c54a4df8a34d72b54f78373e",
+      "fromNodeId": "5a2c4d63f8a8c81a056c9b794",
+      "fromPortId": "a2",
+      "toNodeId": "be59e556879c381a088d6b3dc",
+      "toPortId": "pri_a"
     },
     {
-      "id": "5159eb0204ab4690b0557fca8f255224",
-      "fromNodeId": "43f69255fa2f281a056c7222c",
-      "fromPortId": "dc_neg",
-      "toNodeId": "4bdaab236de6f81a056c7c757",
-      "toPortId": "dc_neg"
+      "id": "f9af7166040945b685526fe697e48a28",
+      "fromNodeId": "5a2c4d63f8a8c81a056c9b794",
+      "fromPortId": "b2",
+      "toNodeId": "be59e556879c381a088d6b3dc",
+      "toPortId": "pri_b"
+    },
+    {
+      "id": "ed9ffba12203492eba4b0afc16007f45",
+      "fromNodeId": "5a2c4d63f8a8c81a056c9b794",
+      "fromPortId": "c2",
+      "toNodeId": "be59e556879c381a088d6b3dc",
+      "toPortId": "pri_c"
     }
   ]
 }

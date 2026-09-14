@@ -325,6 +325,34 @@ public class TopologyRuntimeConverterTests
         Assert.True(validation.Ok, validation.Message);
         Assert.Equal(20, overlay!.PvUnits[0].InverterCount);
         Assert.Equal(6400, overlay.PvUnits[0].UnitXfRatedKva);
+        Assert.Equal("TSM-NEG21C.20Q", overlay.PvUnits[0].ModuleModel);
+        Assert.Equal(0, overlay.PvUnits[0].GroundAlbedo);
+        Assert.Equal(0, overlay.PvUnits[0].OperatingYears);
+    }
+
+    [Fact]
+    public void Convert_rejects_unknown_pv_module_model()
+    {
+        var parameters = new Dictionary<string, object?>(TopologyTemplates.Get("pv_unit")!.DefaultParameters)
+        {
+            ["moduleModel"] = "NO-SUCH"
+        };
+        var project = new TopologyProject
+        {
+            Nodes =
+            {
+                new TopologyNode
+                {
+                    Id = "pv1", TemplateId = "pv_unit", Label = "PV-A",
+                    Parameters = parameters
+                }
+            }
+        };
+
+        var (overlay, validation) = TopologyRuntimeConverter.Convert(project);
+        Assert.False(validation.Ok);
+        Assert.Equal("PV_UNKNOWN_MODULE", validation.Code);
+        Assert.Null(overlay);
     }
 
     [Fact]

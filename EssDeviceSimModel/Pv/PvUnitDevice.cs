@@ -51,8 +51,14 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         public static PvUnitDevice FromRuntime(string deviceId, PvUnitRuntimeConfig runtime)
         {
-            var unit = new PvUnitDevice(deviceId, ToConfig(runtime));
+            runtime ??= new PvUnitRuntimeConfig();
+            var spec = TrinaPvModuleCatalog.GetOrThrow(runtime.ModuleModel);
+            double deg = PvModuleSimulator.DegradationFactorFromYears(spec, runtime.OperatingYears);
+            var module = new PvModuleSimulator(spec, deg);
+            var unit = new PvUnitDevice(deviceId, ToConfig(runtime), module);
             unit.Logger.SubarrayOnOff = 1;
+            unit.ArrayA.SetAlbedo(runtime.GroundAlbedo);
+            unit.ArrayB.SetAlbedo(runtime.GroundAlbedo);
             return unit;
         }
 
@@ -142,7 +148,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public PvArrayClimate ArrayClimate(string side) =>
             string.Equals(side, "B", StringComparison.OrdinalIgnoreCase) ? ArrayB : ArrayA;
 
-        /// <summary>按方阵 A/B 的温度与入射角实时计算 MPPT 最大放电功率。</summary>
+        /// <summary>按方阵 A/B 的环境温度、入射角与反照率计算 MPPT 出力（场况，非 IEC STC）。</summary>
         public void Update(DateTime timeStamp, TimeSpan timeStep, double gRearWm2 = 0)
         {
             int nA = ArrayAInverterCount;
@@ -156,6 +162,10 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             FinishStation(tAmb, timeStamp, timeStep);
         }
 
+        /// <summary>
+        /// 场况入口：gFront 为平面辐照，ambientC 为环境温度（电池温度由 NOCT 估算）。
+        /// gRearWm2&gt;0 时覆盖两侧反照率计算，便于单测打 BNPI。
+        /// </summary>
         public void Update(double gFrontWm2, double ambientC, DateTime timeStamp, TimeSpan timeStep, double gRearWm2 = 0)
         {
             ArrayA.SetAmbientTemperatureC(ambientC);
@@ -171,7 +181,9 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             DateTime timeStamp, TimeSpan timeStep, double gRearWm2)
         {
             double g = climate.PlaneOfArrayWm2;
-            double cellTempC = climate.AmbientTemperatureC;
+            double gRear = gRearWm2 > 0 ? gRearWm2 : climate.Albedo * g;
+            climate.RearWm2 = gRear;
+            double cellTempC = PvModuleSimulator.EstimateCellTempC(_module.Spec, climate.AmbientTemperatureC, g);
             climate.CellTemperatureC = cellTempC;
             double availableAc = 0;
             double activeAc = 0;
@@ -181,7 +193,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             var reasons = new List<string>();
             for (int i = fromInclusive; i < toExclusive; i++)
             {
-                _inverters[i].Update(g, cellTempC, timeStamp, timeStep, gRearWm2);
+                _inverters[i].Update(g, cellTempC, timeStamp, timeStep, gRear);
                 availableAc += _inverters[i].AvailableDcPowerKw * _config.Inverter.Efficiency;
                 var st = _inverters[i].GetCurrentState();
                 activeAc += st.ActivePower;

@@ -24,9 +24,16 @@ namespace EssSimulator.Web
         public bool Rebuild { get; set; }
     }
 
+    /// <summary>Modbus TCP 来源 IP 白名单保存请求。</summary>
+    public sealed class ModbusAllowListRequest
+    {
+        public bool AllowLoopback { get; set; } = true;
+        public List<string> Addresses { get; set; } = new();
+    }
+
     /// <summary>
     /// 协议端口配置端点：查询设备端口计划、保存手动覆盖（protocol-ports.json）、
-    /// 立即热重建协议层、恢复默认。
+    /// Modbus IP 白名单、立即热重建协议层、恢复默认。
     /// </summary>
     public static class ProtocolPortEndpoints
     {
@@ -86,6 +93,41 @@ namespace EssSimulator.Web
             {
                 var result = ProtocolLayerManager.Instance.Rebuild();
                 return result.Ok ? Results.Ok(result) : Results.BadRequest(result);
+            });
+
+            g.MapGet("/allowlist", () =>
+            {
+                var file = ModbusIpAllowList.Load(out var loadError);
+                var active = ModbusPortHub.Instance.ActiveAllowList;
+                return Results.Ok(new
+                {
+                    file = new { allowLoopback = file.AllowLoopback, addresses = file.Addresses },
+                    active = new
+                    {
+                        allowLoopback = active.AllowLoopback,
+                        addresses = active.Addresses,
+                        unrestricted = active.IsUnrestricted
+                    },
+                    pendingRestart = !file.SamePolicy(active),
+                    loadError
+                });
+            });
+
+            g.MapPut("/allowlist", (ModbusAllowListRequest req) =>
+            {
+                if (!ModbusIpAllowList.TryCreate(req?.AllowLoopback ?? true, req?.Addresses, out var list, out var errors))
+                    return Results.BadRequest(new { ok = false, message = "白名单校验失败", errors });
+
+                ModbusIpAllowList.Save(list);
+                var active = ModbusPortHub.Instance.ActiveAllowList;
+                return Results.Ok(new
+                {
+                    ok = true,
+                    message = "已保存，重启进程后生效",
+                    pendingRestart = !list.SamePolicy(active),
+                    allowLoopback = list.AllowLoopback,
+                    addresses = list.Addresses
+                });
             });
 
             // 恢复默认：删除覆盖文件，可选同时热重建

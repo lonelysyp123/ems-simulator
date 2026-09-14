@@ -1,3 +1,4 @@
+using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssDeviceSimModel.Pv;
 
@@ -35,6 +36,7 @@ public class PvUnitDeviceTests
         Assert.InRange(unit.ActivePowerKw, 16 * 318, 16 * 322);
         Assert.True(unit.ActivePowerKw >= 0);
         Assert.True(unit.AvailableDcPowerKw > unit.ActivePowerKw);
+        Assert.InRange(unit.ArrayA.CellTemperatureC, 52, 56);
     }
 
     [Fact]
@@ -84,7 +86,7 @@ public class PvUnitDeviceTests
 
         Assert.Equal(800, unit.Weather.SlopeIrradianceWm2, 3);
         Assert.InRange(unit.Weather.HorizontalIrradianceWm2, 700, 800);
-        Assert.Equal(20, unit.Weather.ModuleTemperatureC, 3);
+        Assert.InRange(unit.Weather.ModuleTemperatureC, 42.0, 44.0);
         Assert.InRange(unit.Weather.DailySlopeIrradiationWhm2, 790, 810);
     }
 
@@ -148,6 +150,71 @@ public class PvUnitDeviceTests
         unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
         Assert.True(unit.MaximumDischargePowerKw < afterAngle);
         Assert.True(unit.ActivePowerKw <= unit.MaximumDischargePowerKw + 1);
+    }
+
+    [Fact]
+    public void FromRuntime_UnknownModule_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            PvUnitDevice.FromRuntime("pv1", new PvUnitRuntimeConfig { ModuleModel = "NO-SUCH" }));
+        Assert.Contains("TSM-NEG21C.20Q", ex.Message);
+    }
+
+    [Fact]
+    public void FromRuntime_AppliesCatalogAlbedoAndYears()
+    {
+        var unit = PvUnitDevice.FromRuntime("pv1", new PvUnitRuntimeConfig
+        {
+            InverterCount = 1,
+            ModuleModel = "tsm-neg21c.20q",
+            GroundAlbedo = 0.2,
+            OperatingYears = 1
+        });
+        Assert.Equal(0.2, unit.ArrayA.Albedo, 3);
+        Assert.Equal(0.2, unit.ArrayB.Albedo, 3);
+        Assert.InRange(unit.Inverters[0].ModulesPerString, 1, 100);
+    }
+
+    [Fact]
+    public void UpdateArray_UsesNoctCellTemp()
+    {
+        var unit = StartDefault();
+        unit.Update(800, 20, DateTime.UtcNow, TimeSpan.FromSeconds(1));
+        Assert.InRange(unit.ArrayA.CellTemperatureC, 42.0, 44.0);
+        Assert.InRange(unit.ArrayB.CellTemperatureC, 42.0, 44.0);
+        Assert.InRange(unit.Weather.ModuleTemperatureC, 42.0, 44.0);
+        Assert.Equal(20, unit.ArrayA.AmbientTemperatureC, 3);
+    }
+
+    [Fact]
+    public void Albedo_RaisesAvailablePower_StillClipsRatedAc()
+    {
+        var unit = StartDefault();
+        unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        double baseAvail = unit.MaximumDischargePowerKw;
+        Assert.Equal(0, unit.ArrayA.RearWm2, 3);
+
+        unit.ArrayA.SetAlbedo(0.2);
+        unit.ArrayB.SetAlbedo(0.2);
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        Assert.True(unit.MaximumDischargePowerKw > baseAvail);
+        Assert.InRange(unit.ArrayA.RearWm2, 190, 210);
+        Assert.InRange(unit.ActivePowerKw, 16 * 318, 16 * 322);
+    }
+
+    [Fact]
+    public void Albedo_AAndBIndependent_AndGRearOverride()
+    {
+        var unit = StartDefault();
+        unit.ArrayA.SetAlbedo(0.2);
+        unit.ArrayB.SetAlbedo(0);
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        Assert.True(unit.ArrayA.AvailableAcPowerKw > unit.ArrayB.AvailableAcPowerKw);
+        Assert.True(unit.ArrayA.RearWm2 > unit.ArrayB.RearWm2);
+
+        unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1), gRearWm2: 135);
+        Assert.InRange(unit.ArrayA.RearWm2, 134, 136);
+        Assert.InRange(unit.ArrayB.RearWm2, 134, 136);
     }
 
     private static PvUnitDevice StartDefault()

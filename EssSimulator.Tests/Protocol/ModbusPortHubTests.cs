@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using EssSimulator.Protocol.Modbus;
 
 namespace EssSimulator.Tests;
@@ -108,5 +109,96 @@ public class ModbusPortHubTests
         {
             hub.ShutdownAll();
         }
+    }
+
+    [Fact]
+    public void EmptyAllowList_TcpWriteRead_StillWorks()
+    {
+        var hub = new ModbusPortHub();
+        int port = NextPort();
+        try
+        {
+            hub.SetAllowList(MustCreate(true));
+            Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
+
+            using var client = new TcpClient("127.0.0.1", port);
+            var master = new NModbus.ModbusFactory().CreateMaster(client);
+            master.WriteSingleRegister(1, 100, 42);
+            Assert.Equal((ushort)42, master.ReadHoldingRegisters(1, 100, 1)[0]);
+        }
+        finally
+        {
+            hub.ShutdownAll();
+        }
+    }
+
+    [Fact]
+    public void AllowLoopbackTrue_NonEmptyList_LocalTcpWriteReadWorks()
+    {
+        var hub = new ModbusPortHub();
+        int port = NextPort();
+        try
+        {
+            hub.SetAllowList(MustCreate(true, "10.1.2.3"));
+            Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
+
+            using var client = new TcpClient("127.0.0.1", port);
+            var master = new NModbus.ModbusFactory().CreateMaster(client);
+            master.WriteSingleRegister(1, 100, 77);
+            Assert.Equal((ushort)77, master.ReadHoldingRegisters(1, 100, 1)[0]);
+        }
+        finally
+        {
+            hub.ShutdownAll();
+        }
+    }
+
+    [Fact]
+    public void AllowLoopbackFalse_LocalTcpIsRejected()
+    {
+        var hub = new ModbusPortHub();
+        int port = NextPort();
+        try
+        {
+            hub.SetAllowList(MustCreate(false, "10.1.2.3"));
+            Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
+
+            using var client = new TcpClient();
+            client.Connect("127.0.0.1", port);
+            Assert.True(WaitUntilDisconnected(client), "白名单拒绝后本机连接应被关闭");
+        }
+        finally
+        {
+            hub.ShutdownAll();
+        }
+    }
+
+    private static ModbusIpAllowList MustCreate(bool allowLoopback, params string[] addresses)
+    {
+        Assert.True(ModbusIpAllowList.TryCreate(allowLoopback, addresses, out var list, out var errors),
+            string.Join("; ", errors));
+        return list;
+    }
+
+    private static bool WaitUntilDisconnected(TcpClient client, int timeoutMs = 2000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var socket = client.Client;
+                if (socket == null || !client.Connected)
+                    return true;
+                if (socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0)
+                    return true;
+            }
+            catch
+            {
+                return true;
+            }
+            Thread.Sleep(20);
+        }
+        return false;
     }
 }

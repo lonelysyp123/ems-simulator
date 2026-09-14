@@ -102,6 +102,7 @@
         @pv-set-reactive="onPvSetReactive"
         @pv-set-temp="onPvSetTemp"
         @pv-set-angle="onPvSetAngle"
+        @pv-set-albedo="onPvSetAlbedo"
         @pcs-start="onPcsStart"
         @pcs-stop="onPcsStop"
         @pcs-set-power="onPcsSetPower"
@@ -436,8 +437,8 @@ function fmtPvArray(a) {
   if (!a) return '—'
   const parts = [
     `辐照 ${Number(a.planeOfArrayWm2 || 0).toFixed(0)} W/m²`,
-    `电池 ${Number(a.cellTemperatureC || 0).toFixed(1)}℃`,
-    `入射角 ${Number(a.incidenceAngleDeg || 0).toFixed(0)}°`,
+    `环境 ${Number(a.ambientTemperatureC || 0).toFixed(1)}℃ / 组件 ${Number(a.cellTemperatureC || 0).toFixed(1)}℃`,
+    `入射角 ${Number(a.incidenceAngleDeg || 0).toFixed(0)}° / 反照率 ${Number(a.albedo || 0).toFixed(2)}`,
     `DC ${Number(a.dcVoltageV || 0).toFixed(0)}V / ${Number(a.dcCurrentA || 0).toFixed(0)}A`,
     `出力 ${fmtKw(a.activePowerKw)}`
   ]
@@ -622,6 +623,21 @@ async function onPvSetAngle(payload = {}) {
     return
   }
   await runChannelCommand(`esscmd setpv${n} array ${side} angle ${angleDeg}`)
+}
+
+async function onPvSetAlbedo(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const side = resolvePvSide(payload)
+  const albedo = Number(payload.albedo)
+  if (!n || !side) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  if (!Number.isFinite(albedo)) {
+    ElMessage.warning('请输入有效的反照率（0~1）')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} array ${side} albedo ${albedo}`)
 }
 
 async function onBmsPowerOn(bmsNumber) {

@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "sourceProjectId": "8d150d32fcbf44f095eac558e4b75de2",
   "sourceProjectName": "\u5E38\u7528\u50A8\u80FD\u7535\u7AD9-10MW",
-  "generatedAtUtc": "2026-09-07T01:01:11.953877Z",
+  "generatedAtUtc": "2026-09-14T06:45:22.564713Z",
   "essUnits": [
     {
       "name": "EMU \u50A8\u80FD\u5355\u5143#3",
@@ -11,6 +11,69 @@
       "hasUnitBreaker": true,
       "unitBreakerName": "\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
       "hasUnitMeter": false,
+      "unitTransformerName": "\u53CC\u8033\u53D8\u538B\u5668",
+      "splitTransformers": [
+        {
+          "present": true,
+          "name": "\u53CC\u8033\u53D8\u538B\u5668",
+          "primaryVoltage": 35000,
+          "secondaryVoltage": 690,
+          "ratedPowerKva": 6300,
+          "impedancePercent": 6,
+          "splitImpedancePercent": 8,
+          "splitRatio": 0.5,
+          "noLoadLoss": 80,
+          "loadLoss": 400,
+          "leftEarPcsIndices": [
+            0,
+            1
+          ],
+          "rightEarPcsIndices": [
+            2,
+            3
+          ]
+        },
+        {
+          "present": true,
+          "name": "\u53CC\u8033\u53D8\u538B\u5668",
+          "primaryVoltage": 35000,
+          "secondaryVoltage": 690,
+          "ratedPowerKva": 6300,
+          "impedancePercent": 6,
+          "splitImpedancePercent": 8,
+          "splitRatio": 0.5,
+          "noLoadLoss": 80,
+          "loadLoss": 400,
+          "leftEarPcsIndices": [
+            4,
+            5
+          ],
+          "rightEarPcsIndices": [
+            6,
+            7
+          ]
+        }
+      ],
+      "splitTransformer": {
+        "present": true,
+        "name": "\u53CC\u8033\u53D8\u538B\u5668",
+        "primaryVoltage": 35000,
+        "secondaryVoltage": 690,
+        "ratedPowerKva": 6300,
+        "impedancePercent": 6,
+        "splitImpedancePercent": 8,
+        "splitRatio": 0.5,
+        "noLoadLoss": 80,
+        "loadLoss": 400,
+        "leftEarPcsIndices": [
+          0,
+          1
+        ],
+        "rightEarPcsIndices": [
+          2,
+          3
+        ]
+      },
       "groups": [
         {
           "name": "EMU \u5206\u7EC4#2",
@@ -249,6 +312,69 @@
       "hasUnitBreaker": true,
       "unitBreakerName": "\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
       "hasUnitMeter": false,
+      "unitTransformerName": "\u53CC\u8033\u53D8\u538B\u5668",
+      "splitTransformers": [
+        {
+          "present": true,
+          "name": "\u53CC\u8033\u53D8\u538B\u5668",
+          "primaryVoltage": 35000,
+          "secondaryVoltage": 690,
+          "ratedPowerKva": 6300,
+          "impedancePercent": 6,
+          "splitImpedancePercent": 8,
+          "splitRatio": 0.5,
+          "noLoadLoss": 80,
+          "loadLoss": 400,
+          "leftEarPcsIndices": [
+            0,
+            1
+          ],
+          "rightEarPcsIndices": [
+            2,
+            3
+          ]
+        },
+        {
+          "present": true,
+          "name": "\u53CC\u8033\u53D8\u538B\u5668",
+          "primaryVoltage": 35000,
+          "secondaryVoltage": 690,
+          "ratedPowerKva": 6300,
+          "impedancePercent": 6,
+          "splitImpedancePercent": 8,
+          "splitRatio": 0.5,
+          "noLoadLoss": 80,
+          "loadLoss": 400,
+          "leftEarPcsIndices": [
+            4,
+            5
+          ],
+          "rightEarPcsIndices": [
+            6,
+            7
+          ]
+        }
+      ],
+      "splitTransformer": {
+        "present": true,
+        "name": "\u53CC\u8033\u53D8\u538B\u5668",
+        "primaryVoltage": 35000,
+        "secondaryVoltage": 690,
+        "ratedPowerKva": 6300,
+        "impedancePercent": 6,
+        "splitImpedancePercent": 8,
+        "splitRatio": 0.5,
+        "noLoadLoss": 80,
+        "loadLoss": 400,
+        "leftEarPcsIndices": [
+          0,
+          1
+        ],
+        "rightEarPcsIndices": [
+          2,
+          3
+        ]
+      },
       "groups": [
         {
           "name": "EMU \u5206\u7EC4#1",
@@ -487,6 +613,69 @@
       "hasUnitBreaker": true,
       "unitBreakerName": "\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
       "hasUnitMeter": false,
+      "unitTransformerName": "\u53CC\u8033\u53D8\u538B\u5668",
+      "splitTransformers": [
+        {
+          "present": true,
+          "name": "\u53CC\u8033\u53D8\u538B\u5668",
+          "primaryVoltage": 35000,
+          "secondaryVoltage": 690,
+          "ratedPowerKva": 6300,
+          "impedancePercent": 6,
+          "splitImpedancePercent": 8,
+          "splitRatio": 0.5,
+          "noLoadLoss": 80,
+          "loadLoss": 400,
+          "leftEarPcsIndices": [
+            4,
+            5
+          ],
+          "rightEarPcsIndices": [
+            6,
+            7
+          ]
+        },
+        {
+          "present": true,
+          "name": "\u53CC\u8033\u53D8\u538B\u5668",
+          "primaryVoltage": 35000,
+          "secondaryVoltage": 690,
+          "ratedPowerKva": 6300,
+          "impedancePercent": 6,
+          "splitImpedancePercent": 8,
+          "splitRatio": 0.5,
+          "noLoadLoss": 80,
+          "loadLoss": 400,
+          "leftEarPcsIndices": [
+            0,
+            1
+          ],
+          "rightEarPcsIndices": [
+            2,
+            3
+          ]
+        }
+      ],
+      "splitTransformer": {
+        "present": true,
+        "name": "\u53CC\u8033\u53D8\u538B\u5668",
+        "primaryVoltage": 35000,
+        "secondaryVoltage": 690,
+        "ratedPowerKva": 6300,
+        "impedancePercent": 6,
+        "splitImpedancePercent": 8,
+        "splitRatio": 0.5,
+        "noLoadLoss": 80,
+        "loadLoss": 400,
+        "leftEarPcsIndices": [
+          4,
+          5
+        ],
+        "rightEarPcsIndices": [
+          6,
+          7
+        ]
+      },
       "groups": [
         {
           "name": "EMU \u5206\u7EC4#2",
@@ -747,9 +936,9 @@
     "ratedPower": 6300,
     "primaryVoltage": 35000,
     "secondaryVoltage": 690,
-    "noLoadLoss": 50,
-    "loadLoss": 200,
-    "impedancePercent": 4,
+    "noLoadLoss": 80,
+    "loadLoss": 400,
+    "impedancePercent": 6,
     "reactiveVoltageInfluenceCoefficient": 1,
     "noLoadCurrentPercent": 2,
     "magnetizingInrushEnabled": true,
@@ -835,8 +1024,14 @@
     "\u4E3B\u53D8 \u2192 220/35 kV",
     "\u7535\u8868\u62BD\u5934 BUS_AFTER_MAIN_BRK \u00B7 220 kV / 2000 A\uFF08\u4E8C\u6B21\u56FA\u5B9A 100V / 5A\uFF09",
     "\u8D1F\u8F7D\u300C\u8D1F\u8F7D\u300D\u2192 \u6982\u89C8\u7ED1\u5B9A \u00B7 P 0 kW \u00B7 Q 0 kvar\uFF08\u6709\u529F\u4EC5\u6D88\u8017\uFF09",
-    "EMU \u50A8\u80FD\u5355\u5143#3: PCS\u00D78 \u00B7 BMS\u00D78\uFF08\u6BCF\u53F0 PCS \u5BF9\u9F50 1 \u8DEF BMS\uFF0C\u672A\u8FDE\u7EBF\u65F6\u7528\u9ED8\u8BA4\u8865\u9F50\uFF09 \u00B7 \u5355\u5143\u65AD\u8DEF\u5668\uFF1A\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668 \u00B7 \u5355\u5143\u7535\u8868\uFF1A\u672A\u7ED1\u5B9A \u00B7 \u5206\u7EC4\u00D72\uFF08EMU \u5206\u7EC4#2: PCS\u00D74\u3001EMU \u5206\u7EC4#1: PCS\u00D74\uFF09",
-    "EMU \u50A8\u80FD\u5355\u5143#1: PCS\u00D78 \u00B7 BMS\u00D78\uFF08\u6BCF\u53F0 PCS \u5BF9\u9F50 1 \u8DEF BMS\uFF0C\u672A\u8FDE\u7EBF\u65F6\u7528\u9ED8\u8BA4\u8865\u9F50\uFF09 \u00B7 \u5355\u5143\u65AD\u8DEF\u5668\uFF1A\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668 \u00B7 \u5355\u5143\u7535\u8868\uFF1A\u672A\u7ED1\u5B9A \u00B7 \u5206\u7EC4\u00D72\uFF08EMU \u5206\u7EC4#1: PCS\u00D74\u3001EMU \u5206\u7EC4#2: PCS\u00D74\uFF09",
-    "EMU \u50A8\u80FD\u5355\u5143#2: PCS\u00D78 \u00B7 BMS\u00D78\uFF08\u6BCF\u53F0 PCS \u5BF9\u9F50 1 \u8DEF BMS\uFF0C\u672A\u8FDE\u7EBF\u65F6\u7528\u9ED8\u8BA4\u8865\u9F50\uFF09 \u00B7 \u5355\u5143\u65AD\u8DEF\u5668\uFF1A\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668 \u00B7 \u5355\u5143\u7535\u8868\uFF1A\u672A\u7ED1\u5B9A \u00B7 \u5206\u7EC4\u00D72\uFF08EMU \u5206\u7EC4#2: PCS\u00D74\u3001EMU \u5206\u7EC4#1: PCS\u00D74\uFF09"
+    "EMU \u50A8\u80FD\u5355\u5143#3: \u53CC\u8033\u53D8\u538B\u5668\u300C\u53CC\u8033\u53D8\u538B\u5668\u300D\u00B7 \u5DE6\u8033 \u652F\u8DEF\u00D72 \u00B7 \u53F3\u8033 \u652F\u8DEF\u00D72",
+    "EMU \u50A8\u80FD\u5355\u5143#3: \u53CC\u8033\u53D8\u538B\u5668\u300C\u53CC\u8033\u53D8\u538B\u5668\u300D\u00B7 \u5DE6\u8033 \u652F\u8DEF\u00D72 \u00B7 \u53F3\u8033 \u652F\u8DEF\u00D72",
+    "EMU \u50A8\u80FD\u5355\u5143#3: \u652F\u8DEF\u00D78 \u00B7 BMS\u00D78\uFF08\u6BCF\u6761\u652F\u8DEF\u5BF9\u9F50 1 \u8DEF BMS\uFF0C\u672A\u8FDE\u7EBF\u65F6\u7528\u9ED8\u8BA4\u8865\u9F50\uFF09 \u00B7 \u5355\u5143\u65AD\u8DEF\u5668\uFF1A\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668 \u00B7 \u5355\u5143\u7535\u8868\uFF1A\u672A\u7ED1\u5B9A \u00B7 \u5206\u7EC4\u00D72\uFF08EMU \u5206\u7EC4#2: \u652F\u8DEF\u00D74\u3001EMU \u5206\u7EC4#1: \u652F\u8DEF\u00D74\uFF09",
+    "EMU \u50A8\u80FD\u5355\u5143#1: \u53CC\u8033\u53D8\u538B\u5668\u300C\u53CC\u8033\u53D8\u538B\u5668\u300D\u00B7 \u5DE6\u8033 \u652F\u8DEF\u00D72 \u00B7 \u53F3\u8033 \u652F\u8DEF\u00D72",
+    "EMU \u50A8\u80FD\u5355\u5143#1: \u53CC\u8033\u53D8\u538B\u5668\u300C\u53CC\u8033\u53D8\u538B\u5668\u300D\u00B7 \u5DE6\u8033 \u652F\u8DEF\u00D72 \u00B7 \u53F3\u8033 \u652F\u8DEF\u00D72",
+    "EMU \u50A8\u80FD\u5355\u5143#1: \u652F\u8DEF\u00D78 \u00B7 BMS\u00D78\uFF08\u6BCF\u6761\u652F\u8DEF\u5BF9\u9F50 1 \u8DEF BMS\uFF0C\u672A\u8FDE\u7EBF\u65F6\u7528\u9ED8\u8BA4\u8865\u9F50\uFF09 \u00B7 \u5355\u5143\u65AD\u8DEF\u5668\uFF1A\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668 \u00B7 \u5355\u5143\u7535\u8868\uFF1A\u672A\u7ED1\u5B9A \u00B7 \u5206\u7EC4\u00D72\uFF08EMU \u5206\u7EC4#1: \u652F\u8DEF\u00D74\u3001EMU \u5206\u7EC4#2: \u652F\u8DEF\u00D74\uFF09",
+    "EMU \u50A8\u80FD\u5355\u5143#2: \u53CC\u8033\u53D8\u538B\u5668\u300C\u53CC\u8033\u53D8\u538B\u5668\u300D\u00B7 \u5DE6\u8033 \u652F\u8DEF\u00D72 \u00B7 \u53F3\u8033 \u652F\u8DEF\u00D72",
+    "EMU \u50A8\u80FD\u5355\u5143#2: \u53CC\u8033\u53D8\u538B\u5668\u300C\u53CC\u8033\u53D8\u538B\u5668\u300D\u00B7 \u5DE6\u8033 \u652F\u8DEF\u00D72 \u00B7 \u53F3\u8033 \u652F\u8DEF\u00D72",
+    "EMU \u50A8\u80FD\u5355\u5143#2: \u652F\u8DEF\u00D78 \u00B7 BMS\u00D78\uFF08\u6BCF\u6761\u652F\u8DEF\u5BF9\u9F50 1 \u8DEF BMS\uFF0C\u672A\u8FDE\u7EBF\u65F6\u7528\u9ED8\u8BA4\u8865\u9F50\uFF09 \u00B7 \u5355\u5143\u65AD\u8DEF\u5668\uFF1A\u4E2D\u538B\u4E09\u76F8\u65AD\u8DEF\u5668 \u00B7 \u5355\u5143\u7535\u8868\uFF1A\u672A\u7ED1\u5B9A \u00B7 \u5206\u7EC4\u00D72\uFF08EMU \u5206\u7EC4#2: \u652F\u8DEF\u00D74\u3001EMU \u5206\u7EC4#1: \u652F\u8DEF\u00D74\uFF09"
   ]
 }

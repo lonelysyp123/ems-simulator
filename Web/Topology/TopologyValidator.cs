@@ -884,6 +884,9 @@ namespace EssSimulator.Web.Topology
                     TopologyParamHelper.GetString(p.Parameters, "emuId") == e.Id))
                 .ToList();
             var pvUnits = project.Nodes.Where(n => n.TemplateId == "pv_unit").ToList();
+            var moduleCheck = ValidatePvModuleModels(project, details);
+            if (moduleCheck != null)
+                return moduleCheck;
             if (emusWithPcs.Count == 0 && pvUnits.Count == 0)
             {
                 details.Add("工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元");
@@ -1239,6 +1242,31 @@ namespace EssSimulator.Web.Topology
             var json = System.Text.Json.JsonSerializer.Serialize(project);
             return System.Text.Json.JsonSerializer.Deserialize<TopologyProject>(json)
                    ?? new TopologyProject();
+        }
+
+        private static TopologyValidationResult? ValidatePvModuleModels(TopologyProject project, List<string> details)
+        {
+            var bad = project.Nodes
+                .Where(n => n.TemplateId == "pv_unit")
+                .Where(n =>
+                {
+                    var model = TopologyParamHelper.GetString(n.Parameters, "moduleModel");
+                    if (string.IsNullOrWhiteSpace(model))
+                        return false;
+                    return !EssDeviceSimModel.Pv.TrinaPvModuleCatalog.TryGet(model, out _);
+                })
+                .ToList();
+            if (bad.Count == 0)
+                return null;
+
+            var known = string.Join("、", EssDeviceSimModel.Pv.TrinaPvModuleCatalog.KnownModels);
+            foreach (var n in bad)
+                details.Add($"{n.Label}：{TopologyParamHelper.GetString(n.Parameters, "moduleModel")}");
+            return Fail(
+                "PV_UNKNOWN_MODULE",
+                $"未知光伏组件型号。已知型号：{known}",
+                details: details,
+                problemNodeIds: bad.Select(n => n.Id).ToList());
         }
 
         private static TopologyNode? FindNode(TopologyProject p, string id) =>

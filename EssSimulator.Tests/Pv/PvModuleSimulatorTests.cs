@@ -22,6 +22,18 @@ public class PvModuleSimulatorTests
     }
 
     [Fact]
+    public void Catalog_TryGet_ResolvesKnownAndRejectsUnknown()
+    {
+        Assert.True(TrinaPvModuleCatalog.TryGet("tsm-neg21c.20q", out var spec));
+        Assert.Equal("TSM-NEG21C.20Q", spec.Model);
+        Assert.False(TrinaPvModuleCatalog.TryGet("NO-SUCH", out _));
+        Assert.False(TrinaPvModuleCatalog.TryGet("  ", out _));
+        Assert.Equal("TSM-NEG21C.20Q", TrinaPvModuleCatalog.GetOrThrow(null).Model);
+        var ex = Assert.Throws<ArgumentException>(() => TrinaPvModuleCatalog.GetOrThrow("NO-SUCH"));
+        Assert.Contains("TSM-NEG21C.20Q", ex.Message);
+    }
+
+    [Fact]
     public void Evaluate_AtStc_ReturnsRatedMpp()
     {
         var module = PvModuleSimulator.CreateNeg21c20q();
@@ -60,7 +72,7 @@ public class PvModuleSimulatorTests
         Assert.True(hot.VocV < stc.VocV);
         Assert.True(hot.PmpW < stc.PmpW);
         double expected = stc.PmpW * (1 + module.Spec.GammaPmaxPerK * 50);
-        Assert.InRange(hot.PmpW, expected * 0.85, expected * 1.15);
+        Assert.InRange(hot.PmpW, expected * 0.95, expected * 1.05);
     }
 
     [Fact]
@@ -127,6 +139,21 @@ public class PvModuleSimulatorTests
         double tCell = PvModuleSimulator.EstimateCellTempC(spec, ambientC: 20, gFrontWm2: 800);
 
         Assert.InRange(tCell, 42.0, 44.0);
+    }
+
+    [Fact]
+    public void Degradation_Year0_IsIdentity_Year1_ScalesAbout99Percent()
+    {
+        var spec = TrinaPvModuleCatalog.Neg21c20q760();
+        Assert.Equal(1, PvModuleSimulator.DegradationFactorFromYears(spec, 0));
+        Assert.InRange(PvModuleSimulator.DegradationFactorFromYears(spec, 1), 0.989, 0.991);
+
+        var fresh = PvModuleSimulator.CreateNeg21c20q();
+        var aged = new PvModuleSimulator(spec, PvModuleSimulator.DegradationFactorFromYears(spec, 1));
+        var p0 = fresh.Evaluate(1000, 25);
+        var p1 = aged.Evaluate(1000, 25);
+        Assert.InRange(p1.PmpW / p0.PmpW, 0.985, 0.995);
+        Assert.InRange(p1.IscA / p0.IscA, 0.985, 0.995);
     }
 
     [Fact]

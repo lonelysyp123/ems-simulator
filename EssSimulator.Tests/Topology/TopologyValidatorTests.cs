@@ -810,6 +810,17 @@ public class TopologyValidatorTests
     }
 
     [Fact]
+    public void Pv_unit_rejects_unknown_module_model()
+    {
+        var p = Energized35kVPlant(Node("pv1", "pv_unit", "光伏单元-1",
+            new Dictionary<string, object?> { ["moduleModel"] = "NO-SUCH" }));
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PV_UNKNOWN_MODULE", save.Code);
+    }
+
+    [Fact]
     public void Split_transformer_requires_emu_and_rejects_more_than_two_on_same_emu()
     {
         var p = Energized35kVPlant(

@@ -15,7 +15,7 @@ Kestrel（ASP.NET Core）
    │
    ▼（同进程托管）
 IHost BackgroundServices
-   ├── EnergyStorageSystem    仿真主循环
+   ├── EnergyStorageSystem    仿真主循环（含光伏 StepPvUnits）
    ├── BmsDataService / BmsLinkService / PcsDataServer / EmDataService
    ├── ModbusHostedService    Modbus TCP 从站（对外）
    ├── Iec61850HostedService  MMS IED + 入向 GOOSE 订户
@@ -23,7 +23,7 @@ IHost BackgroundServices
    └── LogHubDispatcher       log4net 日志 → SignalR 推送
    │
    ▼
-Modbus TCP（simEm / simBms{N} / simEmu{N}）  ← EMS/测试工具接入
+Modbus TCP（simEm / simBms{N} / simEmu{N} / simPv{N} / simPvMeter{N}）  ← EMS/测试工具接入
 IEC 61850 MMS（默认 8102 起）+ L2 GOOSE 订阅 ← IEDScout 等
 ```
 
@@ -97,6 +97,7 @@ cd Web && npm install && npm run dev
 | GET | `/api/system/config` | 工程模式与 overlay 状态 |
 | POST | `/api/system/apply` | 应用组态工程并可选重启 |
 | GET | `/api/protocol` | Modbus 端口表 |
+| GET/PUT | `/api/protocol-ports` | 按台端口计划；`/allowlist` 为 Modbus IP 白名单；`/apply` 热重建 |
 | GET | `/api/iec61850` | IEC 61850 IED 快照与协议绑定 |
 | GET | `/api/iec61850/messages` | GOOSE/系统报文环形缓冲（可按 `server` 过滤） |
 | POST | `/api/iec61850/messages/clear` | 清空报文环 |
@@ -104,7 +105,7 @@ cd Web && npm install && npm run dev
 | GET | `/api/autotest` | autotest.json 测试用例列表 |
 | GET | `/api/pointmaps` | 各 sim 设备点表（DataMaps/ControlMaps） |
 | POST | `/api/command` | 通用命令执行，body: `{"input":"esscmd link status"}` |
-| POST | `/api/link/{target}/{state}` | 链路开关，target=`em\|bms1\|pcs1`，state=`on\|off` |
+| POST | `/api/link/{target}/{state}` | 链路开关，target=`em\|bms1\|pcs1\|pv1\|pvMeter1`，state=`on\|off` |
 | POST | `/api/dpctest/{name}` | 异步执行自动化测试，进度经 SignalR 推送 |
 
 命令语义与原 TUI `esscmd / breaker / dpc / dpctest` 完全一致，详见 `docs/指令详细说明.md`。
@@ -117,7 +118,7 @@ cd Web && npm install && npm run dev
 
 | 频道 | 方法 | 内容 |
 |------|------|------|
-| `mainline` | `ReceiveMainLine` | 主接线快照 |
+| `mainline` | `ReceiveMainLine` | 主接线快照（含光伏单元） |
 | `battery.{unit}` | `ReceiveBattery` | 指定舱电池总览 |
 | `connections` | `ReceiveConnections` | 连接/链路快照（含 IEC 61850 摘要） |
 | `iec61850` | `ReceiveIec61850Message` | GOOSE 入向/系统事件报文 |
@@ -129,7 +130,7 @@ cd Web && npm install && npm run dev
 
 | 路由 | 说明 |
 |------|------|
-| `/mainline` | 主电气接线（SVG；工程模式可用组态单线图） |
+| `/mainline` | 主电气接线（SVG；工程模式可用组态单线图，含光伏支路） |
 | `/mainline-3d` | 三维站场（`AllowMainline3d`） |
 | `/topology` `/projects` `/system` | 组态编辑、工程管理、系统配置（`AllowTopologyEditor`） |
 | `/battery` `/cells` | 电池堆簇 / 单体 |
@@ -138,7 +139,7 @@ cd Web && npm install && npm run dev
 | `/droop-slices` | 白盒切片（`AllowDroopSlices`） |
 | `/connections` | 连接与链路（IEC 61850 仅摘要，详情进 `/iec61850`） |
 | `/iec61850` | IEC 61850：IED 总览、GOOSE 入向报文与解码 |
-| `/protocol-ports` | 按台协议端口（Modbus / IEC 61850 开关） |
+| `/protocol-ports` | 按台协议端口（Modbus / IEC 61850 开关）与 Modbus IP 白名单 |
 
 ## 七、文件结构
 

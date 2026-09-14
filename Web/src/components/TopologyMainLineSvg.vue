@@ -93,6 +93,15 @@
               </text>
             </g>
 
+            <!-- 变压器支路串联断路器（母线—变 / 变—母线）：绑定 EMU 时取运行时遥信 -->
+            <g v-for="br in layout.branchBreakers" :key="`branch-brk-${br.id}`">
+              <rect :x="br.x - 18" :y="br.yTop" width="36" :height="br.yBottom - br.yTop" rx="3" fill="transparent" />
+              <BreakerSymbol :x="br.x" :y="br.y" :closed="tieBreakerLive(br).closed" :tripped="tieBreakerLive(br).tripped" />
+              <text :x="br.x + 22" :y="br.y + 4" class="label-text breaker-label">
+                {{ br.label }} {{ tieBreakerLive(br).label }}
+              </text>
+            </g>
+
             <g v-for="bus in layout.buses" :key="`bus-${bus.id}`">
               <template v-if="!bus.omit">
                 <line class="bus-line bus-thick" :x1="bus.x1" :y1="bus.y" :x2="bus.x2" :y2="bus.y" />
@@ -195,6 +204,7 @@
                 :h="u.bmsH"
                 @pv-set-temp="p => $emit('pv-set-temp', p)"
                 @pv-set-angle="p => $emit('pv-set-angle', p)"
+                @pv-set-albedo="p => $emit('pv-set-albedo', p)"
               />
               <PvArrayCard
                 :group="u.groupB"
@@ -205,11 +215,12 @@
                 :h="u.bmsH"
                 @pv-set-temp="p => $emit('pv-set-temp', p)"
                 @pv-set-angle="p => $emit('pv-set-angle', p)"
+                @pv-set-albedo="p => $emit('pv-set-albedo', p)"
               />
             </template>
             <template v-else>
               <!-- 储能支路：（绑定断路器 →）PCS → 直流母线 → BMS；命中运行时通道时渲染实时数据+控制卡片，否则回退静态参数卡 -->
-              <template v-if="u.unitBreakerNode && !u.unitBreakerOnBus">
+              <template v-if="u.unitBreakerNode && !u.unitBreakerOnBus && !u.unitBreakerOnXfmr">
                 <rect x="-22" :y="u.brkTop" width="44" :height="u.brkBottom - u.brkTop" rx="3" fill="transparent" />
                 <BreakerSymbol :x="0" :y="u.brkMid" :closed="emuBreakerLive(u).closed" :tripped="emuBreakerLive(u).tripped" />
                 <text x="24" :y="u.brkMid + 4" class="label-text breaker-label">
@@ -314,6 +325,7 @@ defineEmits([
   'pv-set-reactive',
   'pv-set-temp',
   'pv-set-angle',
+  'pv-set-albedo',
   'pcs-start',
   'pcs-stop',
   'pcs-set-power',
@@ -342,7 +354,8 @@ const layout = computed(() => {
     loads: l.loads || [],
     unknowns: l.unknowns || [],
     stemBreakers: l.stemBreakers || [],
-    tieBreakers: l.tieBreakers || []
+    tieBreakers: l.tieBreakers || [],
+    branchBreakers: l.branchBreakers || []
   }
 })
 
@@ -640,7 +653,7 @@ const PvXfmrCard = defineComponent({
 
 const PvArrayCard = defineComponent({
   props: { group: Object, live: Object, pvNumber: Number, x: Number, y: Number, h: Number },
-  emits: ['pv-set-temp', 'pv-set-angle'],
+  emits: ['pv-set-temp', 'pv-set-angle', 'pv-set-albedo'],
   setup(p, { emit }) {
     return () => {
       const g = p.group || {}
@@ -650,16 +663,18 @@ const PvArrayCard = defineComponent({
       const draftHost = { pvNumber, side }
       const halfW = BOX_W / 2
       const gPoa = live.planeOfArrayWm2
+      const tCell = live.cellTemperatureC
       const pNow = live.activePowerKw
       const pAvail = live.availableAcPowerKw
       const vdc = live.dcVoltageV
       const idc = live.dcCurrentA
       const layout = pvConfigLayoutText(g.modulesPerString, g.stringCount, g.inverterCount)
+      const irr = gPoa == null ? '—' : `${Number(gPoa).toFixed(0)} W/㎡`
+      const cell = tCell == null ? '—' : `${Number(tCell).toFixed(1)}℃`
       const lines = [
-        `有功 ${pNow == null ? '—' : `${Number(pNow).toFixed(1)} kW`}`,
-        `可发 ${pAvail == null ? '—' : `${Number(pAvail).toFixed(1)} kW`}`,
-        `直流 ${vdc == null ? '—' : `${Number(vdc).toFixed(0)} V`} / ${idc == null ? '—' : `${Number(idc).toFixed(1)} A`}`,
-        `辐照 ${gPoa == null ? '—' : `${Number(gPoa).toFixed(0)} W/㎡`}`
+        `有功 ${pNow == null ? '—' : `${Number(pNow).toFixed(0)}`}  可发 ${pAvail == null ? '—' : `${Number(pAvail).toFixed(0)}`}`,
+        `直流 ${vdc == null ? '—' : `${Number(vdc).toFixed(0)}V`} / ${idc == null ? '—' : `${Number(idc).toFixed(0)}A`}`,
+        `辐照 ${irr}  组件 ${cell}`
       ]
       return h('g', { transform: `translate(${p.x}, 0)` }, [
         h('foreignObject', { x: -halfW, y: p.y, width: BOX_W, height: p.h }, [
@@ -671,7 +686,7 @@ const PvArrayCard = defineComponent({
             ...lines.map(t => h('div', { class: 'box-line' }, t)),
             h('div', { class: 'box-controls' }, [
               h('div', { class: 'power-row' }, [
-                h('label', { class: 'power-label' }, '温度℃'),
+                h('label', { class: 'power-label' }, '环境℃'),
                 h('input', {
                   type: 'text', inputMode: 'decimal', class: 'power-input',
                   value: getDraft(draftHost, 't', live.ambientTemperatureC ?? 25),
@@ -701,6 +716,23 @@ const PvArrayCard = defineComponent({
                     const angleDeg = Number(getDraft(draftHost, 'ang', live.incidenceAngleDeg))
                     if (!Number.isFinite(angleDeg)) return
                     emit('pv-set-angle', { pvNumber, side, angleDeg })
+                  }
+                }, '设定')
+              ]),
+              h('div', { class: 'power-row' }, [
+                h('label', { class: 'power-label' }, '反照率'),
+                h('input', {
+                  type: 'text', inputMode: 'decimal', class: 'power-input',
+                  value: getDraft(draftHost, 'alb', live.albedo ?? 0),
+                  onInput: (e) => setDraft(draftHost, 'alb', e.target.value)
+                }),
+                h('button', {
+                  type: 'button', class: 'act-btn act-set',
+                  onClick: (e) => {
+                    e.stopPropagation()
+                    const albedo = Number(getDraft(draftHost, 'alb', live.albedo))
+                    if (!Number.isFinite(albedo)) return
+                    emit('pv-set-albedo', { pvNumber, side, albedo })
                   }
                 }, '设定')
               ])
@@ -909,11 +941,11 @@ const BmsCard = defineComponent({
 }
 .svg-device-box.pv-array-box .box-title { margin-bottom: 1px; white-space: nowrap; }
 .svg-device-box.pv-array-box .box-title-meta { font-weight: 500; color: #606266; }
-.svg-device-box.pv-array-box .box-line { margin-bottom: 0; line-height: 1.2; }
-.svg-device-box.pv-array-box .box-controls { margin-top: 3px; padding-top: 0; }
-.svg-device-box.pv-array-box .power-row { margin-top: 3px; height: 18px; }
-.svg-device-box.pv-array-box .power-input { height: 18px; padding: 0 3px; }
-.svg-device-box.pv-array-box .act-btn { height: 18px; padding: 0 4px; line-height: 16px; }
+.svg-device-box.pv-array-box .box-line { margin-bottom: 0; line-height: 1.2; white-space: nowrap; }
+.svg-device-box.pv-array-box .box-controls { margin-top: 2px; padding-top: 0; }
+.svg-device-box.pv-array-box .power-row { margin-top: 2px; height: 16px; }
+.svg-device-box.pv-array-box .power-input { height: 16px; padding: 0 3px; }
+.svg-device-box.pv-array-box .act-btn { height: 16px; padding: 0 4px; line-height: 14px; }
 .svg-device-box.pv-xfmr-box {
   background: #f3faf3; border: 1px solid #529b2e; color: #303133;
   padding: 3px 5px; font-size: 10px; line-height: 1.2;

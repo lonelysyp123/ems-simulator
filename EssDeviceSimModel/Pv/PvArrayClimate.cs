@@ -5,11 +5,14 @@ namespace EssSimulator.EssDeviceSimModel.Pv
     {
         public const double DefaultAmbientC = 25;
         public const double DefaultIncidenceDeg = 90;
+        public const double DefaultAlbedo = 0;
 
         public double AmbientTemperatureC { get; private set; } = DefaultAmbientC;
         public double IncidenceAngleDeg { get; private set; } = DefaultIncidenceDeg;
+        public double Albedo { get; private set; } = DefaultAlbedo;
         public double CellTemperatureC { get; internal set; } = DefaultAmbientC;
         public double PlaneOfArrayWm2 => PvIrradianceModel.EvaluatePlaneOfArrayWm2(IncidenceAngleDeg);
+        public double RearWm2 { get; internal set; }
         public double AvailableAcPowerKw { get; internal set; }
         public double ActivePowerKw { get; internal set; }
         public double DcVoltageV { get; internal set; }
@@ -21,5 +24,8 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         public void SetIncidenceAngleDeg(double incidenceDeg) =>
             IncidenceAngleDeg = Math.Clamp(incidenceDeg, 0, 180);
+
+        public void SetAlbedo(double albedo) =>
+            Albedo = Math.Clamp(albedo, 0, 1);
     }
 }

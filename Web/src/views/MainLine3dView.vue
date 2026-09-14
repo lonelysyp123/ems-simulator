@@ -31,6 +31,7 @@
         @pv-set-reactive="onPvSetReactive"
         @pv-set-temp="onPvSetTemp"
         @pv-set-angle="onPvSetAngle"
+        @pv-set-albedo="onPvSetAlbedo"
       />
     </div>
   </div>
@@ -250,6 +251,21 @@ async function onPvSetAngle(payload = {}) {
     return
   }
   await runChannelCommand(`esscmd setpv${n} array ${side} angle ${angleDeg}`)
+}
+
+async function onPvSetAlbedo(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const side = resolvePvSide(payload)
+  const albedo = Number(payload.albedo)
+  if (!n || !side) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  if (!Number.isFinite(albedo)) {
+    ElMessage.warning('请输入有效的反照率（0~1）')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} array ${side} albedo ${albedo}`)
 }
 
 onMounted(async () => {

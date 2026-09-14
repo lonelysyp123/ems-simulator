@@ -76,6 +76,11 @@
           <input v-model="angleDraft" type="text" inputmode="decimal" class="power-input" @keydown.enter.prevent="applyAngle" />
           <button type="button" class="act-btn act-set" @click="applyAngle">设</button>
         </div>
+        <div class="power-row">
+          <label class="power-label">α</label>
+          <input v-model="albedoDraft" type="text" inputmode="decimal" class="power-input" @keydown.enter.prevent="applyAlbedo" />
+          <button type="button" class="act-btn act-set" @click="applyAlbedo">设</button>
+        </div>
       </div>
     </template>
   </div>
@@ -106,17 +111,20 @@ const emit = defineEmits([
   'pv-set-power',
   'pv-set-reactive',
   'pv-set-temp',
-  'pv-set-angle'
+  'pv-set-angle',
+  'pv-set-albedo'
 ])
 
 const pDraft = ref('0.0')
 const qDraft = ref('0.0')
 const tempDraft = ref('25.0')
 const angleDraft = ref('90.0')
+const albedoDraft = ref('0')
 let lastP = null
 let lastQ = null
 let lastTemp = null
 let lastAngle = null
+let lastAlbedo = null
 
 const sideLabel = computed(() => (props.side === 'A' ? 'PCS-A' : 'PCS-B'))
 const boxClass = computed(() => {
@@ -161,7 +169,7 @@ const pvArrayLines = computed(() => {
   if (!a) return []
   return [
     `P ${(Number(a.activePowerKw) || 0).toFixed(1)} kW`,
-    `${(Number(a.planeOfArrayWm2) || 0).toFixed(0)} W/㎡`,
+    `${(Number(a.planeOfArrayWm2) || 0).toFixed(0)} W/㎡ · 组件 ${(Number(a.cellTemperatureC) || 0).toFixed(1)}℃`,
     `${(Number(a.ambientTemperatureC) || 0).toFixed(1)}℃ / ${(Number(a.incidenceAngleDeg) || 0).toFixed(0)}°`
   ]
 })
@@ -208,6 +216,7 @@ watch(
     if (!a || props.type !== 'pv-array') return
     const t = a.ambientTemperatureC
     const ang = a.incidenceAngleDeg
+    const alb = a.albedo
     if (t != null && t !== lastTemp) {
       tempDraft.value = String(Number(t).toFixed(1))
       lastTemp = t
@@ -215,6 +224,10 @@ watch(
     if (ang != null && ang !== lastAngle) {
       angleDraft.value = String(Number(ang).toFixed(0))
       lastAngle = ang
+    }
+    if (alb != null && alb !== lastAlbedo) {
+      albedoDraft.value = String(Number(alb).toFixed(2))
+      lastAlbedo = alb
     }
   },
   { immediate: true, deep: true }
@@ -286,6 +299,14 @@ function applyAngle() {
   const angleDeg = Number(angleDraft.value)
   if (!Number.isFinite(angleDeg)) return
   emit('pv-set-angle', { pvNumber: u.pvNumber, side: props.side, angleDeg })
+}
+
+function applyAlbedo() {
+  const u = props.pvUnit
+  if (!u) return
+  const albedo = Number(albedoDraft.value)
+  if (!Number.isFinite(albedo)) return
+  emit('pv-set-albedo', { pvNumber: u.pvNumber, side: props.side, albedo })
 }
 </script>
 

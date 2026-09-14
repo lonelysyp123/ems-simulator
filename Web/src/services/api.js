@@ -82,6 +82,8 @@ export async function postProtocolPortsApply() { return (await api.post('/protoc
 export async function postProtocolPortsReset(rebuild = false) {
   return (await api.post('/protocol-ports/reset', { rebuild })).data
 }
+export async function getModbusAllowlist() { return (await api.get('/protocol-ports/allowlist')).data }
+export async function putModbusAllowlist(body) { return (await api.put('/protocol-ports/allowlist', body)).data }
 
 export async function getIec61850() { return (await api.get('/iec61850')).data }
 export async function getIec61850Messages(server, limit = 200) {

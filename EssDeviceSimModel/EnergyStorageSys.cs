@@ -400,7 +400,7 @@ namespace EssSimulator.EssDeviceSimModel
             return true;
         }
 
-        /// <summary>设定光伏方阵环境温度或光照入射角，下一步按 MPPT 重算最大放电功率。</summary>
+        /// <summary>设定光伏方阵环境温度、光照入射角或地面反照率，下一步按 MPPT 重算最大放电功率。</summary>
         public bool TrySetPvArrayClimate(int pvNumber1Based, string side, string field, double value, out string message)
         {
             message = string.Empty;
@@ -429,7 +429,15 @@ namespace EssSimulator.EssDeviceSimModel
                 return true;
             }
 
-            message = "仅支持 temperature 或 angle";
+            if (field.Equals("albedo", StringComparison.OrdinalIgnoreCase) ||
+                field.Equals("rear", StringComparison.OrdinalIgnoreCase))
+            {
+                climate.SetAlbedo(value);
+                message = $"pv{pvNumber1Based} 方阵{label} 反照率 = {climate.Albedo:0.###}";
+                return true;
+            }
+
+            message = "仅支持 temperature、angle 或 albedo";
             return false;
         }
 

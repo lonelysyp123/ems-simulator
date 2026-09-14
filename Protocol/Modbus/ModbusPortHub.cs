@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using log4net;
 using NModbus.Data;
 using NModbus.Device;
@@ -14,6 +16,7 @@ namespace EssSimulator.Protocol.Modbus
     /// Modbus TCP 共享传输层：每个端口只建立一个 TcpListener 与一个 NModbus SlaveNetwork，
     /// 同端口不同从站号注册为独立从站；同端口同从站号的多个设备共享同一个从站寄存器镜像
     /// （挂载前经 <see cref="AddressOverlapValidator"/> 校验地址不重叠）。
+    /// 可选来源 IP 白名单在 Accept 时过滤；空名单不限制。
     /// </summary>
     public sealed class ModbusPortHub
     {
@@ -25,6 +28,7 @@ namespace EssSimulator.Protocol.Modbus
 
         private readonly object _gate = new();
         private readonly Dictionary<int, PortListenerHost> _hosts = new();
+        private ModbusIpAllowList _allowList = ModbusIpAllowList.Unrestricted;
 
         /// <summary>设备挂载结果：失败时 Errors 给出具体冲突/绑定原因。</summary>
         public sealed class AttachResult
@@ -39,6 +43,24 @@ namespace EssSimulator.Protocol.Modbus
 
             public static AttachResult Fail(params string[] errors) =>
                 new() { Ok = false, Errors = errors.ToList() };
+        }
+
+        /// <summary>当前进程已加载的白名单快照（热重建不重读磁盘）。</summary>
+        public ModbusIpAllowList ActiveAllowList
+        {
+            get { lock (_gate) { return _allowList; } }
+        }
+
+        /// <summary>
+        /// 设置后续新建监听使用的白名单。已在听的端口不受影响；
+        /// 生产路径仅在进程启动 <c>StartAll</c> 时调用一次。
+        /// </summary>
+        public void SetAllowList(ModbusIpAllowList? list)
+        {
+            lock (_gate)
+            {
+                _allowList = list ?? ModbusIpAllowList.Unrestricted;
+            }
         }
 
         /// <summary>
@@ -160,7 +182,7 @@ namespace EssSimulator.Protocol.Modbus
                 return existing;
             }
 
-            var host = new PortListenerHost(port);
+            var host = new PortListenerHost(port, _allowList);
             try
             {
                 host.Start();
@@ -169,30 +191,40 @@ namespace EssSimulator.Protocol.Modbus
             {
                 Log.Error($"端口 {port} Modbus 监听启动失败：{ex.Message}");
                 error = $"端口 {port} 监听启动失败：{ex.Message}";
+                try { host.Dispose(); } catch { /* 启动失败时尽量释放半开监听 */ }
                 return null;
             }
 
             _hosts[port] = host;
-            Log.Info($"端口 {port} Modbus 共享监听已启动");
+            string mode = _allowList.IsUnrestricted ? string.Empty : "（IP 白名单已启用）";
+            Log.Info($"端口 {port} Modbus 共享监听已启动{mode}");
             error = null;
             return host;
         }
 
-        /// <summary>单个端口的监听宿主：一个 TcpListener + 一个 NModbus 从站网络。</summary>
+        /// <summary>单个端口的监听宿主：一个对外 TcpListener + 一个 NModbus 从站网络。</summary>
         private sealed class PortListenerHost : IDisposable
         {
+            private static readonly TimeSpan DenyLogInterval = TimeSpan.FromSeconds(10);
+            private static readonly ConcurrentDictionary<string, long> DenyLogUtcTicks = new();
+
             public int Port { get; }
             public bool IsListening { get; private set; }
             public NModbus.IModbusSlaveNetwork? Network { get; private set; }
 
-            private readonly TcpListener _listener;
+            private readonly ModbusIpAllowList _allowList;
             private readonly NModbus.ModbusFactory _factory = new();
             private readonly Dictionary<byte, SharedSlaveSlot> _slots = new();
+            private readonly ConcurrentBag<TcpClient> _pipedClients = new();
 
-            public PortListenerHost(int port)
+            private TcpListener? _publicListener;
+            private TcpListener? _nmodbusListener;
+            private CancellationTokenSource? _cts;
+
+            public PortListenerHost(int port, ModbusIpAllowList allowList)
             {
                 Port = port;
-                _listener = new TcpListener(IPAddress.Any, port);
+                _allowList = allowList ?? ModbusIpAllowList.Unrestricted;
             }
 
             public int SlotCount => _slots.Count;
@@ -201,10 +233,32 @@ namespace EssSimulator.Protocol.Modbus
 
             public void Start()
             {
-                _listener.Start();
+                if (_allowList.IsUnrestricted)
+                {
+                    var listener = new TcpListener(IPAddress.Any, Port);
+                    listener.Start();
+                    _publicListener = listener;
+                    _nmodbusListener = listener;
+                    Network = _factory.CreateSlaveNetwork(listener);
+                    Network.ListenAsync();
+                }
+                else
+                {
+                    var loopback = new TcpListener(IPAddress.Loopback, 0);
+                    loopback.Start();
+                    _nmodbusListener = loopback;
+                    int innerPort = ((IPEndPoint)loopback.LocalEndpoint).Port;
+                    Network = _factory.CreateSlaveNetwork(loopback);
+                    Network.ListenAsync();
+
+                    var pub = new TcpListener(IPAddress.Any, Port);
+                    pub.Start();
+                    _publicListener = pub;
+                    _cts = new CancellationTokenSource();
+                    _ = Task.Run(() => AcceptLoopAsync(innerPort, _cts.Token));
+                }
+
                 IsListening = true;
-                Network = _factory.CreateSlaveNetwork(_listener);
-                Network.ListenAsync();
             }
 
             public SharedSlaveSlot GetOrCreateSlot(byte slaveId)
@@ -242,11 +296,132 @@ namespace EssSimulator.Protocol.Modbus
             {
                 IsListening = false;
                 _slots.Clear();
+                try { _cts?.Cancel(); }
+                catch { /* 忽略释放异常 */ }
                 try { Network?.Dispose(); }
                 catch { /* 忽略释放异常 */ }
                 Network = null;
-                try { _listener.Stop(); }
+                try { _publicListener?.Stop(); }
                 catch { /* 忽略释放异常 */ }
+                if (!ReferenceEquals(_publicListener, _nmodbusListener))
+                {
+                    try { _nmodbusListener?.Stop(); }
+                    catch { /* 忽略释放异常 */ }
+                }
+                _publicListener = null;
+                _nmodbusListener = null;
+                while (_pipedClients.TryTake(out var client))
+                {
+                    try { client.Close(); }
+                    catch { /* 忽略释放异常 */ }
+                }
+                try { _cts?.Dispose(); }
+                catch { /* 忽略释放异常 */ }
+                _cts = null;
+            }
+
+            private async Task AcceptLoopAsync(int innerPort, CancellationToken ct)
+            {
+                var listener = _publicListener;
+                if (listener == null)
+                    return;
+
+                while (!ct.IsCancellationRequested)
+                {
+                    TcpClient client;
+                    try
+                    {
+                        client = await listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        break;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        break;
+                    }
+                    catch (SocketException)
+                    {
+                        if (ct.IsCancellationRequested)
+                            break;
+                        continue;
+                    }
+
+                    var remote = client.Client.RemoteEndPoint;
+                    if (!_allowList.IsAllowed(remote))
+                    {
+                        LogDenied(remote);
+                        Reject(client);
+                        continue;
+                    }
+
+                    TcpClient inner;
+                    try
+                    {
+                        inner = new TcpClient { NoDelay = true };
+                        await inner.ConnectAsync(IPAddress.Loopback, innerPort, ct).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        Reject(client);
+                        continue;
+                    }
+
+                    client.NoDelay = true;
+                    _pipedClients.Add(client);
+                    _pipedClients.Add(inner);
+                    _ = PumpAsync(client, inner, ct);
+                }
+            }
+
+            private void LogDenied(EndPoint? remote)
+            {
+                string key = remote?.ToString() ?? "?";
+                long now = DateTime.UtcNow.Ticks;
+                if (DenyLogUtcTicks.TryGetValue(key, out var last) && now - last < DenyLogInterval.Ticks)
+                    return;
+                DenyLogUtcTicks[key] = now;
+                Log.Warn($"拒绝 Modbus TCP 连接 {key} → 端口 {Port}（不在 IP 白名单）");
+            }
+
+            private static void Reject(TcpClient client)
+            {
+                try
+                {
+                    client.LingerState = new LingerOption(true, 0);
+                    client.Close();
+                }
+                catch { /* 拒绝连接时忽略关闭异常 */ }
+            }
+
+            private static async Task PumpAsync(TcpClient a, TcpClient b, CancellationToken ct)
+            {
+                try
+                {
+                    var sa = a.GetStream();
+                    var sb = b.GetStream();
+                    var t1 = sa.CopyToAsync(sb, ct);
+                    var t2 = sb.CopyToAsync(sa, ct);
+                    await Task.WhenAny(t1, t2).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 监听关闭
+                }
+                catch
+                {
+                    // 对端断开
+                }
+                finally
+                {
+                    try { a.Close(); } catch { /* ignore */ }
+                    try { b.Close(); } catch { /* ignore */ }
+                }
             }
         }
 

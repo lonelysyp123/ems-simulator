@@ -68,8 +68,9 @@ namespace EssSimulator.Display
                 "  setpvN run on|off              // 光伏单元启停（直控仿真设备）",
                 "  setpvN power <kW>              // 光伏有功设定（限发 kW，≥0）",
                 "  setpvN reactive <kvar>         // 光伏无功设定（kvar，可正可负）",
-                "  setpvN array A|B temperature <℃> // 设定光伏方阵温度，下一步按 MPPT 重算最大放电功率",
+                "  setpvN array A|B temperature <℃> // 设定光伏方阵环境温度（电池温度由 NOCT 估算）",
                 "  setpvN array A|B angle <度>    // 设定光伏方阵光照入射角（90=正对 1000 W/㎡，0/180=0）",
+                "  setpvN array A|B albedo <0~1>  // 设定方阵地面反照率（G_rear = 反照率 × 平面辐照；0 关闭双面）",
                 "",
                 "说明:",
                 "  - link off：关闭 TCP 监听，模拟通信中断；与 setbms power 无关",
@@ -78,7 +79,7 @@ namespace EssSimulator.Display
                 "  - setbmsN power off：断开 PCS↔BMS 链路，GridConnectStatus→0",
                 "  - setbmsN soc：须堆电流为 0（待机）；0~1 为标幺，>1 且≤100 按百分比",
                 "  - bmsN fault clear：待机时清除充放电方向内部故障（一次性）；再次超限会重新触发，三级故障会自动下电",
-                "  - setpvN：方阵温度/入射角替代按时刻正弦的辐照，A/B 可分别设定",
+                "  - setpvN：方阵环境温度/入射角/反照率替代按时刻正弦的辐照，A/B 可分别设定",
                 "  - 每台 PCS 对应独立 simEmu{N}（与 pcsN 1:1），关闭链路只影响该路 PCS"
             }.JoinLines();
         }
@@ -377,7 +378,7 @@ namespace EssSimulator.Display
                 || !args[1].Equals("array", StringComparison.OrdinalIgnoreCase))
             {
                 return CommandResult.Fail(
-                    "用法: esscmd setpvN run on|off\n      esscmd setpvN power <kW>\n      esscmd setpvN reactive <kvar>\n      esscmd setpvN array A|B temperature|angle <数值>\n示例: esscmd setpv1 run on\n      esscmd setpv1 array A temperature 35");
+                    "用法: esscmd setpvN run on|off\n      esscmd setpvN power <kW>\n      esscmd setpvN reactive <kvar>\n      esscmd setpvN array A|B temperature|angle|albedo <数值>\n示例: esscmd setpv1 run on\n      esscmd setpv1 array A temperature 35");
             }
 
             string side = args[2].Trim().ToUpperInvariant();

@@ -598,7 +598,7 @@ function expandEmuDevices(unit, origin, items, cables, graph, live, base, ctx) {
   let feedX = busCx
   let feedZ = zBus
   let feedFromBrk = false
-  if (unit.unitBreakerNode && !unit.unitBreakerOnBus) {
+  if (unit.unitBreakerNode && !unit.unitBreakerOnBus && !unit.unitBreakerOnXfmr) {
     const brk = unit.unitBreakerNode
     addItem(items, {
       key: `node-${brk.id}`,
@@ -1037,6 +1037,7 @@ function collectSldNodeIds(sld) {
   add(sld.grid?.id)
   for (const b of sld.stemBreakers || []) add(b.id)
   for (const b of sld.tieBreakers || []) add(b.id)
+  for (const b of sld.branchBreakers || []) add(b.id)
   for (const t of sld.transformers || []) add(t.id)
   for (const b of sld.buses || []) add(b.id)
   for (const m of sld.meters || []) add(m.id)
@@ -1185,6 +1186,24 @@ function fromTopology(topology, unitsSnap, pvSnap) {
       key: `node-${br.id}`,
       templateId: 'ac_breaker',
       kind: 'tie-breaker',
+      x,
+      z,
+      node: br.node,
+      pickId: `brk-${br.id}`,
+      emuId: br.emuId || null,
+      unitIndex: br.unitIndex ?? null,
+      label: br.label,
+      labelOffset: { x: 2.4, y: 3.6, z: 0 }
+    })
+  }
+
+  for (const br of sld.branchBreakers || []) {
+    const x = toX(br.x, origin)
+    const z = toZ(br.y, origin)
+    addItem(items, {
+      key: `node-${br.id}`,
+      templateId: 'ac_breaker',
+      kind: 'branch-breaker',
       x,
       z,
       node: br.node,

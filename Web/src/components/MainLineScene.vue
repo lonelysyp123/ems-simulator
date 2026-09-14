@@ -79,7 +79,8 @@ const emit = defineEmits([
   'pv-set-power',
   'pv-set-reactive',
   'pv-set-temp',
-  'pv-set-angle'
+  'pv-set-angle',
+  'pv-set-albedo'
 ])
 
 const viewportRef = ref(null)
@@ -161,6 +162,9 @@ function onEvent(name, payload) {
       break
     case 'pv-set-angle':
       emit('pv-set-angle', payload || {})
+      break
+    case 'pv-set-albedo':
+      emit('pv-set-albedo', payload || {})
       break
     case 'view-mode':
       viewMode.value = payload?.mode || 'station'

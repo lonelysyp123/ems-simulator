@@ -922,7 +922,7 @@ export function buildStation(layout) {
       if (item.kind === 'main-breaker') refs.mainBreaker = mesh
       if (item.kind === 'unit-breaker' && item.unitIndex != null) refs.unitBreakers[item.unitIndex] = mesh
       if (item.kind === 'pv-breaker' && item.pvIndex != null) refs.pvBreakers[item.pvIndex] = mesh
-      if (item.kind === 'tie-breaker') refs.tieBreakers.push(mesh)
+      if (item.kind === 'tie-breaker' || item.kind === 'branch-breaker') refs.tieBreakers.push(mesh)
       if (item.templateId === 'pv_array') {
         refs.pvArrays.push(mesh)
         // 组串出线：每串（行）一根单独出线 → 方阵前缘汇流点（30 块串联成串，16 串并联）
@@ -955,7 +955,7 @@ export function buildStation(layout) {
     }
 
     const labelKinds = new Set([
-      'grid', 'main-breaker', 'stem-breaker', 'tie-breaker', 'station-xf', 'bus-bar', 'bus-node', 'dc-bus',
+      'grid', 'main-breaker', 'stem-breaker', 'tie-breaker', 'branch-breaker', 'station-xf', 'bus-bar', 'bus-node', 'dc-bus',
       'meter', 'load', 'unit-title', 'unit-breaker', 'unit-xf',
       'pv-title', 'pv-breaker', 'pv-xf', 'pv-array'
     ])

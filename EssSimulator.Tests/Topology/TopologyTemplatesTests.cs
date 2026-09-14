@@ -29,6 +29,8 @@ public class TopologyTemplatesTests
         Assert.Equal(35000d, TopologyParamHelper.GetDouble(t.DefaultParameters, "acVoltage"));
         Assert.Equal(5120d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfRatedKva"));
         Assert.Equal("TSM-NEG21C.20Q", TopologyParamHelper.GetString(t.DefaultParameters, "moduleModel"));
+        Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "operatingYears"));
+        Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "groundAlbedo"));
     }
 
     [Fact]

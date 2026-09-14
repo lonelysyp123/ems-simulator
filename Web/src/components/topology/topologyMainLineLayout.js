@@ -80,6 +80,27 @@ export function makeGraph(nodes, edges) {
   return { nodes: nodes || [], edges: edges || [], byId, adj: listAdj }
 }
 
+/** 穿过一台断路器后的对端设备；对端仍是断路器再跳一层，避免双开关串联丢变压器/母线。 */
+function farSideOfBreaker(graph, breakerNode, fromId, skipIds) {
+  const far = []
+  for (const farId of neighborsOf(graph.adj, breakerNode.id)) {
+    if (farId === fromId || skipIds.has(farId)) continue
+    const n = graph.byId.get(farId)
+    if (!n) continue
+    if (n.templateId === 'ac_breaker') {
+      for (const far2Id of neighborsOf(graph.adj, n.id)) {
+        if (far2Id === breakerNode.id || far2Id === fromId || skipIds.has(far2Id)) continue
+        const n2 = graph.byId.get(far2Id)
+        if (!n2 || n2.templateId === 'ac_breaker') continue
+        far.push(n2)
+      }
+    } else {
+      far.push(n)
+    }
+  }
+  return far
+}
+
 /** 相邻设备；断路器视为透明，取其另一侧 */
 function acHops(graph, fromId, skipIds = new Set()) {
   const hops = []
@@ -89,10 +110,7 @@ function acHops(graph, fromId, skipIds = new Set()) {
     const n = graph.byId.get(nid)
     if (!n) continue
     if (n.templateId === 'ac_breaker') {
-      for (const farId of neighborsOf(graph.adj, n.id)) {
-        if (farId === fromId || skipIds.has(farId)) continue
-        const far = graph.byId.get(farId)
-        if (!far || far.templateId === 'ac_breaker') continue
+      for (const far of farSideOfBreaker(graph, n, fromId, skipIds)) {
         if (seen.has(far.id)) continue
         seen.add(far.id)
         hops.push({ node: far, viaBreaker: n })
@@ -111,9 +129,34 @@ function xfmrConnectedBuses(graph, xfmrId) {
   for (const hop of acHops(graph, xfmrId)) {
     if (hop.node.templateId !== 'ac_bus' || seen.has(hop.node.id)) continue
     seen.add(hop.node.id)
-    buses.push(hop.node)
+    buses.push({ bus: hop.node, viaBreaker: hop.viaBreaker || null })
   }
   return buses
+}
+
+function emuOwnsBreakerIn(idSet, graph, emuId) {
+  if (!emuId || !idSet?.size) return false
+  for (const id of idSet) {
+    const nd = graph.byId.get(id)
+    if (nd && paramStr(nd, 'emuId') === emuId) return true
+  }
+  return false
+}
+
+function branchBreakerRecord(brk, x, yTop, brkSpan) {
+  return {
+    id: brk.id,
+    node: brk,
+    x,
+    yTop,
+    y: yTop + brkSpan / 2,
+    yBottom: yTop + brkSpan,
+    label: brk.label || brk.parameters?.name || '断路器',
+    emuId: paramStr(brk, 'emuId') || null,
+    unitIndex: null,
+    closed: truthy(brk.parameters?.closed),
+    tripped: truthy(brk.parameters?.tripped)
+  }
 }
 
 /** 耦合器件的全部下游母线帧（两绕组 1 路，双耳 2 路，未来 N 绕组同此列表）。 */
@@ -168,14 +211,18 @@ function buildBusFrame(graph, bus, incomingXfmrId, visitedBuses, visitedXfmrs) {
       if (visitedXfmrs.has(n.id)) continue
       visitedXfmrs.add(n.id)
       const others = xfmrConnectedBuses(graph, n.id)
-        .filter(b => b.id !== bus.id && !visitedBuses.has(b.id))
-        .sort((a, b) => (a.x - b.x) || (a.y - b.y) || String(a.id).localeCompare(String(b.id)))
-      const downstreams = others.map(far =>
-        buildBusFrame(graph, far, n.id, visitedBuses, visitedXfmrs))
+        .filter(b => b.bus.id !== bus.id && !visitedBuses.has(b.bus.id))
+        .sort((a, b) => (a.bus.x - b.bus.x) || (a.bus.y - b.bus.y) || String(a.bus.id).localeCompare(String(b.bus.id)))
+      const downstreams = others.map(far => {
+        const frame = buildBusFrame(graph, far.bus, n.id, visitedBuses, visitedXfmrs)
+        frame.incomingBreaker = far.viaBreaker || null
+        return frame
+      })
       xfmrs.push({
         xfmr: n,
         downstreams,
-        split: isSplitTransformer(n.templateId)
+        split: isSplitTransformer(n.templateId),
+        viaBreaker: hop.viaBreaker || null
       })
       continue
     }
@@ -190,7 +237,7 @@ function buildBusFrame(graph, bus, incomingXfmrId, visitedBuses, visitedXfmrs) {
     if (role === 'feeder' || role === 'tap' || role === 'unknown') {
       // 已归入 EMU 的电表在单元框内绘制，不再作为母线挂件重复入图
       if (n.templateId === 'ac_meter' && paramStr(n, 'emuId')) continue
-      hangs.push({ node: n })
+      hangs.push({ node: n, viaBreaker: hop.viaBreaker || null })
     }
   }
   return { node: bus, incomingXfmrId, hangs, xfmrs, busLinks, synthetic: false }
@@ -270,6 +317,7 @@ function groupFramePcsHangs(graph, frame) {
   for (const h of frame.hangs) {
     if (h.node.templateId !== 'pcs') { others.push(h); continue }
     const hang = pcsHangOf(graph, h.node)
+    if (h.viaBreaker) hang.viaBreaker = hang.viaBreaker || h.viaBreaker
     if (!merged.has(hang.clusterKey)) {
       merged.set(hang.clusterKey, hang)
       others.push(hang)
@@ -304,7 +352,7 @@ function expandFeederUnit(opts) {
   const {
     feeder, cx, xfmrId, originY, index, pvRank, graph, scene,
     busCx, UNIT_W, LINK_STUB, BRK_SPAN, pcsCluster, pcsRank, bmsRank, boundClaim,
-    sectionBreakerIds
+    sectionBreakerIds, xfmrBranchBreakerIds, stemBreakerIds, viaBreaker
   } = opts
   const kind = feeder?.templateId === 'pv_unit' ? 'pv' : 'emu'
 
@@ -325,21 +373,34 @@ function expandFeederUnit(opts) {
     const emuId = paramStr(pcsNodes[0], 'emuId')
     const emu = emuId ? graph.byId.get(emuId) || null : null
     const unitIndex = runtimeUnitIndexOfEmu(graph, emuId) ?? index
+    const claimed = boundClaim || new Set()
+    const placedIds = new Set([
+      ...(sectionBreakerIds || []),
+      ...(xfmrBranchBreakerIds || []),
+      ...(stemBreakerIds || [])
+    ])
+    const seriesBreaker = viaBreaker && !placedIds.has(viaBreaker.id) ? viaBreaker : null
+    if (seriesBreaker) claimed.add(seriesBreaker.id)
     const pickBound = tpl => {
       if (!emuId) return null
-      const claimed = boundClaim || new Set()
       const cand = graph.nodes
         .filter(nd => nd.templateId === tpl && paramStr(nd, 'emuId') === emuId && !claimed.has(nd.id))
         .sort((a, b) => (a.y - b.y) || (a.x - b.x))
       if (cand[0]) claimed.add(cand[0].id)
       return cand[0] || null
     }
-    const unitBreakerNode = pickBound('ac_breaker')
+    const unitBreakerNode = pickBound('ac_breaker') || seriesBreaker
     const unitMeterNode = pickBound('ac_meter')
     // 该断路器若为母线分段断路器（两端皆母线），已按 tieBreaker 画在母线上：
-    // 单元内不再重复绘制，仅保留 unitBreakerNode 作为实时遥信的绑定关系
-    const unitBreakerOnBus = !!unitBreakerNode && !!sectionBreakerIds?.has(unitBreakerNode.id)
-    const drawnBreakerNode = unitBreakerOnBus ? null : unitBreakerNode
+    // 单元内不再重复绘制，仅保留 unitBreakerNode 作为实时遥信的绑定关系。
+    // 母线—变压器支路上的串联断同理，已按 branchBreaker 画在变压器引线。
+    const unitBreakerOnBus = !!(unitBreakerNode && sectionBreakerIds?.has(unitBreakerNode.id))
+      || (!unitBreakerNode && emuOwnsBreakerIn(sectionBreakerIds, graph, emuId))
+    const unitBreakerOnXfmr = !!(unitBreakerNode && xfmrBranchBreakerIds?.has(unitBreakerNode.id))
+      || (!!emuId && emuOwnsBreakerIn(xfmrBranchBreakerIds, graph, emuId)
+        && (!unitBreakerNode || placedIds.has(unitBreakerNode.id)))
+    const drawnBreakerNode = seriesBreaker
+      || (unitBreakerNode && !placedIds.has(unitBreakerNode.id) ? unitBreakerNode : null)
 
     // 绑断路器时引线段加高：母线 → 断路器 → PCS 卡；未绑定维持短引线
     const brkTop = LINK_STUB
@@ -444,6 +505,7 @@ function expandFeederUnit(opts) {
         dcBus: c.dcBus,
         unitBreakerNode,
         unitBreakerOnBus,
+        unitBreakerOnXfmr,
         unitMeterNode,
         brkTop,
         brkMid,
@@ -470,7 +532,7 @@ function expandFeederUnit(opts) {
   const xfmrCardH = 160
   const xfmrCardTop = unitXfmrTop
   const bmsTop = xfmrCardTop + xfmrCardH + LINK_STUB * 2
-  const bmsH = 124
+  const bmsH = 118
   const arraySplitY = xfmrCardTop + xfmrCardH + LINK_STUB
   const unitBottom = bmsTop + bmsH + 16
 
@@ -716,6 +778,7 @@ export function buildTopologyMainLineLayout(topology) {
     loads: [],
     unknowns: [],
     tieBreakers: [],
+    branchBreakers: [],
     placements: []
   }
 
@@ -772,12 +835,23 @@ export function buildTopologyMainLineLayout(topology) {
         }
         const pri = paramNum(xf, 'primaryVoltage', 0)
         const sec = paramNum(xf, 'secondaryVoltage', 0)
-        scene.wires.push({ x1: cx, y1: yBus, x2: cx, y2: yEquip })
+        const hvBrk = item.xf.viaBreaker || null
+        const lvBrkAny = downs.some(d => d.incomingBreaker)
+        // 无串联断：保持原 yEquip 对齐电表/联络；有高压或低压串联断则按跨距叠高
+        const yXf = hvBrk ? (yBus + LINK_STUB + BRK_SPAN + LINK_STUB) : yEquip
+        if (hvBrk) {
+          const yTop = yBus + LINK_STUB
+          scene.wires.push({ x1: cx, y1: yBus, x2: cx, y2: yTop })
+          scene.branchBreakers.push(branchBreakerRecord(hvBrk, cx, yTop, BRK_SPAN))
+          scene.wires.push({ x1: cx, y1: yTop + BRK_SPAN, x2: cx, y2: yXf })
+        } else {
+          scene.wires.push({ x1: cx, y1: yBus, x2: cx, y2: yXf })
+        }
         const rec = {
           id: xf.id,
           node: xf,
           x: cx,
-          y: yEquip,
+          y: yXf,
           span: XFMR_SPAN,
           windings: item.xf.split ? 3 : 2,
           split: !!item.xf.split,
@@ -789,12 +863,17 @@ export function buildTopologyMainLineLayout(topology) {
           labelSide: hasRight ? 'left' : 'right',
           omitBusLv: downs.length === 1 ? !!downs[0].omit : downs.length === 0,
           busLeft: x + 40,
-          busRight: x + slot.w - 40
+          busRight: x + slot.w - 40,
+          incomingBreakerId: hvBrk?.id || null
         }
         scene.transformers.push(rec)
         structXs.push(cx)
         if (downs.length > 0) {
-          const yChild = yEquip + equipH + LINK_STUB + (downs.length === 1 && downs[0].omit ? LINK_STUB : 24)
+          const fromY = yXf + XFMR_SPAN
+          const lvExtra = lvBrkAny ? (BRK_SPAN + LINK_STUB) : 0
+          const yChild = hvBrk || lvBrkAny
+            ? fromY + LINK_STUB + lvExtra + (downs.length === 1 && downs[0].omit ? LINK_STUB : 24)
+            : yEquip + equipH + LINK_STUB + (downs.length === 1 && downs[0].omit ? LINK_STUB : 24)
           let dx = x
           for (const d of downs) {
             placeFrame(d, dx, yChild)
@@ -803,16 +882,31 @@ export function buildTopologyMainLineLayout(topology) {
           rec.busLeft = downs[0].x1
           rec.busRight = downs[downs.length - 1].x2
           rec.omitBusLv = downs.length === 1 ? !!downs[0].omit : false
-          const fromY = yEquip + XFMR_SPAN
           if (downs.length === 1) {
-            scene.wires.push({ x1: cx, y1: fromY, x2: cx, y2: yChild })
+            const lvBrk = downs[0].incomingBreaker
+            if (lvBrk) {
+              const yTop = fromY + LINK_STUB
+              scene.wires.push({ x1: cx, y1: fromY, x2: cx, y2: yTop })
+              scene.branchBreakers.push(branchBreakerRecord(lvBrk, cx, yTop, BRK_SPAN))
+              scene.wires.push({ x1: cx, y1: yTop + BRK_SPAN, x2: cx, y2: yChild })
+            } else {
+              scene.wires.push({ x1: cx, y1: fromY, x2: cx, y2: yChild })
+            }
           } else {
             const cxs = downs.map(d => d.cx)
-            const yJoin = (fromY + yChild) / 2
+            const yJoin = lvBrkAny ? fromY + LINK_STUB : (fromY + yChild) / 2
             scene.wires.push({ x1: cx, y1: fromY, x2: cx, y2: yJoin })
             scene.wires.push({ x1: Math.min(...cxs), y1: yJoin, x2: Math.max(...cxs), y2: yJoin })
             for (const d of downs) {
-              scene.wires.push({ x1: d.cx, y1: yJoin, x2: d.cx, y2: yChild })
+              const lvBrk = d.incomingBreaker
+              if (lvBrk) {
+                const yTop = yJoin + LINK_STUB
+                scene.wires.push({ x1: d.cx, y1: yJoin, x2: d.cx, y2: yTop })
+                scene.branchBreakers.push(branchBreakerRecord(lvBrk, d.cx, yTop, BRK_SPAN))
+                scene.wires.push({ x1: d.cx, y1: yTop + BRK_SPAN, x2: d.cx, y2: yChild })
+              } else {
+                scene.wires.push({ x1: d.cx, y1: yJoin, x2: d.cx, y2: yChild })
+              }
             }
           }
         }
@@ -848,7 +942,8 @@ export function buildTopologyMainLineLayout(topology) {
           xfmrId: frame.incomingXfmrId || null,
           originY: yBus,
           busCx: frame.cx,
-          pcsCluster: item.hang.pcsCluster || null
+          pcsCluster: item.hang.pcsCluster || null,
+          viaBreaker: item.hang.viaBreaker || null
         })
       }
       x += slot.w + BAY_GAP
@@ -964,6 +1059,8 @@ export function buildTopologyMainLineLayout(topology) {
   const unitLayouts = []
   let unitBottom = 400
   const boundClaim = new Set()
+  const xfmrBranchBreakerIds = new Set(scene.branchBreakers.map(b => b.id))
+  const stemBreakerIds = new Set(stemBreakers.map(b => b.id))
   scene.placements.forEach((p, i) => {
     const built = expandFeederUnit({
       feeder: p.feeder,
@@ -982,14 +1079,17 @@ export function buildTopologyMainLineLayout(topology) {
       pcsRank,
       bmsRank,
       boundClaim,
-      sectionBreakerIds
+      sectionBreakerIds,
+      xfmrBranchBreakerIds,
+      stemBreakerIds,
+      viaBreaker: p.viaBreaker || null
     })
     unitLayouts.push(built.unit)
     unitBottom = Math.max(unitBottom, built.unitBottom)
   })
 
-  // 分段断路器绑定了 EMU 时，实时分合闸遥信取自该 EMU 对应的运行时单元
-  for (const tb of scene.tieBreakers) {
+  // 分段 / 变压器支路断路器绑定了 EMU 时，实时分合闸遥信取自该 EMU 对应的运行时单元
+  for (const tb of [...scene.tieBreakers, ...scene.branchBreakers]) {
     if (!tb.emuId) continue
     const owner = unitLayouts.find(u => u.emu?.id === tb.emuId)
     if (owner) tb.unitIndex = owner.unitIndex ?? owner.index
@@ -1029,6 +1129,10 @@ export function buildTopologyMainLineLayout(topology) {
     maxX = Math.max(maxX, b.x + 80)
     maxY = Math.max(maxY, b.yBottom + 24)
   }
+  for (const b of scene.branchBreakers) {
+    maxX = Math.max(maxX, b.x + 80)
+    maxY = Math.max(maxY, b.yBottom + 24)
+  }
   for (const u of unitLayouts) {
     maxX = Math.max(maxX, u.cx + (u.halfSpan ?? UNIT_W / 2) + 24)
     maxY = Math.max(maxY, u.originY + u.bottom + 36)
@@ -1055,6 +1159,7 @@ export function buildTopologyMainLineLayout(topology) {
     loads: scene.loads,
     unknowns: scene.unknowns,
     tieBreakers: scene.tieBreakers,
+    branchBreakers: scene.branchBreakers,
     stemBreakers,
     gridX,
     stationCenterX: gridX,

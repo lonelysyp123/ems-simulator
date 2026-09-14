@@ -40,6 +40,18 @@ namespace EssSimulator.Web.Topology
             if (emusWithPcs.Count == 0 && pvUnits.Count == 0)
                 return (null, Fail("NO_GENERATION_UNIT", "工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元"));
 
+            foreach (var pv in pvUnits)
+            {
+                var model = TopologyParamHelper.GetString(pv.Parameters, "moduleModel");
+                if (string.IsNullOrWhiteSpace(model))
+                    continue;
+                if (!EssDeviceSimModel.Pv.TrinaPvModuleCatalog.TryGet(model, out _))
+                {
+                    var known = string.Join("、", EssDeviceSimModel.Pv.TrinaPvModuleCatalog.KnownModels);
+                    return (null, Fail("PV_UNKNOWN_MODULE", $"未知光伏组件型号。已知型号：{known}"));
+                }
+            }
+
             var overlay = new TopologyRuntimeOverlay
             {
                 SourceProjectId = project.Id,
@@ -576,7 +588,9 @@ namespace EssSimulator.Web.Topology
                 UnitXfRatedKva = TopologyParamHelper.GetDouble(p, "unitXfRatedKva", invCount * ratedKw),
                 DcVoltageMin = TopologyParamHelper.GetDouble(p, "dcVoltageMin", 500),
                 DcVoltageMax = TopologyParamHelper.GetDouble(p, "dcVoltageMax", 1500),
-                ModuleModel = TopologyParamHelper.GetString(p, "moduleModel", "TSM-NEG21C.20Q")
+                ModuleModel = TopologyParamHelper.GetString(p, "moduleModel", "TSM-NEG21C.20Q"),
+                GroundAlbedo = Math.Clamp(TopologyParamHelper.GetDouble(p, "groundAlbedo", 0), 0, 1),
+                OperatingYears = Math.Max(0, TopologyParamHelper.GetDouble(p, "operatingYears", 0))
             };
         }
 

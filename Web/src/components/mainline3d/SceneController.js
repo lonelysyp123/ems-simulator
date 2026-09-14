@@ -435,7 +435,8 @@ export class SceneController {
           onPvSetPower: (p) => this.onEvent('pv-set-power', p && typeof p === 'object' ? p : {}),
           onPvSetReactive: (p) => this.onEvent('pv-set-reactive', p && typeof p === 'object' ? p : {}),
           onPvSetTemp: (p) => this.onEvent('pv-set-temp', p && typeof p === 'object' ? p : {}),
-          onPvSetAngle: (p) => this.onEvent('pv-set-angle', p && typeof p === 'object' ? p : {})
+          onPvSetAngle: (p) => this.onEvent('pv-set-angle', p && typeof p === 'object' ? p : {}),
+          onPvSetAlbedo: (p) => this.onEvent('pv-set-albedo', p && typeof p === 'object' ? p : {})
         })
       } else {
         const unit = (snap.units || []).find(u => (u.unitIndex ?? -1) === a.unitIndex)
@@ -1054,7 +1055,7 @@ export class SceneController {
         lines = [
           `${item.label || item.node?.label || '断路器'} ${fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}`
         ]
-      } else if (kind === 'tie-breaker') {
+      } else if (kind === 'tie-breaker' || kind === 'branch-breaker') {
         const live = liveUnitForBreaker(snap, item)
         const closed = live ? !!live.unitBreakerClosed : !!item.node?.parameters?.closed
         const tripped = live ? !!live.unitBreakerTripped : !!item.node?.parameters?.tripped

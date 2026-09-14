@@ -371,6 +371,10 @@ namespace EssSimulator.Configuration
         public double DcVoltageMin { get; set; } = 500;
         public double DcVoltageMax { get; set; } = 1500;
         public string ModuleModel { get; set; } = "TSM-NEG21C.20Q";
+        /// <summary>地面反射（0–1），作为方阵 A/B 反照率初值；0 表示关闭双面增益。</summary>
+        public double GroundAlbedo { get; set; }
+        /// <summary>投运年限；0 表示新产品、无衰减。</summary>
+        public double OperatingYears { get; set; }
     }
 
     /// <summary>顶层仿真器配置（对应 appsettings.json: Simulator 节）</summary>

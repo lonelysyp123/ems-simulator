@@ -9,18 +9,45 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         private const double MinIrradianceWm2 = 1.0;
         private const double StcAbsTempK = 298.15;
 
+        public const double MinDegradationFactor = 0.70;
+
         private readonly double _stcIdealityA;
 
-        public PvModuleSimulator(PvModuleSpec spec)
+        public PvModuleSimulator(PvModuleSpec spec, double degradationFactor = 1)
         {
             Spec = spec ?? throw new ArgumentNullException(nameof(spec));
+            DegradationFactor = NormalizeDegradationFactor(degradationFactor);
             _stcIdealityA = FitIdealityFactorA(spec);
         }
 
         public PvModuleSpec Spec { get; }
+        public double DegradationFactor { get; }
 
         public static PvModuleSimulator CreateNeg21c20q() =>
             new(TrinaPvModuleCatalog.Neg21c20q760());
+
+        /// <summary>
+        /// 投运年限 → 电流/功率缩放。0 年新产品为 1；满 1 年后按首年衰减 × 逐年衰减。
+        /// </summary>
+        public static double DegradationFactorFromYears(PvModuleSpec spec, double operatingYears)
+        {
+            ArgumentNullException.ThrowIfNull(spec);
+            if (!double.IsFinite(operatingYears) || operatingYears <= 0)
+                return 1;
+            double first = spec.FirstYearDegradation;
+            double annual = spec.AnnualDegradation;
+            double factor = operatingYears < 1
+                ? 1.0 - first * operatingYears
+                : (1.0 - first) * Math.Pow(1.0 - annual, operatingYears - 1.0);
+            return NormalizeDegradationFactor(factor);
+        }
+
+        private static double NormalizeDegradationFactor(double factor)
+        {
+            if (!double.IsFinite(factor))
+                return 1;
+            return Math.Clamp(factor, MinDegradationFactor, 1.0);
+        }
 
         /// <summary>NOCT 定义：800 W/㎡、20℃ 环境、1 m/s 风速时的电池温度。</summary>
         public static double EstimateCellTempC(PvModuleSpec spec, double ambientC, double gFrontWm2)
@@ -56,7 +83,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             double dT = cellTempC - PvModuleSpec.StcCellTempC;
             double a = IdealityA(cellTempC);
 
-            double isc = Spec.IscStcA * gRatio * (1.0 + Spec.AlphaIscPerK * dT);
+            double isc = Spec.IscStcA * gRatio * (1.0 + Spec.AlphaIscPerK * dT) * DegradationFactor;
             double voc = (Spec.VocStcV + Spec.SeriesCells * ThermalVoltageStcV * Math.Log(gRatio))
                          * (1.0 + Spec.BetaVocPerK * dT);
             isc = Math.Max(0, isc);

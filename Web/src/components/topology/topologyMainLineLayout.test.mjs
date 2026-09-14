@@ -54,7 +54,7 @@ describe('buildTopologyMainLineLayout pv units', () => {
     assert.ok(u.bmsTop >= u.xfmrCardTop + u.xfmrCardH, '两路光伏方阵在箱变模块下方')
     assert.ok(u.arraySplitY > u.xfmrCardTop + u.xfmrCardH)
     assert.ok(u.arraySplitY < u.bmsTop)
-    assert.ok(u.bmsH <= 130 && u.bmsH >= 112, '光伏方阵框刚好容纳内容')
+    assert.ok(u.bmsH <= 124 && u.bmsH >= 112, '光伏方阵框刚好容纳内容')
     assert.ok(u.xfmrCardH <= 172 && u.xfmrCardH >= 148, '箱变框刚好容纳内容')
   })
 
@@ -557,5 +557,179 @@ describe('buildTopologyMainLineLayout coupling downstreams', () => {
     assert.equal(layout.unknowns[0].id, 'arrester')
     assert.equal(layout.unknowns[0].busId, 'bus')
     assert.equal(layout.units.length, 1)
+  })
+})
+
+describe('buildTopologyMainLineLayout series breaker on transformer branch', () => {
+  function splitWithHvBreaker(opts = {}) {
+    const brkParams = { closed: true, ...(opts.emuId ? { emuId: opts.emuId } : {}) }
+    return {
+      nodes: [
+        node('grid', 'grid', '电网', 400, { outputVoltage: 35000 }),
+        node('hv', 'ac_bus', '35kV', 400, { nominalVoltage: 35000 }),
+        node('cb', 'ac_breaker', '中压三相断路器', 400, brkParams),
+        node('split', 'split_transformer', '双耳1', 400, {
+          primaryVoltage: 35000, secondaryVoltage: 690, ratedPowerKva: 6300, emuId: opts.emuId || undefined
+        }),
+        node('busL', 'ac_bus', '左690', 200, { nominalVoltage: 690 }),
+        node('busR', 'ac_bus', '右690', 600, { nominalVoltage: 690 }),
+        node('emu1', 'emu', 'EMU-1', 400),
+        node('pcsL', 'pcs', 'PCS-L', 200, { emuId: 'emu1' }),
+        node('pcsR', 'pcs', 'PCS-R', 600, { emuId: 'emu1' })
+      ],
+      edges: [
+        edge('grid', 'hv'),
+        edge('hv', 'cb'), edge('cb', 'split'),
+        edge('split', 'busL'), edge('split', 'busR'),
+        edge('busL', 'pcsL'), edge('busR', 'pcsR')
+      ]
+    }
+  }
+
+  it('places the 35kV-CB-split-transformer breaker on the HV lead, not on either 690V feeder', () => {
+    const layout = buildTopologyMainLineLayout(splitWithHvBreaker({ emuId: 'emu1' }), [])
+    assert.equal(layout.branchBreakers.length, 1)
+    assert.equal(layout.branchBreakers[0].id, 'cb')
+    assert.ok(!layout.tieBreakers.some(b => b.id === 'cb'), 'not a bus-section tie')
+    const hv = layout.buses.find(b => b.node?.id === 'hv')
+    const xf = layout.transformers.find(t => t.id === 'split')
+    const br = layout.branchBreakers[0]
+    assert.ok(hv && xf && br)
+    assert.ok(br.y > hv.y, 'breaker below the 35kV bus')
+    assert.ok(br.y < xf.y, 'breaker above the dual-ear transformer')
+    const emus = layout.units.filter(u => u.kind === 'emu')
+    assert.equal(emus.length, 2)
+    for (const u of emus) {
+      assert.equal(u.unitBreakerOnXfmr, true)
+      assert.equal(u.pcsTop, 18, 'PCS row is not shifted by a breaker drawn on the xfmr')
+    }
+    assert.equal(br.unitIndex, 0)
+  })
+
+  it('places a two-winding unit transformer HV breaker on the xfmr lead', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 400, { outputVoltage: 35000 }),
+        node('hv', 'ac_bus', '35kV', 400, { nominalVoltage: 35000 }),
+        node('cb', 'ac_breaker', '中压断', 400, { emuId: 'emu1', closed: true }),
+        node('xf', 'transformer', '单元变', 400, { primaryVoltage: 35000, secondaryVoltage: 690 }),
+        node('lv', 'ac_bus', '690V', 400, { nominalVoltage: 690 }),
+        node('emu1', 'emu', 'EMU-1', 400),
+        node('pcs1', 'pcs', 'PCS-1', 400, { emuId: 'emu1' })
+      ],
+      edges: [
+        edge('grid', 'hv'), edge('hv', 'cb'), edge('cb', 'xf'), edge('xf', 'lv'), edge('lv', 'pcs1')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    assert.equal(layout.branchBreakers.map(b => b.id).join(), 'cb')
+    assert.equal(layout.tieBreakers.length, 0)
+    const hv = layout.buses.find(b => b.node?.id === 'hv')
+    const xf = layout.transformers.find(t => t.id === 'xf')
+    assert.ok(layout.branchBreakers[0].y > hv.y && layout.branchBreakers[0].y < xf.y)
+    const u = layout.units.find(x => x.kind === 'emu')
+    assert.equal(u.unitBreakerOnXfmr, true)
+    assert.equal(u.pcsTop, 18)
+  })
+
+  it('places a LV-side series breaker on the transformer-to-bus lead', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 400, { outputVoltage: 35000 }),
+        node('hv', 'ac_bus', '35kV', 400, { nominalVoltage: 35000 }),
+        node('xf', 'transformer', '单元变', 400, { primaryVoltage: 35000, secondaryVoltage: 690 }),
+        node('cb', 'ac_breaker', '低压断', 400, { closed: true }),
+        node('lv', 'ac_bus', '690V', 400, { nominalVoltage: 690 }),
+        node('emu1', 'emu', 'EMU-1', 400),
+        node('pcs1', 'pcs', 'PCS-1', 400, { emuId: 'emu1' })
+      ],
+      edges: [
+        edge('grid', 'hv'), edge('hv', 'xf'), edge('xf', 'cb'), edge('cb', 'lv'), edge('lv', 'pcs1')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    assert.equal(layout.branchBreakers.map(b => b.id).join(), 'cb')
+    const xf = layout.transformers.find(t => t.id === 'xf')
+    const lv = layout.buses.find(b => b.node?.id === 'lv')
+    const br = layout.branchBreakers[0]
+    assert.ok(xf && lv && br)
+    assert.ok(br.y > xf.y, 'breaker below the transformer')
+    assert.ok(br.y < lv.y, 'breaker above the 690V bus')
+    const u = layout.units.find(x => x.kind === 'emu')
+    assert.equal(u.pcsTop, 18, 'not redrawn on the PCS feeder')
+  })
+
+  it('places a station-transformer HV breaker on that xfmr lead, not on the stem', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 400, { outputVoltage: 220000 }),
+        node('hv', 'ac_bus', '220kV', 400, { nominalVoltage: 220000 }),
+        node('cb', 'ac_breaker', '主变高压断', 400, { closed: true }),
+        node('xf', 'transformer', '主变', 400, { primaryVoltage: 220000, secondaryVoltage: 35000, ratedPowerKva: 31500 }),
+        node('lv', 'ac_bus', '35kV', 400, { nominalVoltage: 35000 }),
+        node('pv1', 'pv_unit', 'PV-1', 400, { inverterCount: 8 })
+      ],
+      edges: [
+        edge('grid', 'hv'), edge('hv', 'cb'), edge('cb', 'xf'), edge('xf', 'lv'), edge('lv', 'pv1')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    assert.equal(layout.stemBreakers.length, 0, 'stem is grid to first bus; this CB is after the 220kV bus')
+    assert.equal(layout.branchBreakers.map(b => b.id).join(), 'cb')
+    const hv = layout.buses.find(b => b.node?.id === 'hv')
+    const xf = layout.transformers.find(t => t.id === 'xf')
+    assert.ok(layout.branchBreakers[0].y > hv.y && layout.branchBreakers[0].y < xf.y)
+  })
+
+  it('still draws a series breaker with no emuId', () => {
+    const layout = buildTopologyMainLineLayout(splitWithHvBreaker({}), [])
+    assert.equal(layout.branchBreakers.map(b => b.id).join(), 'cb')
+    assert.ok(layout.units.filter(u => u.kind === 'emu').every(u => u.pcsTop === 18))
+  })
+
+  it('keeps three unit HV breakers on their own transformers and does not steal onto 690V feeders', () => {
+    const n = (id, templateId, label, x, y, parameters = {}) =>
+      ({ id, templateId, label, x, y, parameters })
+    const topology = {
+      nodes: [
+        n('grid', 'grid', '电网', 400, 0, { outputVoltage: 35000 }),
+        n('hv', 'ac_bus', '35kV', 400, 40, { nominalVoltage: 35000 }),
+        n('cb1', 'ac_breaker', '中压断1', 100, 80, { emuId: 'emu1', closed: true }),
+        n('cb2', 'ac_breaker', '中压断2', 400, 80, { emuId: 'emu2', closed: true }),
+        n('cb3', 'ac_breaker', '中压断3', 700, 80, { emuId: 'emu3', closed: true }),
+        n('s1', 'split_transformer', '双耳1', 100, 120, { primaryVoltage: 35000, secondaryVoltage: 690, emuId: 'emu1' }),
+        n('s2', 'split_transformer', '双耳2', 400, 120, { primaryVoltage: 35000, secondaryVoltage: 690, emuId: 'emu2' }),
+        n('s3', 'split_transformer', '双耳3', 700, 120, { primaryVoltage: 35000, secondaryVoltage: 690, emuId: 'emu3' }),
+        n('l1', 'ac_bus', 'L1', 40, 200, { nominalVoltage: 690 }),
+        n('r1', 'ac_bus', 'R1', 160, 200, { nominalVoltage: 690 }),
+        n('l2', 'ac_bus', 'L2', 340, 200, { nominalVoltage: 690 }),
+        n('r2', 'ac_bus', 'R2', 460, 200, { nominalVoltage: 690 }),
+        n('l3', 'ac_bus', 'L3', 640, 200, { nominalVoltage: 690 }),
+        n('r3', 'ac_bus', 'R3', 760, 200, { nominalVoltage: 690 }),
+        n('emu1', 'emu', 'EMU-1', 100, 10),
+        n('emu2', 'emu', 'EMU-2', 400, 10),
+        n('emu3', 'emu', 'EMU-3', 700, 10),
+        n('p1a', 'pcs', 'P1A', 40, 240, { emuId: 'emu1' }),
+        n('p1b', 'pcs', 'P1B', 160, 240, { emuId: 'emu1' }),
+        n('p2a', 'pcs', 'P2A', 340, 240, { emuId: 'emu2' }),
+        n('p2b', 'pcs', 'P2B', 460, 240, { emuId: 'emu2' }),
+        n('p3a', 'pcs', 'P3A', 640, 240, { emuId: 'emu3' }),
+        n('p3b', 'pcs', 'P3B', 760, 240, { emuId: 'emu3' })
+      ],
+      edges: [
+        edge('grid', 'hv'),
+        edge('hv', 'cb1'), edge('cb1', 's1'), edge('s1', 'l1'), edge('s1', 'r1'), edge('l1', 'p1a'), edge('r1', 'p1b'),
+        edge('hv', 'cb2'), edge('cb2', 's2'), edge('s2', 'l2'), edge('s2', 'r2'), edge('l2', 'p2a'), edge('r2', 'p2b'),
+        edge('hv', 'cb3'), edge('cb3', 's3'), edge('s3', 'l3'), edge('s3', 'r3'), edge('l3', 'p3a'), edge('r3', 'p3b')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    const ids = layout.branchBreakers.map(b => b.id).sort()
+    assert.deepEqual(ids, ['cb1', 'cb2', 'cb3'])
+    assert.equal(layout.tieBreakers.length, 0)
+    const emus = layout.units.filter(u => u.kind === 'emu')
+    assert.equal(emus.length, 6)
+    assert.ok(emus.every(u => u.unitBreakerOnXfmr && u.pcsTop === 18))
+    assert.equal(new Set(layout.branchBreakers.map(b => b.unitIndex)).size, 3)
   })
 })

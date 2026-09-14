@@ -675,6 +675,48 @@ describe('sectional bus breaker in 3d', () => {
   })
 })
 
+describe('transformer-branch series breaker in 3d', () => {
+  it('places the MV breaker with the dual-ear transformer, not on the PCS row', () => {
+    const snap = {
+      topology: {
+        nodes: [
+          node('grid', 'grid', '电网', 400, { outputVoltage: 35000 }),
+          node('hv', 'ac_bus', '35kV', 400, { nominalVoltage: 35000 }),
+          node('cb', 'ac_breaker', '中压三相断路器', 400, { emuId: 'emu1', closed: true }),
+          node('split', 'split_transformer', '双耳1', 400, {
+            primaryVoltage: 35000, secondaryVoltage: 690, ratedPowerKva: 6300, emuId: 'emu1'
+          }),
+          node('busL', 'ac_bus', '左690', 200, { nominalVoltage: 690 }),
+          node('busR', 'ac_bus', '右690', 600, { nominalVoltage: 690 }),
+          node('emu1', 'emu', 'EMU-1', 400),
+          node('pcsL', 'pcs', 'PCS-L', 200, { emuId: 'emu1' }),
+          node('pcsR', 'pcs', 'PCS-R', 600, { emuId: 'emu1' })
+        ],
+        edges: [
+          edge('grid', 'hv'),
+          edge('hv', 'cb'), edge('cb', 'split'),
+          edge('split', 'busL'), edge('split', 'busR'),
+          edge('busL', 'pcsL'), edge('busR', 'pcsR')
+        ]
+      },
+      units: [{ unitIndex: 0, unitNumber: 1, unitBreakerClosed: true, channels: [{ pcsNumber: 1 }, { pcsNumber: 2 }] }]
+    }
+    const layout = buildStation3dLayout(snap)
+    const brk = layout.items.filter(i => i.templateId === 'ac_breaker')
+    assert.equal(brk.length, 1, 'drawn exactly once')
+    assert.equal(brk[0].kind, 'branch-breaker')
+    assert.equal(brk[0].node.id, 'cb')
+    const xf = layout.items.find(i => i.kind === 'station-xf')
+    const hv = layout.items.find(i => i.templateId === 'ac_bus' && i.node?.id === 'hv')
+    const pcs = byTemplate(layout, 'pcs')
+    assert.ok(xf && hv && pcs.length === 2)
+    assert.ok(brk[0].z > hv.z, 'downstream of the 35kV hub')
+    assert.ok(brk[0].z < xf.z, 'upstream of the dual-ear transformer')
+    assert.ok(pcs.every(p => brk[0].z < p.z), 'not on the PCS row')
+    assert.ok(!layout.items.some(i => i.kind === 'unit-breaker'), 'not redrawn inside the unit')
+  })
+})
+
 describe('edge-derived cable redraw', () => {
   // 一根连线 ⇔ 组态中存在对应节点边：并行边去重、未绘制模板跳过、端点必落在设备锚点上
   function stationSnap() {

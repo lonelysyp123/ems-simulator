@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "id": "8d150d32fcbf44f095eac558e4b75de2",
   "name": "\u5E38\u7528\u50A8\u80FD\u7535\u7AD9-10MW",
-  "updatedAtUtc": "2026-09-10T01:08:21.599436Z",
+  "updatedAtUtc": "2026-09-14T06:45:22.446747Z",
   "nodes": [
     {
       "id": "4a575f073f4ed1a037e5a2c9",
@@ -101,17 +101,6 @@
       "y": 860,
       "parameters": {
         "name": "EMU\u5206\u7EC4"
-      }
-    },
-    {
-      "id": "b918598b39f8181a037e80abb",
-      "templateId": "dc_bus",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 380,
-      "y": 1260,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -218,17 +207,6 @@
         "name": "PCS\u53D8\u6D41\u5668",
         "emuId": "3541efc02497e1a037e8e641",
         "groupId": "447f24c15d13581a037e8f112"
-      }
-    },
-    {
-      "id": "cd5f702556f1d1a037e9d946",
-      "templateId": "dc_bus",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 660,
-      "y": 1260,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -395,17 +373,6 @@
       }
     },
     {
-      "id": "7f08dfd9250f381a03ba2bc95",
-      "templateId": "dc_bus",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 1140,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
-      }
-    },
-    {
       "id": "4684934fca1c71a03ba2d426",
       "templateId": "bms",
       "label": "BMS \u7535\u6C60\u5806",
@@ -475,17 +442,6 @@
         "name": "PCS\u53D8\u6D41\u5668",
         "emuId": "3541efc02497e1a037e8e641",
         "groupId": "ec536ef5be29e81a03bfdff7b"
-      }
-    },
-    {
-      "id": "4b3583f070a761a03ba331fb",
-      "templateId": "dc_bus",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 1600,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -795,18 +751,6 @@
       }
     },
     {
-      "id": "d2f65162e258081a056c7407e",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 2160,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
-      }
-    },
-    {
       "id": "f2cf9ac79e22881a056c74ca1",
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
@@ -842,18 +786,6 @@
         "cellNominalCapacity": 314,
         "cellInitialSoc": 0.5,
         "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "7ac23587768e71a056c7643c",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 2580,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -895,18 +827,6 @@
       }
     },
     {
-      "id": "95f2aa9da670f81a056c79033",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 3020,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
-      }
-    },
-    {
       "id": "013ac6f7d748c81a056c79c76",
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
@@ -942,18 +862,6 @@
         "cellNominalCapacity": 314,
         "cellInitialSoc": 0.5,
         "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "7a66f29f2b9fb81a056c7b43e",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": 3520,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -1232,18 +1140,6 @@
       }
     },
     {
-      "id": "0a088af708dba81a05ff544c6",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": -1520,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
-      }
-    },
-    {
       "id": "c586153a272ce1a05ff544c6",
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
@@ -1279,18 +1175,6 @@
         "cellNominalCapacity": 314,
         "cellInitialSoc": 0.5,
         "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "6e676e94935791a05ff544c6",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": -1100,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -1332,18 +1216,6 @@
       }
     },
     {
-      "id": "bfa3b3dc954d41a05ff544c6",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": -660,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
-      }
-    },
-    {
       "id": "35a310547845681a05ff544c6",
       "templateId": "bms",
       "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
@@ -1379,18 +1251,6 @@
         "cellNominalCapacity": 314,
         "cellInitialSoc": 0.5,
         "rackInternalResistance": 0.02
-      }
-    },
-    {
-      "id": "dba4196a947dc81a05ff544c6",
-      "templateId": "dc_bus",
-      "libraryItemId": "a53e60955b7541deacee34170ef73d3e",
-      "label": "\u76F4\u6D41\u6BCD\u7EBF",
-      "x": -160,
-      "y": 1280,
-      "parameters": {
-        "nominalVoltage": 1200,
-        "name": "DC\u6BCD\u7EBF"
       }
     },
     {
@@ -1661,118 +1521,6 @@
       "toPortId": "c"
     },
     {
-      "id": "e675aa309c2e4196831802734d0a3051",
-      "fromNodeId": "4083f969d6e6581a037e74fff",
-      "fromPortId": "dc_pos",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "15bec511d0234cf49a1e87771a77f846",
-      "fromNodeId": "4083f969d6e6581a037e74fff",
-      "fromPortId": "dc_neg",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "ac98766fca034f1d9c04c08345693752",
-      "fromNodeId": "c2eed5d28a5961a037e76b23",
-      "fromPortId": "dc_pos",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "97079102ae8f48dda61c923a279a183c",
-      "fromNodeId": "c2eed5d28a5961a037e76b23",
-      "fromPortId": "dc_neg",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "ee96b1b7e7884c97a58dc20517dd8cfb",
-      "fromNodeId": "ab9897cce250281a037e82d9d",
-      "fromPortId": "dc_pos",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "34ae5bc2064349faa9d2b473287e1a3f",
-      "fromNodeId": "ab9897cce250281a037e82d9d",
-      "fromPortId": "dc_neg",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "7921bd3f256b434489047718fde06639",
-      "fromNodeId": "5569f0019eaf281a037e83ff4",
-      "fromPortId": "dc_pos",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "7a1bd8e2e068490e8157374444d4048e",
-      "fromNodeId": "5569f0019eaf281a037e83ff4",
-      "fromPortId": "dc_neg",
-      "toNodeId": "b918598b39f8181a037e80abb",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "56700cc444ea4518920a9213323d3e32",
-      "fromNodeId": "47b78194b84a981a037e9c0a4",
-      "fromPortId": "dc_pos",
-      "toNodeId": "cd5f702556f1d1a037e9d946",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "ed59943e24f74e9e9ba97c4ab241c759",
-      "fromNodeId": "47b78194b84a981a037e9c0a4",
-      "fromPortId": "dc_neg",
-      "toNodeId": "cd5f702556f1d1a037e9d946",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "5afccd8d572a45ca94f1ca9d6069fd4e",
-      "fromNodeId": "627b127bb307b81a037e9cd69",
-      "fromPortId": "dc_pos",
-      "toNodeId": "cd5f702556f1d1a037e9d946",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "ef014e525efc412e87b049c1072ad513",
-      "fromNodeId": "627b127bb307b81a037e9cd69",
-      "fromPortId": "dc_neg",
-      "toNodeId": "cd5f702556f1d1a037e9d946",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "347434f0da7a43c2baf00c7b18d04e10",
-      "fromNodeId": "cd5f702556f1d1a037e9d946",
-      "fromPortId": "pos_b",
-      "toNodeId": "51a7fef4903471a037e9ed8f",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "43cf2b6e1ba94b76bc8d93f51fda809f",
-      "fromNodeId": "cd5f702556f1d1a037e9d946",
-      "fromPortId": "neg_b",
-      "toNodeId": "51a7fef4903471a037e9ed8f",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "fa5953e3f65842508c137b0193f8a60e",
-      "fromNodeId": "cd5f702556f1d1a037e9d946",
-      "fromPortId": "pos_b",
-      "toNodeId": "5a034b7f43b4c81a037e9f5bd",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "f6de54b96d004291b35620813454cca4",
-      "fromNodeId": "cd5f702556f1d1a037e9d946",
-      "fromPortId": "neg_b",
-      "toNodeId": "5a034b7f43b4c81a037e9f5bd",
-      "toPortId": "dc_neg"
-    },
-    {
       "id": "cd7760cdb27a4f9391ede199688738b7",
       "fromNodeId": "774cb7e748f9981a037e5c95a",
       "fromPortId": "a2",
@@ -1962,62 +1710,6 @@
       "toPortId": "ac_c"
     },
     {
-      "id": "be57c9dd48f5429496817be27f6aa8d3",
-      "fromNodeId": "60eedca0c4d2d81a03ba299d8",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7f08dfd9250f381a03ba2bc95",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "160b90931efb4fab91c0bc0481ffc144",
-      "fromNodeId": "60eedca0c4d2d81a03ba299d8",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7f08dfd9250f381a03ba2bc95",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "647734bc88d5434890aa20cdbbf5571d",
-      "fromNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7f08dfd9250f381a03ba2bc95",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "f76d127b569e489ca018d27daca6f5ce",
-      "fromNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7f08dfd9250f381a03ba2bc95",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "b995dbd992524cb1b2b5d6c9f53ef4fc",
-      "fromNodeId": "7f08dfd9250f381a03ba2bc95",
-      "fromPortId": "pos_b",
-      "toNodeId": "4684934fca1c71a03ba2d426",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "19c6e8f963fd4861b22b23c94a25f119",
-      "fromNodeId": "7f08dfd9250f381a03ba2bc95",
-      "fromPortId": "neg_b",
-      "toNodeId": "4684934fca1c71a03ba2d426",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "e6e44566f1d64fe1829c6e532c877f4b",
-      "fromNodeId": "7f08dfd9250f381a03ba2bc95",
-      "fromPortId": "pos_b",
-      "toNodeId": "b2d03e1f0b941a03ba2dbce",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "df62b097ba3d4b239a611c964cbd2f36",
-      "fromNodeId": "7f08dfd9250f381a03ba2bc95",
-      "fromPortId": "neg_b",
-      "toNodeId": "b2d03e1f0b941a03ba2dbce",
-      "toPortId": "dc_neg"
-    },
-    {
       "id": "7468a909d892442b8b0922eccc6bd900",
       "fromNodeId": "e1f8c95e7396281a03ba27bb8",
       "fromPortId": "a2",
@@ -2058,62 +1750,6 @@
       "fromPortId": "c2",
       "toNodeId": "b93c530a3de1c1a03ba30cc6",
       "toPortId": "ac_c"
-    },
-    {
-      "id": "4b900786f567449ebfe26fca5343d389",
-      "fromNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "4b3583f070a761a03ba331fb",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "adecccf03bff48daa6818a090aeade62",
-      "fromNodeId": "d6ebdb30bb1e981a03ba300c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "4b3583f070a761a03ba331fb",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "0a72bfa5248c459fa6b8c5ad2212bbc0",
-      "fromNodeId": "4b3583f070a761a03ba331fb",
-      "fromPortId": "pos_t",
-      "toNodeId": "b93c530a3de1c1a03ba30cc6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "47072ebb543e40918b5aea21c43222be",
-      "fromNodeId": "4b3583f070a761a03ba331fb",
-      "fromPortId": "neg_t",
-      "toNodeId": "b93c530a3de1c1a03ba30cc6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "8d60f693e5f74310b7eb09057051e894",
-      "fromNodeId": "4b3583f070a761a03ba331fb",
-      "fromPortId": "pos_b",
-      "toNodeId": "39fdf80b5cbf41a03ba34bde",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "a1b65dff156c4df9bb013bf32b88867a",
-      "fromNodeId": "4b3583f070a761a03ba331fb",
-      "fromPortId": "neg_b",
-      "toNodeId": "39fdf80b5cbf41a03ba34bde",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "1470d8845cdf4d44bd76fa941ccf944b",
-      "fromNodeId": "4b3583f070a761a03ba331fb",
-      "fromPortId": "pos_b",
-      "toNodeId": "dd7bf50dc730181a03ba35ac8",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "28e34c2b84e646419635a9c34da4587c",
-      "fromNodeId": "4b3583f070a761a03ba331fb",
-      "fromPortId": "neg_b",
-      "toNodeId": "dd7bf50dc730181a03ba35ac8",
-      "toPortId": "dc_neg"
     },
     {
       "id": "1654d4fc04ab4ade886957058bd7a288",
@@ -2284,174 +1920,6 @@
       "toPortId": "ac_c"
     },
     {
-      "id": "904eee10050b4a7db6afd8ac6b6ac177",
-      "fromNodeId": "08469567877c381a056c646be",
-      "fromPortId": "dc_pos",
-      "toNodeId": "d2f65162e258081a056c7407e",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "e5197725c17346a98988aba820609447",
-      "fromNodeId": "08469567877c381a056c646be",
-      "fromPortId": "dc_neg",
-      "toNodeId": "d2f65162e258081a056c7407e",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "4b979a88196841bca11ba16ffa8fdd17",
-      "fromNodeId": "d2f65162e258081a056c7407e",
-      "fromPortId": "pos_t",
-      "toNodeId": "1b21776b6e84181a056c656ea",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "af0c30e021364258b228327623df70c1",
-      "fromNodeId": "d2f65162e258081a056c7407e",
-      "fromPortId": "neg_t",
-      "toNodeId": "1b21776b6e84181a056c656ea",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "436aa7057a1a4cbba115df15853c6f33",
-      "fromNodeId": "f2cf9ac79e22881a056c74ca1",
-      "fromPortId": "dc_pos",
-      "toNodeId": "d2f65162e258081a056c7407e",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "920735f17e514b798dd55dc42113ee82",
-      "fromNodeId": "f2cf9ac79e22881a056c74ca1",
-      "fromPortId": "dc_neg",
-      "toNodeId": "d2f65162e258081a056c7407e",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "9bdcd92fc2d04e368bb9521876d4d37c",
-      "fromNodeId": "d2f65162e258081a056c7407e",
-      "fromPortId": "pos_b",
-      "toNodeId": "4bb6b4d71edea1a056c756e9",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "927cb9edbaa04f10aab42f341cf6dc9c",
-      "fromNodeId": "d2f65162e258081a056c7407e",
-      "fromPortId": "neg_b",
-      "toNodeId": "4bb6b4d71edea1a056c756e9",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "f88bef1277a042a98bfc75306180a0cd",
-      "fromNodeId": "34020a0aed27f81a056c76f14",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7ac23587768e71a056c7643c",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "651fdd6b6e934a2398bc708874f05ddf",
-      "fromNodeId": "34020a0aed27f81a056c76f14",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7ac23587768e71a056c7643c",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "ee13abf23fdb4106a8e12455d37d6932",
-      "fromNodeId": "7ac23587768e71a056c7643c",
-      "fromPortId": "pos_b",
-      "toNodeId": "ef23f543c7db41a056c77a54",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "ca76334476bc4d4492564fa0879fd4b4",
-      "fromNodeId": "7ac23587768e71a056c7643c",
-      "fromPortId": "neg_b",
-      "toNodeId": "ef23f543c7db41a056c77a54",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "37e3662d288f4069ad64b554b6b407e9",
-      "fromNodeId": "804b882130c061a056c689d1",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7ac23587768e71a056c7643c",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "b32e1c4afeb44011a20da1d367b415ca",
-      "fromNodeId": "804b882130c061a056c689d1",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7ac23587768e71a056c7643c",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "9031e60596584e2f9965202e0941f7fc",
-      "fromNodeId": "7ac23587768e71a056c7643c",
-      "fromPortId": "pos_t",
-      "toNodeId": "371c0c794aad281a056c6a7f9",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "127f8cb2857544f2b282aaac79123a1a",
-      "fromNodeId": "7ac23587768e71a056c7643c",
-      "fromPortId": "neg_t",
-      "toNodeId": "371c0c794aad281a056c6a7f9",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "5c72f83a71ec46e79a97e37216d8eaae",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "dc_pos",
-      "toNodeId": "95f2aa9da670f81a056c79033",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "198f48fa2c6a447fb285a1fc54890652",
-      "fromNodeId": "8765e54e10dc881a056c6f1e9",
-      "fromPortId": "dc_neg",
-      "toNodeId": "95f2aa9da670f81a056c79033",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "7311575d3b6d4467b124864d877c78f8",
-      "fromNodeId": "95f2aa9da670f81a056c79033",
-      "fromPortId": "pos_t",
-      "toNodeId": "1835691042a6681a056c6ff2e",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "399765a4280f47d78f30b95589ea7300",
-      "fromNodeId": "95f2aa9da670f81a056c79033",
-      "fromPortId": "neg_t",
-      "toNodeId": "1835691042a6681a056c6ff2e",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "dcf91dd7c7014c10b31efd07866b3448",
-      "fromNodeId": "95f2aa9da670f81a056c79033",
-      "fromPortId": "pos_b",
-      "toNodeId": "013ac6f7d748c81a056c79c76",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "df295617e2cb46d8a762ccdd14fe0ba9",
-      "fromNodeId": "95f2aa9da670f81a056c79033",
-      "fromPortId": "neg_b",
-      "toNodeId": "013ac6f7d748c81a056c79c76",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "055c6a3ede46455fa9cc4ce8d9773ab3",
-      "fromNodeId": "95f2aa9da670f81a056c79033",
-      "fromPortId": "pos_b",
-      "toNodeId": "34c9e140038e981a056c7a4c7",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "a0de1dd740974188b86d7b31c163b7df",
-      "fromNodeId": "95f2aa9da670f81a056c79033",
-      "fromPortId": "neg_b",
-      "toNodeId": "34c9e140038e981a056c7a4c7",
-      "toPortId": "dc_neg"
-    },
-    {
       "id": "816ed85e2e754782a15c91c51e84332f",
       "fromNodeId": "8765e54e10dc881a056c6f1e9",
       "fromPortId": "ac_a",
@@ -2534,62 +2002,6 @@
       "fromPortId": "c2",
       "toNodeId": "43f69255fa2f281a056c7222c",
       "toPortId": "ac_c"
-    },
-    {
-      "id": "519756f901c141c49cf96585893241db",
-      "fromNodeId": "2071dee27de1d1a056c71638",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "43adfc04579e4430b6125005f0849c68",
-      "fromNodeId": "2071dee27de1d1a056c71638",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "2f1177df0d1440458be4a768efb7155f",
-      "fromNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "fromPortId": "pos_t",
-      "toNodeId": "43f69255fa2f281a056c7222c",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "a096b2fade824950a9f15762ce123a7a",
-      "fromNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "fromPortId": "neg_t",
-      "toNodeId": "43f69255fa2f281a056c7222c",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "8f000f19231746958b5519e9add24006",
-      "fromNodeId": "a00ac7dd4be691a056c7bd5b",
-      "fromPortId": "dc_pos",
-      "toNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "14285e9d80a0499b9c7efcb29a90c0d4",
-      "fromNodeId": "a00ac7dd4be691a056c7bd5b",
-      "fromPortId": "dc_neg",
-      "toNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "36a08edd5e1647e48c1ddc8fc7d71d52",
-      "fromNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "fromPortId": "pos_b",
-      "toNodeId": "4bdaab236de6f81a056c7c757",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "efa9fcae9489496ebd50b484611e9cb2",
-      "fromNodeId": "7a66f29f2b9fb81a056c7b43e",
-      "fromPortId": "neg_b",
-      "toNodeId": "4bdaab236de6f81a056c7c757",
-      "toPortId": "dc_neg"
     },
     {
       "id": "b262df490490281a05ff544c7",
@@ -2697,174 +2109,6 @@
       "toPortId": "ac_c"
     },
     {
-      "id": "dea8f2e3c16ba1a05ff544c7",
-      "fromNodeId": "528e3e940b41a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "0a088af708dba81a05ff544c6",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "0767c944ff36d1a05ff544c7",
-      "fromNodeId": "528e3e940b41a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "0a088af708dba81a05ff544c6",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "16a017c8ac58a81a05ff544c7",
-      "fromNodeId": "0a088af708dba81a05ff544c6",
-      "fromPortId": "pos_t",
-      "toNodeId": "a8c1f129b623081a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "a9b8747781f1481a05ff544c7",
-      "fromNodeId": "0a088af708dba81a05ff544c6",
-      "fromPortId": "neg_t",
-      "toNodeId": "a8c1f129b623081a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "e94eb03ae5e741a05ff544c7",
-      "fromNodeId": "c586153a272ce1a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "0a088af708dba81a05ff544c6",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "7bd34c34d49131a05ff544c7",
-      "fromNodeId": "c586153a272ce1a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "0a088af708dba81a05ff544c6",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "6cf7b09b8a85581a05ff544c7",
-      "fromNodeId": "0a088af708dba81a05ff544c6",
-      "fromPortId": "pos_b",
-      "toNodeId": "46fa669115c831a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "cacab2b345d4881a05ff544c7",
-      "fromNodeId": "0a088af708dba81a05ff544c6",
-      "fromPortId": "neg_b",
-      "toNodeId": "46fa669115c831a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "b096b4df5a01a1a05ff544c7",
-      "fromNodeId": "8ff1fcf14dae11a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "6e676e94935791a05ff544c6",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "6b35389e3b55d1a05ff544c7",
-      "fromNodeId": "8ff1fcf14dae11a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "6e676e94935791a05ff544c6",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "2ad3a411ff6361a05ff544c7",
-      "fromNodeId": "6e676e94935791a05ff544c6",
-      "fromPortId": "pos_b",
-      "toNodeId": "b6bcdea577ffd81a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "d6f9e25ca44c21a05ff544c7",
-      "fromNodeId": "6e676e94935791a05ff544c6",
-      "fromPortId": "neg_b",
-      "toNodeId": "b6bcdea577ffd81a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "a522b9894e8f1a05ff544c7",
-      "fromNodeId": "ac3214ed8f3061a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "6e676e94935791a05ff544c6",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "e17eeb215c50d81a05ff544c7",
-      "fromNodeId": "ac3214ed8f3061a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "6e676e94935791a05ff544c6",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "79b32e30590651a05ff544c7",
-      "fromNodeId": "6e676e94935791a05ff544c6",
-      "fromPortId": "pos_t",
-      "toNodeId": "97394bd3b9d51a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "295e64d14631a81a05ff544c7",
-      "fromNodeId": "6e676e94935791a05ff544c6",
-      "fromPortId": "neg_t",
-      "toNodeId": "97394bd3b9d51a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "a8fe7990deb7481a05ff544c7",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "bfa3b3dc954d41a05ff544c6",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "68f91d78b56d1a05ff544c7",
-      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "bfa3b3dc954d41a05ff544c6",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "8789f121a25611a05ff544c7",
-      "fromNodeId": "bfa3b3dc954d41a05ff544c6",
-      "fromPortId": "pos_t",
-      "toNodeId": "f937f2744f0d31a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "62e9fb60e7df1a05ff544c7",
-      "fromNodeId": "bfa3b3dc954d41a05ff544c6",
-      "fromPortId": "neg_t",
-      "toNodeId": "f937f2744f0d31a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "8c6ecde61bdfe81a05ff544c7",
-      "fromNodeId": "bfa3b3dc954d41a05ff544c6",
-      "fromPortId": "pos_b",
-      "toNodeId": "35a310547845681a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "57f0fc5da64b51a05ff544c7",
-      "fromNodeId": "bfa3b3dc954d41a05ff544c6",
-      "fromPortId": "neg_b",
-      "toNodeId": "35a310547845681a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "c84fd4805b1cc81a05ff544c7",
-      "fromNodeId": "bfa3b3dc954d41a05ff544c6",
-      "fromPortId": "pos_b",
-      "toNodeId": "6b0b112e0810a81a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "9eabdf3a87c2f1a05ff544c7",
-      "fromNodeId": "bfa3b3dc954d41a05ff544c6",
-      "fromPortId": "neg_b",
-      "toNodeId": "6b0b112e0810a81a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
       "id": "968e972c75a9f81a05ff544c7",
       "fromNodeId": "66d5f70d7de4e81a05ff544c6",
       "fromPortId": "ac_a",
@@ -2947,62 +2191,6 @@
       "fromPortId": "c2",
       "toNodeId": "c31604faf76a381a05ff544c6",
       "toPortId": "ac_c"
-    },
-    {
-      "id": "14e5adf28c3d981a05ff544c7",
-      "fromNodeId": "fa22fa822c48181a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "dba4196a947dc81a05ff544c6",
-      "toPortId": "pos_t"
-    },
-    {
-      "id": "852de2ccce5eb1a05ff544c7",
-      "fromNodeId": "fa22fa822c48181a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "dba4196a947dc81a05ff544c6",
-      "toPortId": "neg_t"
-    },
-    {
-      "id": "689de5f71f3d41a05ff544c7",
-      "fromNodeId": "dba4196a947dc81a05ff544c6",
-      "fromPortId": "pos_t",
-      "toNodeId": "c31604faf76a381a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "4208a6e24c26481a05ff544c7",
-      "fromNodeId": "dba4196a947dc81a05ff544c6",
-      "fromPortId": "neg_t",
-      "toNodeId": "c31604faf76a381a05ff544c6",
-      "toPortId": "dc_neg"
-    },
-    {
-      "id": "e1d95fae7f5751a05ff544c7",
-      "fromNodeId": "017cfc2ac03521a05ff544c6",
-      "fromPortId": "dc_pos",
-      "toNodeId": "dba4196a947dc81a05ff544c6",
-      "toPortId": "pos_b"
-    },
-    {
-      "id": "2eb693049280081a05ff544c7",
-      "fromNodeId": "017cfc2ac03521a05ff544c6",
-      "fromPortId": "dc_neg",
-      "toNodeId": "dba4196a947dc81a05ff544c6",
-      "toPortId": "neg_b"
-    },
-    {
-      "id": "351c624e9a8731a05ff544c7",
-      "fromNodeId": "dba4196a947dc81a05ff544c6",
-      "fromPortId": "pos_b",
-      "toNodeId": "7a86e039b3e151a05ff544c6",
-      "toPortId": "dc_pos"
-    },
-    {
-      "id": "90dea4f07b6e61a05ff544c7",
-      "fromNodeId": "dba4196a947dc81a05ff544c6",
-      "fromPortId": "neg_b",
-      "toNodeId": "7a86e039b3e151a05ff544c6",
-      "toPortId": "dc_neg"
     },
     {
       "id": "40fa96b8fcc74648921e87ad2bb93f26",
@@ -3423,6 +2611,342 @@
       "fromPortId": "pri_c",
       "toNodeId": "194a6a17d555781a056cb05e0",
       "toPortId": "c2"
+    },
+    {
+      "id": "055f44abf49a46ba80f00585b87866eb",
+      "fromNodeId": "528e3e940b41a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "c586153a272ce1a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "7e02f99d7dfa4b2d856e1a0b2a3828f8",
+      "fromNodeId": "528e3e940b41a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "c586153a272ce1a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "94a19b69f32b48cd9d7ba23b4820d9c3",
+      "fromNodeId": "a8c1f129b623081a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "46fa669115c831a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "c1accffa50ee428a928d5ddb81964b92",
+      "fromNodeId": "a8c1f129b623081a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "46fa669115c831a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "b51f7489d57a4ddeb64875a02a6d86e3",
+      "fromNodeId": "ac3214ed8f3061a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "8ff1fcf14dae11a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "fb3ed0e1b8c04318aab6c9d789f2582a",
+      "fromNodeId": "ac3214ed8f3061a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "8ff1fcf14dae11a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "ba631fbaeec648419b3a0b5f9536811d",
+      "fromNodeId": "97394bd3b9d51a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "b6bcdea577ffd81a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "e8f4743bd7404fada711a4e70d950c57",
+      "fromNodeId": "97394bd3b9d51a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "b6bcdea577ffd81a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "d2153633abcb4aaa89589b55f74cfe35",
+      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "35a310547845681a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "c68664f83e9042f4bb78e5781f1104f8",
+      "fromNodeId": "66d5f70d7de4e81a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "35a310547845681a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "226cd361f8004943acdf4a0289b8ffd4",
+      "fromNodeId": "f937f2744f0d31a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "6b0b112e0810a81a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "86cec4d0fec547f7bf148bab5b858c61",
+      "fromNodeId": "f937f2744f0d31a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "6b0b112e0810a81a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "3accbb4cdeb44e86b893d89643ea232f",
+      "fromNodeId": "fa22fa822c48181a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "017cfc2ac03521a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "7c7bdffcb24e41f1934424404fa18647",
+      "fromNodeId": "fa22fa822c48181a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "017cfc2ac03521a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "ef833c48df6d4e3ca86b2c29a5f2cee7",
+      "fromNodeId": "c31604faf76a381a05ff544c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "7a86e039b3e151a05ff544c6",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "3840b8108cb5482db9d08e27f195be19",
+      "fromNodeId": "c31604faf76a381a05ff544c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "7a86e039b3e151a05ff544c6",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "5247bd843f5d44efb057f871225fdcc7",
+      "fromNodeId": "4083f969d6e6581a037e74fff",
+      "fromPortId": "dc_pos",
+      "toNodeId": "ab9897cce250281a037e82d9d",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "194b27d124d24a4ba8cae1cf25f727ee",
+      "fromNodeId": "4083f969d6e6581a037e74fff",
+      "fromPortId": "dc_neg",
+      "toNodeId": "ab9897cce250281a037e82d9d",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "8ea109b53f99436e91affa9662f5f5d0",
+      "fromNodeId": "c2eed5d28a5961a037e76b23",
+      "fromPortId": "dc_pos",
+      "toNodeId": "5569f0019eaf281a037e83ff4",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "2915f53b994845ec88012efed48a036a",
+      "fromNodeId": "c2eed5d28a5961a037e76b23",
+      "fromPortId": "dc_neg",
+      "toNodeId": "5569f0019eaf281a037e83ff4",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "515574dde80046e091ca37cf9651f911",
+      "fromNodeId": "47b78194b84a981a037e9c0a4",
+      "fromPortId": "dc_pos",
+      "toNodeId": "51a7fef4903471a037e9ed8f",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "fb5cdf0a23104a2180afe52fabac7e4e",
+      "fromNodeId": "47b78194b84a981a037e9c0a4",
+      "fromPortId": "dc_neg",
+      "toNodeId": "51a7fef4903471a037e9ed8f",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "75a128612dd24443819abc6cf9711432",
+      "fromNodeId": "627b127bb307b81a037e9cd69",
+      "fromPortId": "dc_pos",
+      "toNodeId": "5a034b7f43b4c81a037e9f5bd",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "11a1845cf391403298ec762907b1fce4",
+      "fromNodeId": "627b127bb307b81a037e9cd69",
+      "fromPortId": "dc_neg",
+      "toNodeId": "5a034b7f43b4c81a037e9f5bd",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "7c280ba13c5445cb8f196c2d9f8b64cc",
+      "fromNodeId": "60eedca0c4d2d81a03ba299d8",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4684934fca1c71a03ba2d426",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "f3bdff202f724e388d60952cafed87e8",
+      "fromNodeId": "60eedca0c4d2d81a03ba299d8",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4684934fca1c71a03ba2d426",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "070c7f8e0b764d2a953f53d0495c67c9",
+      "fromNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
+      "fromPortId": "dc_pos",
+      "toNodeId": "b2d03e1f0b941a03ba2dbce",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "0f25a776e54e4251a9d9de9f784126d6",
+      "fromNodeId": "5dfc8f5e9c8a31a03ba2a8cd",
+      "fromPortId": "dc_neg",
+      "toNodeId": "b2d03e1f0b941a03ba2dbce",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "e2ffc333d2cb4c6e92980699e3e2a7e7",
+      "fromNodeId": "d6ebdb30bb1e981a03ba300c6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "39fdf80b5cbf41a03ba34bde",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "0f05720bd6fd4381abd0a68e6c6d866c",
+      "fromNodeId": "d6ebdb30bb1e981a03ba300c6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "39fdf80b5cbf41a03ba34bde",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "d8b473fe73c340a8b0a9a56f38c4281a",
+      "fromNodeId": "b93c530a3de1c1a03ba30cc6",
+      "fromPortId": "dc_pos",
+      "toNodeId": "dd7bf50dc730181a03ba35ac8",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "a2cc23b0a88541b1a58cd22013597e1a",
+      "fromNodeId": "b93c530a3de1c1a03ba30cc6",
+      "fromPortId": "dc_neg",
+      "toNodeId": "dd7bf50dc730181a03ba35ac8",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "c76372b6438e40bc8294e388095d22a0",
+      "fromNodeId": "08469567877c381a056c646be",
+      "fromPortId": "dc_pos",
+      "toNodeId": "f2cf9ac79e22881a056c74ca1",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "1ab582e36a6e465ab2ab4ac3693a9071",
+      "fromNodeId": "08469567877c381a056c646be",
+      "fromPortId": "dc_neg",
+      "toNodeId": "f2cf9ac79e22881a056c74ca1",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "02b3e715d6a84afcb72bc186e0434100",
+      "fromNodeId": "1b21776b6e84181a056c656ea",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4bb6b4d71edea1a056c756e9",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "8f61650f615d4f1387a397562cab436b",
+      "fromNodeId": "1b21776b6e84181a056c656ea",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4bb6b4d71edea1a056c756e9",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "050c1a3c84df44d49f66281325c0dabe",
+      "fromNodeId": "804b882130c061a056c689d1",
+      "fromPortId": "dc_pos",
+      "toNodeId": "34020a0aed27f81a056c76f14",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "574eaec327e544e5b7407a101efa2ad2",
+      "fromNodeId": "804b882130c061a056c689d1",
+      "fromPortId": "dc_neg",
+      "toNodeId": "34020a0aed27f81a056c76f14",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "98094d672eb94116aebd0546926a61d1",
+      "fromNodeId": "371c0c794aad281a056c6a7f9",
+      "fromPortId": "dc_pos",
+      "toNodeId": "ef23f543c7db41a056c77a54",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "adcaab9dfde949608ffa1e87e92944eb",
+      "fromNodeId": "371c0c794aad281a056c6a7f9",
+      "fromPortId": "dc_neg",
+      "toNodeId": "ef23f543c7db41a056c77a54",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "950fc074e02f45669f2016dff4dc7d03",
+      "fromNodeId": "8765e54e10dc881a056c6f1e9",
+      "fromPortId": "dc_pos",
+      "toNodeId": "013ac6f7d748c81a056c79c76",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "4755c9719b88493fa636123f1da1fac9",
+      "fromNodeId": "8765e54e10dc881a056c6f1e9",
+      "fromPortId": "dc_neg",
+      "toNodeId": "013ac6f7d748c81a056c79c76",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "f0052eda906442b18b365f8e77f3db21",
+      "fromNodeId": "1835691042a6681a056c6ff2e",
+      "fromPortId": "dc_pos",
+      "toNodeId": "34c9e140038e981a056c7a4c7",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "82593acf86d44c9f8cab7d627e8657e0",
+      "fromNodeId": "1835691042a6681a056c6ff2e",
+      "fromPortId": "dc_neg",
+      "toNodeId": "34c9e140038e981a056c7a4c7",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "0428476f3cd6453aaa44b702d0986db8",
+      "fromNodeId": "2071dee27de1d1a056c71638",
+      "fromPortId": "dc_pos",
+      "toNodeId": "a00ac7dd4be691a056c7bd5b",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "171d12f8e3044942ab462ecd11b6e079",
+      "fromNodeId": "2071dee27de1d1a056c71638",
+      "fromPortId": "dc_neg",
+      "toNodeId": "a00ac7dd4be691a056c7bd5b",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "8f03e75418034c999f958e4809798cbb",
+      "fromNodeId": "43f69255fa2f281a056c7222c",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4bdaab236de6f81a056c7c757",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "5159eb0204ab4690b0557fca8f255224",
+      "fromNodeId": "43f69255fa2f281a056c7222c",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4bdaab236de6f81a056c7c757",
+      "toPortId": "dc_neg"
     }
   ]
 }

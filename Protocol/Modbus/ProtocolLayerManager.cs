@@ -97,6 +97,7 @@ namespace EssSimulator.Protocol.Modbus
             lock (_gate)
             {
                 _cfg = cfg;
+                ApplyAllowListOnce();
                 var result = ApplyPlanAndStart();
                 _startupComplete = true;
                 return result;
@@ -204,6 +205,19 @@ namespace EssSimulator.Protocol.Modbus
         public string? OverridesError
         {
             get { lock (_gate) { return _overridesError; } }
+        }
+
+        /// <summary>仅进程首次启动读取白名单；热重建复用该快照。</summary>
+        private void ApplyAllowListOnce()
+        {
+            var list = ModbusIpAllowList.Load(out var error);
+            _hub.SetAllowList(list);
+            if (error != null)
+                Log.Warn(error);
+            if (list.IsUnrestricted)
+                Log.Info("Modbus IP 白名单未启用（空名单，不限制来源 IP）");
+            else
+                Log.Info($"Modbus IP 白名单已启用：{list.Addresses.Count} 条，允许回环={list.AllowLoopback}");
         }
 
         private ProtocolRebuildResult ApplyPlanAndStart()

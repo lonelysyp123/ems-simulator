@@ -126,4 +126,43 @@ public class PvRuntimeIntegrationTests
         ess.PlantEngine.Step(t, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
         Assert.True(ess.PvUnits[0].ActivePowerKw < full * 0.5);
     }
+
+    [Fact]
+    public void EnergyStorageSystem_PvOnly_AlbedoRaisesAvailablePower()
+    {
+        var simCfg = new SimulatorConfig
+        {
+            PvUnits =
+            {
+                new PvUnitRuntimeConfig
+                {
+                    Name = "光伏单元-1",
+                    InverterCount = 1,
+                    StringCount = 2,
+                    ModulesPerString = 30,
+                    InverterRatedPowerKw = 320,
+                    InverterMaxPowerKw = 352
+                }
+            }
+        };
+
+        using var ess = new EnergyStorageSystem(
+            simCfg,
+            new PcsPhysicalConfig { AcVoltageNominal = 690 },
+            new TransformerConfig(),
+            new UnitTransformerConfig(),
+            new LoadConfig(),
+            new PccConfig(),
+            new MeterConfig());
+
+        var t = new DateTime(2026, 8, 17, 0, 0, 0, DateTimeKind.Utc);
+        ess.PlantEngine.Step(t, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+        double baseAvail = ess.PvUnits[0].MaximumDischargePowerKw;
+
+        Assert.True(ess.TrySetPvArrayClimate(1, "A", "albedo", 0.2, out _));
+        Assert.True(ess.TrySetPvArrayClimate(1, "B", "albedo", 0.2, out _));
+        ess.PlantEngine.Step(t, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+        Assert.True(ess.PvUnits[0].MaximumDischargePowerKw > baseAvail);
+        Assert.InRange(ess.PvUnits[0].ArrayA.Albedo, 0.199, 0.201);
+    }
 }

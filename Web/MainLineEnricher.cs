@@ -256,6 +256,8 @@ namespace EssSimulator.Web
                 AmbientTemperatureC = GuiSimDataAccess.SafeGetDouble($"{prefix}.AmbientTemperatureC"),
                 IncidenceAngleDeg = GuiSimDataAccess.SafeGetDouble($"{prefix}.IncidenceAngleDeg"),
                 PlaneOfArrayWm2 = GuiSimDataAccess.SafeGetDouble($"{prefix}.PlaneOfArrayWm2"),
+                RearWm2 = GuiSimDataAccess.SafeGetDouble($"{prefix}.RearWm2"),
+                Albedo = GuiSimDataAccess.SafeGetDouble($"{prefix}.Albedo"),
                 CellTemperatureC = GuiSimDataAccess.SafeGetDouble($"{prefix}.CellTemperatureC"),
                 AvailableAcPowerKw = GuiSimDataAccess.SafeGetDouble($"{prefix}.AvailableAcPowerKw"),
                 ActivePowerKw = GuiSimDataAccess.SafeGetDouble($"{prefix}.ActivePowerKw"),
@@ -421,6 +423,8 @@ namespace EssSimulator.Web
         public double AmbientTemperatureC { get; set; } = 25;
         public double IncidenceAngleDeg { get; set; } = 90;
         public double PlaneOfArrayWm2 { get; set; }
+        public double RearWm2 { get; set; }
+        public double Albedo { get; set; }
         public double CellTemperatureC { get; set; } = 25;
         public double AvailableAcPowerKw { get; set; }
         public double ActivePowerKw { get; set; }

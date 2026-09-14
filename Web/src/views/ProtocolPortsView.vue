@@ -2,6 +2,53 @@
   <div>
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Modbus IP 白名单</span>
+        <span>
+          <el-button size="small" type="primary" :loading="savingAllowlist" :disabled="!allowlistDirty" @click="saveAllowlist">保存白名单</el-button>
+        </span>
+      </div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom:8px"
+        title="全部 Modbus TCP 从站共用这份名单。留空不限制来源 IP。保存后需重启进程才生效，与下方端口「立即生效」无关。NAT 后请填仿真器看到的对端地址。"
+      />
+      <el-alert
+        v-if="allowlistLoadError"
+        :title="allowlistLoadError"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom:8px"
+      />
+      <el-alert
+        v-if="allowlistPendingRestart"
+        title="磁盘名单与当前进程不一致，重启后按新名单执行"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom:8px"
+      />
+      <div class="allowlist-row">
+        <span class="allowlist-label">允许本机回环</span>
+        <el-switch v-model="allowLoopback" @change="markAllowlistDirty" />
+        <span class="allowlist-hint">名单非空时仍放行 127.0.0.1 / ::1，便于本机 mbpoll</span>
+      </div>
+      <el-select
+        v-model="allowAddresses"
+        multiple
+        filterable
+        allow-create
+        default-first-option
+        placeholder="输入 IP 或 CIDR 后回车，例如 10.0.0.5 或 192.168.1.0/24"
+        style="width:100%"
+        @change="markAllowlistDirty"
+      />
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
         <span>协议端口配置</span>
         <span>
           <el-button size="small" type="primary" :loading="saving" :disabled="!dirty" @click="save">保存配置</el-button>
@@ -134,6 +181,7 @@
 import { ref, computed, onMounted } from 'vue'
 import {
   getProtocolPorts, putProtocolPorts, postProtocolPortsApply, postProtocolPortsReset,
+  getModbusAllowlist, putModbusAllowlist,
   getIec61850, putProtocolBindings
 } from '@/services/api.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -146,6 +194,12 @@ const applying = ref(false)
 const iec61850Rows = ref([])
 const dirty61850 = ref(false)
 const saving61850 = ref(false)
+const allowAddresses = ref([])
+const allowLoopback = ref(true)
+const allowlistDirty = ref(false)
+const savingAllowlist = ref(false)
+const allowlistPendingRestart = ref(false)
+const allowlistLoadError = ref('')
 
 const TYPE_LABELS = {
   0: 'BMS 电池',
@@ -193,13 +247,57 @@ function rowClass({ row }) {
 
 function markDirty() { dirty.value = true }
 
+function markAllowlistDirty() { allowlistDirty.value = true }
+
+function splitAllowAddresses(list) {
+  const out = []
+  for (const raw of list || []) {
+    for (const part of String(raw).split(/[,;\s]+/)) {
+      const s = part.trim()
+      if (s && !out.includes(s)) out.push(s)
+    }
+  }
+  return out
+}
+
+async function reloadAllowlist() {
+  try {
+    const data = await getModbusAllowlist()
+    const src = data.file || data.active || {}
+    allowAddresses.value = [...(src.addresses || [])]
+    allowLoopback.value = src.allowLoopback !== false
+    allowlistPendingRestart.value = !!data.pendingRestart
+    allowlistLoadError.value = data.loadError || ''
+    allowlistDirty.value = false
+  } catch (e) {
+    console.warn(e)
+    allowlistDirty.value = false
+  }
+}
+
+async function saveAllowlist() {
+  savingAllowlist.value = true
+  try {
+    const r = await putModbusAllowlist({
+      allowLoopback: allowLoopback.value,
+      addresses: splitAllowAddresses(allowAddresses.value)
+    })
+    ElMessage.success(r.message || '已保存，重启进程后生效')
+    await reloadAllowlist()
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    savingAllowlist.value = false
+  }
+}
+
 async function reload() {
   try {
     const data = await getProtocolPorts()
     devices.value = data.devices || []
     overridesError.value = data.overridesError || ''
     dirty.value = false
-    await reload61850()
+    await Promise.all([reload61850(), reloadAllowlist()])
   } catch (e) {
     ElMessage.error(e.message)
   }
@@ -343,5 +441,14 @@ onMounted(reload)
 .mark-shared { color: #409eff; margin-right: 8px; }
 .mark-rack { color: #909399; margin-right: 8px; }
 .mark-error { color: #f56c6c; display: block; }
+.allowlist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.allowlist-label { font-size: 13px; color: var(--el-text-color-regular); }
+.allowlist-hint { font-size: 12px; color: var(--el-text-color-secondary); }
 :deep(.shared-port-row) { background-color: rgba(64, 158, 255, 0.06); }
 </style>
