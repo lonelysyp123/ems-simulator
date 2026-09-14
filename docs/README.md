@@ -1,7 +1,7 @@
 # 仿真模拟器（EssSimulator）文档索引
 
 对外产品名：**仿真模拟器**。工程名：EssSimulator。  
-仓库：[github.com/lonelysyp123/simulator](https://github.com/lonelysyp123/simulator)（公开）。远程长期分支：**`master`**（发布）、**`develop`**（集成）。
+仓库：[github.com/lonelysyp123/ems-simulator](https://github.com/lonelysyp123/ems-simulator)（公开）。远程长期分支：**`master`**（发布）、**`develop`**（集成）。
 
 | 文档 | 读者 | 说明 |
 |------|------|------|
