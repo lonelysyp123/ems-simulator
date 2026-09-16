@@ -86,6 +86,9 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         private double _blackStartSharedLossActivePowerKw;
         private double _blackStartInrushActiveKw;
         private double _blackStartInrushReactiveKvar;
+        private bool _joinedFromLiveBus;
+        private double _blackStartJoinShare = 1.0;
+        private readonly double _blackStartJoinShareRampSec;
         /// <summary>EMS 负荷有功/无功（爬坡线程），与站用电叠加后受额定功率限制。</summary>
         private double _loadActivePowerKw;
         private double _loadReactivePowerKvar;
@@ -206,6 +209,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _blackStartFrequencyRampHzPerSec = Math.Max(0.1, deviceConfig.BlackStartFrequencyRampHzPerSec);
             _blackStartReactiveVoltageGainKvarPerV = Math.Max(0, deviceConfig.BlackStartReactiveVoltageGainKvarPerV);
             _blackStartCurrentLimitFraction = Math.Clamp(deviceConfig.BlackStartCurrentLimitFraction, 0.1, 1.0);
+            _blackStartJoinShareRampSec = deviceConfig.BlackStartJoinShareRampSec;
             _blackStartIslandFreqHz = _config.FrequencyNominal;
             // 暂态参数初始化
             _transientSubStepSec = Math.Max(0.001, _config.TransientSubStepMs / 1000.0);

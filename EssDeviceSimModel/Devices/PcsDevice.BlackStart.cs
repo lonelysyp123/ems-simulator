@@ -114,6 +114,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _liveBusFollower = false;
             IsPreSyncReadyToCutIn = false;
             _ignoreZeroIslandCommandAfterJoin = false;
+            _joinedFromLiveBus = false;
+            _blackStartJoinShare = 1.0;
             _blackStartPhase = BlackStartPhase.Preparing;
             _currentState.BlackStartPhase = BlackStartPhase.Preparing;
             _blackStartPrepareRemainingSec = _blackStartPrechargeDelaySec;
@@ -210,6 +212,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _prevSubStepAcVoltageV = vJoin;
             _liveBusFollower = false;
             IsPreSyncReadyToCutIn = false;
+            _joinedFromLiveBus = true;
+            _blackStartJoinShare = 0;
             _ignoreZeroIslandCommandAfterJoin = true;
             _blackStartPhase = BlackStartPhase.Synchronized;
             _currentState.BlackStartPhase = _blackStartPhase;
@@ -238,6 +242,23 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         public void SetTransformerMagnetizingReactiveKvar(double reactiveKvar) =>
             _transformerMagnetizingReactiveKvar = Math.Max(0, reactiveKvar);
 
+        /// <summary>已构网（含死母线软起主机）才承接站用电/励磁；活母线跟网锁相中不承接。</summary>
+        public bool TakesIslandStationLoad =>
+            _blackStartEnabled
+            && !_liveBusFollower
+            && _currentState.GMode == GridMode.Islanded
+            && _blackStartPhase is BlackStartPhase.SoftStarting
+                or BlackStartPhase.VoltageRegulating
+                or BlackStartPhase.Synchronized;
+
+        /// <summary>站用电分摊权重：死母线主机为 1；活母线并机后从 0 斜坡到 1。</summary>
+        public double BlackStartStationLoadShare =>
+            !TakesIslandStationLoad
+                ? 0
+                : _joinedFromLiveBus
+                    ? Math.Clamp(_blackStartJoinShare, 0, 1)
+                    : 1.0;
+
         public void SetBlackStartSharedLossActivePowerKw(double activeKw) =>
             _blackStartSharedLossActivePowerKw = Math.Max(0, activeKw);
 
@@ -249,16 +270,44 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         private void TryLatchLiveBusFollower()
         {
+            if (_liveBusFollower)
+                return;
+            // 本机已在建压/调压/同步：不得把自己或同伴抬起的母线再判成「邻机活母线」。
             if (_blackStartPhase is BlackStartPhase.SoftStarting
                 or BlackStartPhase.VoltageRegulating
                 or BlackStartPhase.Synchronized)
                 return;
-            if (_blackStartSoftCapV >= 1.0)
-                return;
 
             double enableV = _pllEnableVoltagePu * _config.AcVoltageNominal;
-            if (_unitBusVoltageV >= enableV)
-                _liveBusFollower = true;
+            double sensed = SensedLiveBusVoltageV();
+            if (sensed < enableV)
+                return;
+
+            if (_blackStartSoftCapV >= enableV)
+                return;
+
+            EnterLiveBusFollower();
+        }
+
+        private double SensedLiveBusVoltageV()
+        {
+            double v = _unitBusVoltageV;
+            var input = AcPortHelper.ReadAcInput(Ac);
+            if (input.LineVoltageV > v)
+                v = input.LineVoltageV;
+            return v;
+        }
+
+        private void EnterLiveBusFollower()
+        {
+            _liveBusFollower = true;
+            _joinedFromLiveBus = false;
+            _blackStartJoinShare = 0;
+            _blackStartSoftCapV = 0;
+            _voltageRamp.Reset(0);
+            _blackStartPhase = BlackStartPhase.Following;
+            _currentState.BlackStartPhase = _blackStartPhase;
+            IsPreSyncReadyToCutIn = false;
         }
 
         private void AdvanceBlackStartPhase(TimeSpan timeStep)
@@ -273,6 +322,14 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             {
                 AdvanceFollowerPll(dt);
                 return;
+            }
+
+            if (_joinedFromLiveBus && _blackStartJoinShare < 1.0)
+            {
+                if (_blackStartJoinShareRampSec <= 0 || dt <= 0)
+                    _blackStartJoinShare = 1.0;
+                else
+                    _blackStartJoinShare = Math.Min(1.0, _blackStartJoinShare + dt / _blackStartJoinShareRampSec);
             }
 
             double vCmd;
@@ -318,8 +375,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 _config.AcVoltageNominal);
             if (_blackStartPhase != BlackStartPhase.Following)
             {
-                _blackStartPhase = BlackStartPhase.Preparing;
-                _currentState.BlackStartPhase = BlackStartPhase.Preparing;
+                _blackStartPhase = BlackStartPhase.Following;
+                _currentState.BlackStartPhase = BlackStartPhase.Following;
             }
         }
 
@@ -335,6 +392,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             double vRamp = _voltageRamp.Output;
             bool applyDroop = _qvDroopEnabled && _qvDroop.Nq > 0;
             if (_qvDroopAfterSoftStartOnly && _blackStartPhase == BlackStartPhase.SoftStarting)
+                applyDroop = false;
+            if (_joinedFromLiveBus && _blackStartJoinShare < 1.0)
                 applyDroop = false;
             if (!applyDroop)
                 return vRamp;
@@ -507,6 +566,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _blackStartInrushReactiveKvar = 0;
             _liveBusFollower = false;
             IsPreSyncReadyToCutIn = false;
+            _joinedFromLiveBus = false;
+            _blackStartJoinShare = 1.0;
             _ignoreZeroIslandCommandAfterJoin = false;
             _voltageOuter.Reset();
             _currentInner.Reset();

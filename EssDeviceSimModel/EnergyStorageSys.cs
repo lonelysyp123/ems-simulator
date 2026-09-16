@@ -608,7 +608,7 @@ namespace EssSimulator.EssDeviceSimModel
 
 
         /// <summary>
-        /// 同单元 690V 母线电压：单元变二次侧，以及正在离网建压的 PCS 输出的算术平均（下垂公共电压）。
+        /// 同单元 690V 母线电压：单元变二次侧、35kV 反送折算，以及正在离网建压的 PCS 输出。
         /// 停机/跟网 PCS 的端子测量不是电源，不得回写进母线。
         /// </summary>
         public double GetUnitAcBusVoltage(int unitIndex)
@@ -616,6 +616,24 @@ namespace EssSimulator.EssDeviceSimModel
             double v = 0;
             if (unitIndex >= 0 && unitIndex < _unitTransformers.Count)
                 v = Math.Max(v, _unitTransformers[unitIndex].GetCurrentState().SecondaryVoltage);
+            // 仅在主断分闸且岛内已有构网反送时，用 35kV 折算补本单元 690V；
+            // 避免额定初始化/并网残留的 StationBus35 把死母线误判成活母线。
+            if (!IsMainBreakerClosed
+                && IsUnitBreakerClosed(unitIndex)
+                && unitIndex >= 0
+                && unitIndex < _unitTransformers.Count)
+            {
+                double island35 = EssIslandBusLogic.EstimateIslandedBus35LineVoltageV(
+                    _unitTransformers,
+                    _unitBreakers,
+                    _pcsList,
+                    _pcsPerUnit);
+                if (island35 > 1.0)
+                {
+                    double turns = Math.Max(_unitTransformers[unitIndex].TurnsRatio, 1e-6);
+                    v = Math.Max(v, island35 / turns);
+                }
+            }
             int baseIdx = PcsBaseIndexOfUnit(unitIndex);
             int count = PcsCountOfUnit(unitIndex);
             double formingSum = 0;

@@ -83,6 +83,9 @@ namespace EssSimulator.EssDeviceSimModel.Control
             deviceCfg.PreSyncPhaseWindowDeg = pcsCfg.PreSyncPhaseWindowDeg > 0
                 ? pcsCfg.PreSyncPhaseWindowDeg
                 : 10;
+            deviceCfg.BlackStartSteadyLossShareMode = pcsCfg.BlackStartSteadyLossShareMode;
+            // ≤0 表示立即均分，不得改写成默认 5 s。
+            deviceCfg.BlackStartJoinShareRampSec = pcsCfg.BlackStartJoinShareRampSec;
         }
     }
 }

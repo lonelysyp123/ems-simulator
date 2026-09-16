@@ -47,6 +47,8 @@ namespace EssSimulator.EssDeviceSimModel.Model
         public double BlackStartFrequencyRampHzPerSec { get; set; } = 12;
         public double BlackStartReactiveVoltageGainKvarPerV { get; set; } = 4.0;
         public double BlackStartCurrentLimitFraction { get; set; } = 0.45;
+        public string BlackStartSteadyLossShareMode { get; set; } = "AllOnBus";
+        public double BlackStartJoinShareRampSec { get; set; } = 5.0;
 
         // 暂态建模参数
         public double TransientSubStepMs { get; set; } = 10;

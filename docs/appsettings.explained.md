@@ -288,7 +288,8 @@
 | `BlackStartFrequencyRampHzPerSec` | 12 | 频率爬升最大速率（Hz/s） |
 | `BlackStartReactiveVoltageGainKvarPerV` | 4.0 | 建压期无功电压支撑（kvar/V） |
 | `BlackStartCurrentLimitFraction` | 0.45 | 建压期电流限幅（相对 MaxCurrent） |
-| `BlackStartSteadyLossShareMode` | `"AllOnBus"` | 稳态站用电分担：`AllOnBus` 或 `LeaderOnly` |
+| `BlackStartSteadyLossShareMode` | `"AllOnBus"` | 稳态站用电：`AllOnBus`=已构网机按接手系数分摊；`LeaderOnly`=仅建压机承担 |
+| `BlackStartJoinShareRampSec` | 5 | 活母线并机后励磁/站用电无功斜坡接手时间（秒）；≤0 表示立即均分 |
 
 ---
 

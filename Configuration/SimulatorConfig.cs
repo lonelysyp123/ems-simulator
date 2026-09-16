@@ -586,10 +586,13 @@ namespace EssSimulator.Configuration
 
         /// <summary>
         /// 黑启动稳态站用电分担（空载铁损+线损、励磁无功）：
-        /// AllOnBus=同单元所有黑启动运行 PCS 按额定功率比例分摊；
+        /// AllOnBus=已构网 PCS 按并机接手系数分摊（后机切入后斜坡接手）；
         /// LeaderOnly=仅建压机（有效电压最高者）承担，从机不重复励磁/空载。
         /// </summary>
         public string BlackStartSteadyLossShareMode { get; set; } = "AllOnBus";
+
+        /// <summary>活母线并机后站用电/励磁无功接手斜坡时间（秒）。≤0 视为立即均分。</summary>
+        public double BlackStartJoinShareRampSec { get; set; } = 5.0;
 
         // 暂态建模参数
         public double TransientSubStepMs { get; set; } = 10;
