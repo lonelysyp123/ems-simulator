@@ -1,63 +1,48 @@
-# Implementation Plan: 物理引擎阶段 1（时钟与提交契约）
+# Implementation Plan: 物理引擎阶段 2（网络内核）
 
 ## Overview
 
-按 `docs/物理引擎演进方案.md` 落地阶段 1：逻辑仿真时钟、步进 memento 与失败整步冻结、重放一致、一拍滞后步长表征。不改径向潮流、不删平均电压、不接 690 V 岛 MNA。
+在独立测试宿主中建立三相平衡基波相量网络内核：节点导纳装配、有限阻抗电压源、阻抗支路、开关。最小 PCS 端口为受控电压源串阻抗。本阶段不接生产 `PlantEngine`、不删径向平均。环流只作为并联电压源的验收现象。
 
-上一份 `tasks/plan.md`（EMS 策略热更新）已归档到 `tasks/ems-strategy-hot-update.md`。
+阶段 1 已提交：`feature/physics-engine-clock-commit`。
 
 ## Architecture Decisions
 
-- **逻辑时钟与墙钟分离：** `SimulationClock` 的 dt 来自 `PropagationIntervalMs`。Host `PeriodicTimer` 只控制墙钟速率。
-- **提交 = memento：** 步进前捕获 PCS/BMS/母线/热关键量；成功后投影；失败恢复并置 `SolverFault`，不调用 `AfterPlantStep`。
-- **控制一拍滞后本阶段不改 PCS 公式：** 只发布 `LastCommittedMeasurements`，用量测延迟 PI 表征稳定 dt。
-- **`IntegrationStepMultiplier`：** 仍只放大积分 dt，标为已知偏差。
-- **电流方向：** `ElectricalSignConvention.InflowPositive` 为内部约定，不改协议符号。
-- **不做：** 节点方程、删平均、分域戴维南、影子模式、改点表。
+- **Norton 装配优先：** 构网源必须带有限 Z，可把 \(E,Z\) 贴成 \(I=E/Z\) 与 \(Y=1/Z\)。|Z| 过小则拒绝并联，不做理想电压源 MNA，直到真正需要变压器理想变比约束。
+- **datum：** 无源岛才固定一节点 \(V=0\)；本切片的测试岛用参考地。
+- **独立宿主：** `Kernel` 命名空间不引用 `RadialPowerSweepEngine`。影子/生产接替是后续任务。
+- **不做：** 改 PCS 控制公式、删 `ApplyLocalVoltageSources`、分域戴维南接线、EMT。
 
 ## 依赖图
 
 ```
-SimulationClock
+PhasorNetwork（Y V = I）
     │
-    ├── PlantEngine memento / SolverFault
-    │       │
-    │       ├── Host ExecuteAsync 接时钟
-    │       │
-    │       └── 重放一致测试
+    ├── 阻抗支路 / 开关
     │
-    └── 一拍滞后表征（可并行）
+    └── 有限 Z 电压源（最小 PCS 端口）
+            │
+            └── 解析电路 + 并联源环流验收
 ```
 
 ## Task List
 
-### Phase 1: Foundation
+### Phase 2: Network kernel (isolated)
 
-- [ ] Task 1: SimulationClock
-- [ ] Task 2: 步进 memento 与失败整步冻结
-- [ ] Task 3: Host 接时钟 + SolverFault
-- [ ] Task 4: 重放一致
-- [ ] Task 5: 一拍滞后步长表征
+- [x] Task 6: PhasorNetwork 装配与求解
+- [x] Task 7: 最小 PCS 端口（受控源串 Z）
+- [x] Task 8: 不变量与环流涌现验收
 
-### Checkpoint: 阶段 1
+### Checkpoint: Kernel
 
-- [ ] 墙钟不再充当物理 dt
-- [ ] 失败整步冻结（电气 + 动态）
-- [ ] 重放测绿
-- [ ] 径向引擎与平均电压逻辑未删
+- [ ] 解析电路、KCL、功率平衡
+- [ ] 无输出支路的电压源拒绝并联
+- [ ] 设备/支路顺序不影响结果
+- [ ] 尚未写入生产 PlantEngine
 
-### Phase 2+（本轮不实现）
+## Risks
 
-网络内核、最小 PCS 端口、690 V 岛接替、影子模式。见 `docs/物理引擎演进方案.md` 第七节。
-
-## Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| 全站深拷贝太重 | High | 只 memento 约定字段 |
-| 电池 Random 破坏重放 | Med | 堆/簇/包构造用确定性种子 |
-| 失败钩子与真实抛错路径不同 | Low | 钩子放在物理步之后、提交之前 |
-
-## Open Questions
-
-无。本轮范围已确认为阶段 1。
+| Risk | Mitigation |
+|---|---|
+| 稠密 GE 只适合小岛 | 阶段 2 岛 <20 节点，可接受 |
+| 与径向双真值 | 本阶段不接生产 |
