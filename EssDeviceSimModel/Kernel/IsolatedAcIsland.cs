@@ -51,7 +51,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             {
                 copy.AddPcs(new MinPcsPort(pcs.Id, pcs.TerminalNodeId, pcs.OutputImpedanceOhm)
                 {
-                    InternalVoltageV = pcs.InternalVoltageV
+                    InternalVoltageV = pcs.InternalVoltageV,
+                    CurrentLimitA = pcs.CurrentLimitA
                 });
             }
 
@@ -60,14 +61,73 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             return copy;
         }
 
+        private const int MaxCurrentLimitIterations = 200;
+        private const double BusVoltageSettleTolerance = 1e-9;
+        private const double LimitRelativeTolerance = 1e-9;
+
+        /// <summary>
+        /// 求解本拍岛状态。限流是<b>本拍离散模式事件</b>：某 PCS 的 |I_want|=(E−Vbus)/Z 超过其
+        /// <see cref="MinPcsPort.CurrentLimitA"/> 时，把它从「E 串 Z」切成「注入钳位电流」并重装配再解
+        /// （第五节步骤 4 语义），不塞进同一次线性求解、也不当作失败冻结。
+        /// 单调锁存（本拍一旦限流不再退出）避免模式抖动；只有重装配始终不收敛才抛 <see cref="NetworkSolveException"/>。
+        /// 无任何 PCS 设限流时，退化为单次线性求解，与阶段 2 行为一致。
+        /// </summary>
         public IslandSolveResult Solve()
+        {
+            int n = _pcs.Count;
+            var limited = new bool[n];
+            var clamped = new Complex[n];
+            Complex prevBus = Complex.Zero;
+            bool havePrev = false;
+
+            for (int iter = 0; iter < MaxCurrentLimitIterations; iter++)
+            {
+                var (net, sol) = BuildAndSolve(limited, clamped);
+                Complex bus = sol.Voltage(BusNodeId);
+
+                bool setChanged = false;
+                for (int i = 0; i < n; i++)
+                {
+                    var pcs = _pcs[i];
+                    Complex iWant = pcs.DesiredCurrentAt(bus);
+                    if (pcs.CurrentLimitA is { } limit &&
+                        iWant.Magnitude > limit * (1.0 + LimitRelativeTolerance) &&
+                        !limited[i])
+                    {
+                        limited[i] = true;
+                        setChanged = true;
+                    }
+
+                    if (limited[i])
+                        clamped[i] = pcs.CurrentLimitA!.Value * iWant / iWant.Magnitude;
+                }
+
+                bool settled = !setChanged && havePrev &&
+                    (bus - prevBus).Magnitude <= BusVoltageSettleTolerance * Math.Max(1.0, bus.Magnitude);
+                prevBus = bus;
+                havePrev = true;
+
+                if (settled)
+                    return BuildResult(net, sol, limited, clamped);
+            }
+
+            throw new NetworkSolveException(
+                $"Current-limit reassembly did not settle within {MaxCurrentLimitIterations} iterations on island '{BusNodeId}'.");
+        }
+
+        private (PhasorNetwork net, PhasorSolution sol) BuildAndSolve(bool[] limited, Complex[] clamped)
         {
             var net = new PhasorNetwork();
             net.SetGround(GroundNodeId);
             net.AddNode(BusNodeId);
 
-            foreach (var pcs in _pcs)
-                pcs.Stamp(net);
+            for (int i = 0; i < _pcs.Count; i++)
+            {
+                if (limited[i])
+                    _pcs[i].StampCurrentSource(net, clamped[i]);
+                else
+                    _pcs[i].Stamp(net);
+            }
 
             if (_loadZ.HasValue)
                 net.AddImpedance(BusNodeId, GroundNodeId, _loadZ.Value);
@@ -75,12 +135,17 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             if (_vth.HasValue && _zth.HasValue)
                 net.AddVoltageBehindImpedance(BusNodeId, _vth.Value, _zth.Value);
 
-            var sol = net.Solve();
-            var currents = new Complex[_pcs.Count];
+            return (net, net.Solve());
+        }
+
+        private IslandSolveResult BuildResult(PhasorNetwork net, PhasorSolution sol, bool[] limited, Complex[] clamped)
+        {
+            int n = _pcs.Count;
+            var currents = new Complex[n];
             Complex sumI = Complex.Zero;
-            for (int i = 0; i < _pcs.Count; i++)
+            for (int i = 0; i < n; i++)
             {
-                currents[i] = _pcs[i].TerminalCurrent(sol);
+                currents[i] = limited[i] ? clamped[i] : _pcs[i].TerminalCurrent(sol);
                 sumI += currents[i];
             }
 
@@ -92,7 +157,7 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             if (_vth.HasValue && _zth.HasValue)
                 theveninIntoBus = net.VoltageBehindZCurrent(sol, BusNodeId, _vth.Value, _zth.Value);
 
-            return new IslandSolveResult(sol, BusNodeId, currents, sumI, loadI, theveninIntoBus);
+            return new IslandSolveResult(sol, BusNodeId, currents, sumI, loadI, theveninIntoBus, limited);
         }
     }
 
@@ -104,7 +169,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             Complex[] pcsCurrents,
             Complex pcsCurrentSum,
             Complex loadCurrent,
-            Complex theveninCurrentIntoBus)
+            Complex theveninCurrentIntoBus,
+            bool[] pcsCurrentLimited)
         {
             Solution = solution;
             BusNodeId = busNodeId;
@@ -112,6 +178,7 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             PcsCurrentSum = pcsCurrentSum;
             LoadCurrent = loadCurrent;
             TheveninCurrentIntoBus = theveninCurrentIntoBus;
+            PcsCurrentLimited = pcsCurrentLimited;
         }
 
         public PhasorSolution Solution { get; }
@@ -119,6 +186,9 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         public IReadOnlyList<Complex> PcsCurrents { get; }
         public Complex PcsCurrentSum { get; }
         public Complex LoadCurrent { get; }
+
+        /// <summary>各 PCS 本拍是否处于限流模式（与 <see cref="PcsCurrents"/> 同序）。</summary>
+        public IReadOnlyList<bool> PcsCurrentLimited { get; }
 
         /// <summary>戴维南支路流入母线的电流。(Vth − Vbus) / Zth。</summary>
         public Complex TheveninCurrentIntoBus { get; }
