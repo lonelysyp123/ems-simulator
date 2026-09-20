@@ -1,17 +1,17 @@
-# 物理引擎阶段 2：分域边界（独立宿主）
+# 物理引擎阶段 2：690 V 影子比对
 
-> 内核已提交。本切片只做戴维南 / 注入交接，不接生产、不删平均。
+> 分域边界已提交。本切片在真实径向拓扑上影子跑新核，旧核仍对外，不接生产、不删平均。
 
 ## 已确认
 - [x] 阶段 1：逻辑时钟与提交契约
 - [x] Task 6–8：相量内核、最小 PCS、环流涌现
-- [x] 构网源必须带有限 Z；环流是涌现不是估计算子
+- [x] Task 9–11：戴维南 / P/Q 交接、一拍延迟、影子隔离
 
-## Phase 2: Domain boundary
-- [x] Task 9: IsolatedAcIsland 并网戴维南贴装
-- [x] Task 10: SplitDomainHandshake 一拍延迟与上下事件分流
-- [x] Task 11: 失败不提交；影子状态隔离
+## Phase 2: Shadow
+- [x] Task 12: 径向 690 V 只读快照
+- [x] Task 13: IslandShadowRunner 不写生产母线
+- [x] Task 14: 环流在影子中涌现，生产仍平均
 
-## Checkpoint: Boundary
-- [x] 延迟 / 事件 / 冻结 / 影子测绿
-- [x] 不写入 PlantEngine 生产路径
+## Checkpoint: Shadow
+- [x] 真实拓扑影子测绿
+- [x] 不删除 ApplyLocalVoltageSources

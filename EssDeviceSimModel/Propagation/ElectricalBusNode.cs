@@ -52,6 +52,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             AcQuantityConverter.ComputeReactivePowerKvar(AggregationVoltageV, TotalLineCurrentA, TotalPhaseAngleDeg);
 
         public IReadOnlyList<IBusPowerContributor> Contributors => _contributors;
+        public IReadOnlyList<IBusVoltageSource> VoltageSources => _voltageSources;
 
         public void RegisterContributor(IBusPowerContributor contributor) =>
             _contributors.Add(contributor);

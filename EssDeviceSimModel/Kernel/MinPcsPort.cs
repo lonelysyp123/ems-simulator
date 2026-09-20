@@ -24,6 +24,9 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         public Complex OutputImpedanceOhm { get; }
         public Complex InternalVoltageV { get; set; }
 
+        /// <summary>阶段 2 占位输出阻抗，直到阶段 3 从 PCS 端口方程给出真值。</summary>
+        public static readonly Complex DefaultOutputImpedanceOhm = new(0.04, 0.18);
+
         public void Stamp(PhasorNetwork network) =>
             network.AddVoltageBehindImpedance(TerminalNodeId, InternalVoltageV, OutputImpedanceOhm);
 
