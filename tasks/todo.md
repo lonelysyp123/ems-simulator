@@ -1,15 +1,15 @@
-# 物理引擎阶段 2：多单元与双耳接替
+# 物理引擎阶段 2：35 kV 边界对照
 
-> 单元变回写已改。本切片接管全部 690 V 母线。
+> 690 V 已全部接管。本切片只读对照径向 35 kV 与核边界，不接替 35 kV。
 
 ## 已确认
-- [x] Task 6–22：内核、单元 0、PCS 端子、停掉变回写
+- [x] Task 6–25：内核、690 接替、PCS 端子、双耳
 
-## Phase 2: Multi-island
-- [x] Task 23: AttachAll 所有 690 母线
-- [x] Task 24: DualEar Coupler 跳过 KernelOwned
-- [x] Task 25: 左右耳独立求解
+## Phase 2: 35 kV boundary
+- [x] Task 26: RadialTheveninPort 只读折算
+- [x] Task 27: Voc 对齐与一拍压降对照
+- [x] Task 28: 影子不写 Bus35
 
 ## Checkpoint
-- [x] 两单元并网均有核电压
-- [x] 双耳离网电压互不平均
+- [x] 35 kV 仍由径向拥有
+- [x] 已知 GridZ 占位偏差有测试钉住

@@ -51,6 +51,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         }
 
         public RadialNetworkGraph Graph => _graph;
+        public IReadOnlyList<ProductionUnit690Host> OwnedIslands => _ownedIslands;
 
         /// <summary>电压源发起一次完整求解周期（默认 100ms 调用）。</summary>
         /// <param name="step">潮流/Coupler 步长。</param>

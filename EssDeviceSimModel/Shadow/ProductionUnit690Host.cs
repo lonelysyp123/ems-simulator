@@ -18,6 +18,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             Bus = bus ?? throw new ArgumentNullException(nameof(bus));
 
         public ElectricalBusNode Bus { get; }
+        public SplitDomainHandshake? Handshake => _runner?.Handshake;
 
         public static IReadOnlyList<ProductionUnit690Host> AttachAll(RadialNetworkGraph graph)
         {
