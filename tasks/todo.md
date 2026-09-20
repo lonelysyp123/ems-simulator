@@ -1,17 +1,17 @@
-# 物理引擎阶段 2：网络内核（独立宿主）
+# 物理引擎阶段 2：分域边界（独立宿主）
 
-> 阶段 1 已提交。本阶段只在 `EssDeviceSimModel/Kernel` 建相量网，不接生产、不删平均。
+> 内核已提交。本切片只做戴维南 / 注入交接，不接生产、不删平均。
 
 ## 已确认
 - [x] 阶段 1：逻辑时钟与提交契约
+- [x] Task 6–8：相量内核、最小 PCS、环流涌现
 - [x] 构网源必须带有限 Z；环流是涌现不是估计算子
-- [x] 独立测试宿主先于影子/生产接替
 
-## Phase 2: Network kernel
-- [x] Task 6: PhasorNetwork 装配与求解
-- [x] Task 7: 最小 PCS 端口（受控源串 Z）
-- [x] Task 8: KCL / 功率平衡 / 并联源环流 / 拒绝零阻抗并联
+## Phase 2: Domain boundary
+- [x] Task 9: IsolatedAcIsland 并网戴维南贴装
+- [x] Task 10: SplitDomainHandshake 一拍延迟与上下事件分流
+- [x] Task 11: 失败不提交；影子状态隔离
 
-## Checkpoint: Kernel
-- [x] 解析电路与不变量测绿
+## Checkpoint: Boundary
+- [x] 延迟 / 事件 / 冻结 / 影子测绿
 - [x] 不写入 PlantEngine 生产路径
