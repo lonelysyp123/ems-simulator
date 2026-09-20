@@ -623,6 +623,12 @@ namespace EssSimulator.EssDeviceSimModel
         /// </summary>
         public double GetUnitAcBusVoltage(int unitIndex)
         {
+            if (unitIndex >= 0
+                && unitIndex < RadialGraph.UnitBuses690.Count
+                && RadialGraph.UnitBuses690[unitIndex].KernelOwned)
+            {
+                return RadialGraph.UnitBuses690[unitIndex].LineVoltageV;
+            }
             double v = 0;
             if (unitIndex >= 0 && unitIndex < _unitTransformers.Count)
                 v = Math.Max(v, _unitTransformers[unitIndex].GetCurrentState().SecondaryVoltage);

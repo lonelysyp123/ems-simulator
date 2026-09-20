@@ -1,16 +1,15 @@
-# 物理引擎阶段 2：690 V 生产接替
+# 物理引擎阶段 2：交流真值绑定
 
-> 影子比对已提交。本切片接管无双耳的单元 0，不删其它节点上的平均。
+> 单元 0 接替已提交。本切片让 PCS 交流遥测跟随核母线，不再覆盖。
 
 ## 已确认
-- [x] 阶段 1：逻辑时钟与提交契约
-- [x] Task 6–14：内核、分域边界、真实拓扑影子
+- [x] Task 6–17：内核、影子、单元 0 生产接替
 
-## Phase 2: Production cutover
-- [x] Task 15: KernelOwned 禁平均；单元变不写该 690
-- [x] Task 16: ProductionUnit690Host 接径向 Phase4
-- [x] Task 17: 失败回滚 690 母线
+## Phase 2: AC truth
+- [x] Task 18: AcTerminalLockedToNetwork
+- [x] Task 19: GetUnitAcBusVoltage 读核母线
+- [x] Task 20: Update 后遥测对齐 690
 
-## Checkpoint: Cutover
-- [x] 单元 0 测绿
-- [x] 其它径向节点仍走旧核
+## Checkpoint
+- [x] 并网/离网测绿
+- [x] 构网参考 E 仍可注入内核（不删端口模型）

@@ -76,4 +76,34 @@ public class Unit690KernelTakeoverTests
         Assert.False(ess.PlantEngine.Step(SimTime + Step, Step, Step));
         Assert.Equal(v0, ess.RadialGraph.UnitBuses690[0].LineVoltageV, 3);
     }
+
+    [Fact]
+    public void GridTied_PcsAcVoltageMatchesKernelBus_NotTransformerOrLossFormula()
+    {
+        using var ess = CreateEss();
+        ess.SetMainBreakerClosed(true);
+        ess.SetUnitBreakerClosed(0, true);
+        Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
+
+        var bus = ess.RadialGraph.UnitBuses690[0];
+        var pcs = ess._pcsList[0];
+        Assert.True(pcs.AcTerminalLockedToNetwork);
+        Assert.Equal(bus.LineVoltageV, pcs.GetCurrentState().AcVoltage, 1);
+        Assert.Equal(bus.LineVoltageV, ess.GetUnitAcBusVoltage(0), 1);
+    }
+
+    [Fact]
+    public void IslandedTwoForming_PcsTelemetryFollowsBusNotInternalE()
+    {
+        using var ess = CreateEss();
+        ess.SetMainBreakerClosed(false);
+        ess.SetUnitBreakerClosed(0, true);
+        var bus = ess.RadialGraph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FixedFormingSource("a", 690));
+        bus.RegisterVoltageSource(new FixedFormingSource("b", 650));
+
+        Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
+        Assert.Equal(bus.LineVoltageV, ess._pcsList[0].GetCurrentState().AcVoltage, 1);
+        Assert.Equal(bus.LineVoltageV, ess.GetUnitAcBusVoltage(0), 1);
+    }
 }

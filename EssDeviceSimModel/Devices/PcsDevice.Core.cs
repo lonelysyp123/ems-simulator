@@ -25,6 +25,9 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         public ElectricalPort Dc { get; }
         public IReadOnlyList<ElectricalPort> Ports => new[] { Ac, Dc };
         public bool GridAvailable => _gridState.IsAvailable;
+
+        /// <summary>交流端子电压以网络解为准，Update 不得再用构网参考或线损公式覆盖。</summary>
+        public bool AcTerminalLockedToNetwork { get; set; }
         public DeviceFaultState Fault => new()
         {
             FaultCode = _currentState.FaultType,
@@ -681,6 +684,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 }
             }
 
+            BindAcTerminalFromNetwork();
             PublishPortsFromState();
 
             // 4. 更新充放电能量统计（正放负充：ActivePower>0为放电，<0为充电）
@@ -697,6 +701,28 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 _currentState.DailyChargeEnergy += -energyChange;
                 _currentState.TotalChargeEnergy += -energyChange;
             }
+        }
+
+        private void BindAcTerminalFromNetwork()
+        {
+            if (!AcTerminalLockedToNetwork)
+                return;
+
+            var (v, f) = MeasureAcTerminal();
+            _currentState.AcVoltage = v;
+            if (f > 1.0)
+                _currentState.Frequency = f;
+
+            if (_currentState.Mode != OperationMode.Normal)
+                return;
+
+            double mag = ComputeAcCurrentMagnitude(
+                _currentState.ActivePower,
+                _currentState.ReactivePower,
+                Math.Max(v, 1.0));
+            if (_currentState.GMode == GridMode.Islanded)
+                mag += _inrushCurrentA;
+            _currentState.AcCurrent = SignedAcCurrentFromActivePower(_currentState.ActivePower, mag);
         }
 
         private void UpdateStandbyState()

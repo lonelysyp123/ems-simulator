@@ -335,6 +335,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             var link = _network.DcLinks[channelIndex];
 
             bms.IsLinked = link.IsClosed;
+            pcs.AcTerminalLockedToNetwork = _graph.Bus690ForPcsChannel(channelIndex).KernelOwned;
             pcs.SetGridAvailable(gridAvailable && bus690V > 1.0);
 
             PropagationPortBinding.SetAcVoltageInput(pcs.Ac, bus690V, ThreePhaseConnection.Star);

@@ -1,27 +1,19 @@
-# Implementation Plan: 物理引擎阶段 2（690 V 生产接替）
+# Implementation Plan: 物理引擎阶段 2（交流真值绑定）
 
 ## Overview
 
-影子比对已提交。本切片把**无双耳的单元 0** 690 V 母线交给相量核：该节点禁止算术平均，单元变 Coupler 不再写 690；上层径向仍解 35/220 kV，本拍 Voc 交给下层，下层 P/Q 晚一拍进入上层。求解失败走现有整步冻结。
+单元 0 生产接替已提交。本切片禁止 PCS `Update` 在核求解之后用构网参考、线损公式或变二次覆盖交流端子电压。被接管岛上，PCS 遥测与 `GetUnitAcBusVoltage` 都读核母线。
 
 ## Architecture Decisions
 
-- **所有权：** `ElectricalBusNode.KernelOwned`；仅单元 0 且无裂解变时默认接管。
-- **电压真值：** `ProductionUnit690Host.ApplyAfterUpper` 在径向 Phase4 之后写 690，`notifyCouplers: false`。
-- **平均退役范围：** 只停被接管节点的 `ApplyLocalVoltageSources`；35 kV 与其它 690 仍平均。
-- **不做：** 删全局平均、改 PCS 控制公式、接管双耳/多单元、阶段 3 真端口方程。
+- **锁：** `PcsDevice.AcTerminalLockedToNetwork`，由 `SolvePcsBmsPair` 按母线 `KernelOwned` 置位。
+- **提交后绑定：** `Update` 末尾 `BindAcTerminalFromNetwork` 用端口入口（核已写入的母线电压）覆盖 `AcVoltage`。
+- **单元母线查询：** `GetUnitAcBusVoltage` 对 KernelOwned 节点直接返回 `LineVoltageV`。
+- **不做：** 改 PCS 控制/构网 E、删 `PcsBmsDcCouplingLink` 直流结算、接管双耳。
 
 ## Task List
 
-### Phase 2: Production cutover (unit 0)
-
-- [x] Task 12–14: 影子比对（已提交）
-- [x] Task 15: 接管节点禁平均、Coupler 不写 690
-- [x] Task 16: ProductionUnit690Host 嵌入径向 Phase4
-- [x] Task 17: 失败时 690 母线随 memento 回滚
-
-### Checkpoint: Cutover
-
-- [x] 并网 690 由核写出合理电压
-- [x] 离网双源不再落到 0
-- [x] 未接管节点行为不变
+- [x] Task 15–17: 单元 0 生产接替（已提交）
+- [x] Task 18: 锁定端子后 Update 不得覆盖
+- [x] Task 19: GetUnitAcBusVoltage / ApplyGridResults 走核母线
+- [x] Task 20: 并网与离网 PCS 遥测对齐母线

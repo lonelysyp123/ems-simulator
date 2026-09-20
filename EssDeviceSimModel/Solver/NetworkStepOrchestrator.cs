@@ -127,6 +127,8 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 }
 
                 double lv690 = unitSec.LineVoltageV;
+                if (u < ess.RadialGraph.UnitBuses690.Count && ess.RadialGraph.UnitBuses690[u].KernelOwned)
+                    lv690 = ess.RadialGraph.UnitBuses690[u].LineVoltageV;
                 bool gridAvailable = mainClosed && lv690 > pcsCfg.AcVoltageNominal * 0.1;
 
                 double gridFreq = network.SystemFrequencyHz;
