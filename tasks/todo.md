@@ -1,17 +1,15 @@
-# 物理引擎阶段 2：35 kV 生产接替
+# 物理引擎阶段 3：平均变流器
 
-> 对照已完成。本切片核写 Bus35，停用径向 35 kV 平均。
+> 阶段 2 已接替 690/35 kV。本切片只在独立宿主替换最小端口的直流侧，不接生产。
 
 ## 已确认
-- [x] Task 6–28：内核、690 接替、边界对照
+- [x] Task 1–32：时钟、内核、690/35 kV 接替
 
-## Phase 2: 35 kV production
-- [x] Task 29: Bus35 KernelOwned
-- [x] Task 30: 并网 Voc 写 35 kV
-- [x] Task 31: 离网导纳加权反送
-- [x] Task 32: 影子隔离与回滚
+## Phase 3: Average converter
+- [x] Task 33: AverageConverterPort
+- [x] Task 34: 直流能量结算守恒
+- [x] Task 35: 各机 Pac 独立结算
 
 ## Checkpoint
-- [x] 生产 35 kV 等于核 Voc 折算
-- [x] 离网不再取构网电压最大
-- [x] 220 kV 仍由径向拥有
+- [x] 控制参考不被结算改写
+- [x] 生产 PCS/BMS 耦合未动

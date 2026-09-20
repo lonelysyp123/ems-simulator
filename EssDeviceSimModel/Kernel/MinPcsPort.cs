@@ -3,7 +3,8 @@ using System.Numerics;
 namespace EssSimulator.EssDeviceSimModel.Kernel
 {
     /// <summary>
-    /// 阶段 2 最小 PCS 端口：受控电压源串有限输出阻抗。参考值由外部控制提供，本类不均分邻机。
+    /// 阶段 2 最小 PCS 交流贴片：受控电压源串有限输出阻抗。参考值由外部控制提供，本类不均分邻机。
+    /// 阶段 3 直流结算见 <see cref="AverageConverterPort"/>。
     /// </summary>
     public sealed class MinPcsPort
     {
