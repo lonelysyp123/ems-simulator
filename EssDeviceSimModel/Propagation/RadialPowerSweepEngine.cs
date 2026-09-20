@@ -1,6 +1,7 @@
 using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel.Devices;
 using EssSimulator.EssDeviceSimModel.Model;
+using EssSimulator.EssDeviceSimModel.Shadow;
 using EssSimulator.EssDeviceSimModel.Solver;
 using log4net;
 
@@ -23,6 +24,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         private readonly int _quvMaxIterations;
         private readonly double _voltageTolerancePu;
         private double _lastBus35LineVoltageV;
+        private readonly ProductionUnit690Host? _ownedUnit0;
 
         public RadialPowerSweepEngine(
             RadialNetworkGraph graph,
@@ -42,8 +44,10 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             _grid = _network.Grid as ISelfActivatingElectricalSource
                 ?? throw new InvalidOperationException("Grid 必须实现 ISelfActivatingElectricalSource");
             _lastBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage;
+            _ownedUnit0 = ProductionUnit690Host.TryAttachUnit0(graph);
             _log.Info(
-                $"[RadialSweep] 母线前推回代引擎已就绪（Q-U/V 最多 {_quvMaxIterations} 轮，容差 {_voltageTolerancePu:P3} pu）");
+                $"[RadialSweep] 母线前推回代引擎已就绪（Q-U/V 最多 {_quvMaxIterations} 轮，容差 {_voltageTolerancePu:P3} pu）" +
+                (_ownedUnit0 != null ? "；单元 0 的 690 V 由相量核接管" : ""));
         }
 
         public RadialNetworkGraph Graph => _graph;
@@ -90,7 +94,18 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
 
             foreach (var bus690 in _graph.AllUnit690Buses)
             {
-                bus690.CollectFromContributors(context);
+                if (bus690.KernelOwned &&
+                    _ownedUnit0 != null &&
+                    ReferenceEquals(bus690, _graph.UnitBuses690[_ownedUnit0.UnitIndex]) &&
+                    _ownedUnit0.TryGetCommittedInjectionKw(out double pKw, out double qKvar))
+                {
+                    bus690.AddPower(pKw, qKvar);
+                }
+                else
+                {
+                    bus690.CollectFromContributors(context);
+                }
+
                 _graph.Bus35.AddPower(bus690.TotalActivePowerKw, bus690.TotalReactivePowerKvar);
             }
         }
@@ -134,6 +149,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 }
 
                 _graph.PropagateVoltageIsland(sweep, islandV);
+                _ownedUnit0?.ApplyAfterUpper(_graph, sweep);
                 _lastBus35LineVoltageV = islandV;
                 return;
             }
@@ -144,6 +160,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 v220, _pccCfg.NominalLineVoltage, _pccCfg.StationBusNominalLineVoltage);
 
             _graph.PropagateVoltageFromGrid(sweep);
+            _ownedUnit0?.ApplyAfterUpper(_graph, sweep);
             _lastBus35LineVoltageV = _graph.Bus35.LineVoltageV;
         }
 

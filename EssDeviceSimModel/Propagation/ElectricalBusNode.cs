@@ -32,6 +32,9 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         public double LineVoltageV { get; set; }
         public double FrequencyHz { get; set; }
 
+        /// <summary>被相量内核接管后禁止算术平均；径向未接管节点保持 false。</summary>
+        public bool KernelOwned { get; set; }
+
         public double TotalLineCurrentA =>
             Math.Sqrt(_sumCurrentReal * _sumCurrentReal + _sumCurrentImag * _sumCurrentImag);
 
@@ -68,6 +71,9 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         /// </summary>
         public bool ApplyLocalVoltageSources(PropagationSweepContext sweep)
         {
+            if (KernelOwned)
+                return false;
+
             if (_voltageSources.Count == 0)
                 return false;
 

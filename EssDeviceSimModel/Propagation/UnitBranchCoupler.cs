@@ -79,6 +79,9 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 ? _unitTransformer.Secondary.Output.Ac?.Internal.LineVoltageV ?? 0
                 : 0;
 
+            if (_bus690.KernelOwned)
+                return;
+
             _bus690.SetVoltage(
                 bus690V,
                 bus690V > 1.0 ? args.FrequencyHz : 0,
