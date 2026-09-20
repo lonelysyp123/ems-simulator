@@ -78,8 +78,10 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
 
                 double leftV = unitClosed ? xfmr.Dual.SecondaryLeft.Output.Ac?.Internal.LineVoltageV ?? 0 : 0;
                 double rightV = unitClosed ? xfmr.Dual.SecondaryRight.Output.Ac?.Internal.LineVoltageV ?? 0 : 0;
-                xfmr.Left.SetVoltage(leftV, leftV > 1.0 ? args.FrequencyHz : 0, args.Sweep, notifyCouplers: false);
-                xfmr.Right.SetVoltage(rightV, rightV > 1.0 ? args.FrequencyHz : 0, args.Sweep, notifyCouplers: false);
+                if (!xfmr.Left.KernelOwned)
+                    xfmr.Left.SetVoltage(leftV, leftV > 1.0 ? args.FrequencyHz : 0, args.Sweep, notifyCouplers: false);
+                if (!xfmr.Right.KernelOwned)
+                    xfmr.Right.SetVoltage(rightV, rightV > 1.0 ? args.FrequencyHz : 0, args.Sweep, notifyCouplers: false);
             }
         }
 

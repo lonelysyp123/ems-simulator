@@ -24,7 +24,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         private readonly int _quvMaxIterations;
         private readonly double _voltageTolerancePu;
         private double _lastBus35LineVoltageV;
-        private readonly ProductionUnit690Host? _ownedUnit0;
+        private readonly IReadOnlyList<ProductionUnit690Host> _ownedIslands;
 
         public RadialPowerSweepEngine(
             RadialNetworkGraph graph,
@@ -44,10 +44,10 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             _grid = _network.Grid as ISelfActivatingElectricalSource
                 ?? throw new InvalidOperationException("Grid 必须实现 ISelfActivatingElectricalSource");
             _lastBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage;
-            _ownedUnit0 = ProductionUnit690Host.TryAttachUnit0(graph);
+            _ownedIslands = ProductionUnit690Host.AttachAll(graph);
             _log.Info(
                 $"[RadialSweep] 母线前推回代引擎已就绪（Q-U/V 最多 {_quvMaxIterations} 轮，容差 {_voltageTolerancePu:P3} pu）" +
-                (_ownedUnit0 != null ? "；单元 0 的 690 V 由相量核接管" : ""));
+                (_ownedIslands.Count > 0 ? $"；已接管 {_ownedIslands.Count} 条 690 V 母线" : ""));
         }
 
         public RadialNetworkGraph Graph => _graph;
@@ -94,10 +94,10 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
 
             foreach (var bus690 in _graph.AllUnit690Buses)
             {
+                var host = HostFor(bus690);
                 if (bus690.KernelOwned &&
-                    _ownedUnit0 != null &&
-                    ReferenceEquals(bus690, _graph.UnitBuses690[_ownedUnit0.UnitIndex]) &&
-                    _ownedUnit0.TryGetCommittedInjectionKw(out double pKw, out double qKvar))
+                    host != null &&
+                    host.TryGetCommittedInjectionKw(out double pKw, out double qKvar))
                 {
                     bus690.AddPower(pKw, qKvar);
                 }
@@ -149,7 +149,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 }
 
                 _graph.PropagateVoltageIsland(sweep, islandV);
-                _ownedUnit0?.ApplyAfterUpper(_graph, sweep);
+                ApplyOwnedIslands(sweep);
                 _lastBus35LineVoltageV = islandV;
                 return;
             }
@@ -160,7 +160,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 v220, _pccCfg.NominalLineVoltage, _pccCfg.StationBusNominalLineVoltage);
 
             _graph.PropagateVoltageFromGrid(sweep);
-            _ownedUnit0?.ApplyAfterUpper(_graph, sweep);
+            ApplyOwnedIslands(sweep);
             _lastBus35LineVoltageV = _graph.Bus35.LineVoltageV;
         }
 
@@ -176,6 +176,23 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 StationBusNominalLineVoltageV = _pccCfg.StationBusNominalLineVoltage,
                 MainBreakerClosed = context.MainBreakerClosed
             };
+
+        private void ApplyOwnedIslands(PropagationSweepContext sweep)
+        {
+            foreach (var host in _ownedIslands)
+                host.ApplyAfterUpper(_graph, sweep);
+        }
+
+        private ProductionUnit690Host? HostFor(ElectricalBusNode bus)
+        {
+            foreach (var host in _ownedIslands)
+            {
+                if (ReferenceEquals(host.Bus, bus))
+                    return host;
+            }
+
+            return null;
+        }
 
         /// <summary>⑤ 在已知母线电压下由 P/Q 算电流，驱动各设备 Step。</summary>
         private void Phase5AssignCurrentsAndStepDevices(DeviceStepContext context, TimeSpan step)

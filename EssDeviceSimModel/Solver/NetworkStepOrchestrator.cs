@@ -146,6 +146,10 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                         var dual = duals[xfmrIndex];
                         chV = (right ? dual.SecondaryRight : dual.SecondaryLeft).Output.Ac?.Internal.LineVoltageV ?? lv690;
                     }
+
+                    var earBus = ess.RadialGraph.Bus690ForPcsChannel(idx);
+                    if (earBus.KernelOwned)
+                        chV = earBus.LineVoltageV;
                     bool chGrid = mainClosed && chV > pcsCfg.AcVoltageNominal * 0.1;
                     ess._pcsList[idx].UpdateGridState(chV, gridFreq, chGrid);
                 }

@@ -5,7 +5,7 @@ namespace EssSimulator.EssDeviceSimModel
 {
     /// <summary>
     /// 离网/黑启动场景下单元变与 35kV 母线耦合，以及站用电在在线 PCS 间的分摊。
-    /// 在 PCS.Update 之后调用，使变压器状态与当步 PCS 输出同 tick 对齐。
+    /// 未接管单元在 PCS.Update 之后对齐变压器；KernelOwned 单元禁止用 PCS 电压回写 690/反送 35 kV。
     /// </summary>
     public static class UnitTransformerIslandSync
     {
@@ -40,6 +40,20 @@ namespace EssSimulator.EssDeviceSimModel
                 if (!unitHvClosed[u])
                     continue;
 
+                if (UnitPcsLockedToNetwork(pcsList, baseIdx, pcsCount))
+                {
+                    for (int ch = 0; ch < pcsCount; ch++)
+                    {
+                        int idx = baseIdx + ch;
+                        if (idx < 0 || idx >= pcsList.Count)
+                            continue;
+                        localUnitP[u] += pcsList[idx].GetGridSideActivePower();
+                        localUnitQ[u] += pcsList[idx].GetCurrentState().ReactivePower;
+                    }
+
+                    continue;
+                }
+
                 double sum690 = 0;
                 int forming = 0;
                 void Accumulate(int pcsIdx)
@@ -73,6 +87,15 @@ namespace EssSimulator.EssDeviceSimModel
                     continue;
                 }
 
+                var (baseIdx, pcsCount) = PcsUnitLayout.RangeOfUnit(pcsPerUnit, u);
+                if (UnitPcsLockedToNetwork(pcsList, baseIdx, pcsCount))
+                {
+                    unitPrimaryV[u] = mainBreakerClosed
+                        ? stationBus35LineVoltageV
+                        : unitTransformers[u].GetCurrentState().PrimaryVoltage;
+                    continue;
+                }
+
                 double turnsRatio = unitTransformers[u].TurnsRatio;
 
                 unitPrimaryV[u] = mainBreakerClosed
@@ -101,6 +124,21 @@ namespace EssSimulator.EssDeviceSimModel
             ApplyBlackStartStationElectricalLoadAcrossBus(
                 unitTransformers, mainTransformer, pcsList, pcsCfg,
                 localUnitP, unitPrimaryV, mainBreakerClosed, stationBus35LineVoltageV, pcsPerUnit);
+        }
+
+        private static bool UnitPcsLockedToNetwork(
+            IReadOnlyList<PcsDevice> pcsList,
+            int baseIdx,
+            int pcsCount)
+        {
+            for (int ch = 0; ch < pcsCount; ch++)
+            {
+                int idx = baseIdx + ch;
+                if (idx >= 0 && idx < pcsList.Count && pcsList[idx].AcTerminalLockedToNetwork)
+                    return true;
+            }
+
+            return false;
         }
 
         private static void ApplyBlackStartStationElectricalLoadAcrossBus(

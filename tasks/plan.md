@@ -1,19 +1,19 @@
-# Implementation Plan: 物理引擎阶段 2（交流真值绑定）
+# Implementation Plan: 物理引擎阶段 2（多单元与双耳接替）
 
 ## Overview
 
-单元 0 生产接替已提交。本切片禁止 PCS `Update` 在核求解之后用构网参考、线损公式或变二次覆盖交流端子电压。被接管岛上，PCS 遥测与 `GetUnitAcBusVoltage` 都读核母线。
+单元变回写已改完。本切片把相量核接到**所有** 690 V 母线：普通多单元各一条，双耳左右耳各一条。Coupler 不再写已接管耳；每条母线独立 a–d。
 
 ## Architecture Decisions
 
-- **锁：** `PcsDevice.AcTerminalLockedToNetwork`，由 `SolvePcsBmsPair` 按母线 `KernelOwned` 置位。
-- **提交后绑定：** `Update` 末尾 `BindAcTerminalFromNetwork` 用端口入口（核已写入的母线电压）覆盖 `AcVoltage`。
-- **单元母线查询：** `GetUnitAcBusVoltage` 对 KernelOwned 节点直接返回 `LineVoltageV`。
-- **不做：** 改 PCS 控制/构网 E、删 `PcsBmsDcCouplingLink` 直流结算、接管双耳。
+- **AttachAll：** 遍历 `AllUnit690Buses` 置 `KernelOwned` 并建 `ProductionUnit690Host`。
+- **双耳 Zth：** 用分裂阻抗与半容量折漏抗。
+- **黑启动上下文：** 按 PCS 通道读 `Bus690ForPcsChannel`，不再把左耳电压派给右耳。
+- **不做：** 删 35 kV 平均、阶段 3 真 PCS 端口、EMT。
 
 ## Task List
 
-- [x] Task 15–17: 单元 0 生产接替（已提交）
-- [x] Task 18: 锁定端子后 Update 不得覆盖
-- [x] Task 19: GetUnitAcBusVoltage / ApplyGridResults 走核母线
-- [x] Task 20: 并网与离网 PCS 遥测对齐母线
+- [x] Task 21–22: 停掉已接管岛的单元变电压回写
+- [x] Task 23: 所有 690 母线默认接管
+- [x] Task 24: 双耳 Coupler 不写 KernelOwned 耳
+- [x] Task 25: 左右耳电压可独立

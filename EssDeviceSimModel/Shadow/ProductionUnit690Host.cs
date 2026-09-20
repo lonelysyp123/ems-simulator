@@ -5,7 +5,7 @@ using EssSimulator.EssDeviceSimModel.Propagation;
 namespace EssSimulator.EssDeviceSimModel.Shadow
 {
     /// <summary>
-    /// 生产接替的一个 690 V 岛：本拍用上层径向已解出的 Voc，下层提交只留在本对象。
+    /// 生产接替的一条 690 V 母线：本拍用上层径向已解出的 Voc，下层提交只留在本对象。
     /// 求解失败抛给 PlantEngine 整步冻结。
     /// </summary>
     public sealed class ProductionUnit690Host
@@ -14,29 +14,30 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         private string _key = "";
         private bool _hasCommitted;
 
-        public ProductionUnit690Host(int unitIndex) => UnitIndex = unitIndex;
+        public ProductionUnit690Host(ElectricalBusNode bus) =>
+            Bus = bus ?? throw new ArgumentNullException(nameof(bus));
 
-        public int UnitIndex { get; }
+        public ElectricalBusNode Bus { get; }
 
-        public static ProductionUnit690Host? TryAttachUnit0(RadialNetworkGraph graph)
+        public static IReadOnlyList<ProductionUnit690Host> AttachAll(RadialNetworkGraph graph)
         {
-            if (graph.UnitBuses690.Count == 0)
-                return null;
-            if (graph.Network.DualEarsOfUnit(0).Count > 0)
-                return null;
+            var hosts = new List<ProductionUnit690Host>();
+            foreach (var bus in graph.AllUnit690Buses)
+            {
+                bus.KernelOwned = true;
+                hosts.Add(new ProductionUnit690Host(bus));
+            }
 
-            graph.UnitBuses690[0].KernelOwned = true;
-            return new ProductionUnit690Host(0);
+            return hosts;
         }
 
         public void ApplyAfterUpper(RadialNetworkGraph graph, PropagationSweepContext sweep)
         {
-            var bus = graph.UnitBuses690[UnitIndex];
-            var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, UnitIndex, sweep);
+            var snap = RadialIslandShadowAdapter.CaptureBus(graph, Bus, sweep);
             bool empty = snap.Sources.Count == 0 && snap.ReferredGridEmf is null;
             if (empty)
             {
-                bus.SetVoltage(0, 0, sweep, notifyCouplers: false);
+                Bus.SetVoltage(0, 0, sweep, notifyCouplers: false);
                 return;
             }
 
@@ -56,7 +57,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
 
             var tick = _runner.Tick();
             double mag = tick.BusVoltage.Magnitude;
-            bus.SetVoltage(mag, mag > 1.0 ? sweep.SystemFrequencyHz : 0, sweep, notifyCouplers: false);
+            Bus.SetVoltage(mag, mag > 1.0 ? sweep.SystemFrequencyHz : 0, sweep, notifyCouplers: false);
             if (_runner.Handshake != null)
                 _hasCommitted = true;
         }
@@ -68,7 +69,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             if (!_hasCommitted || _runner?.Handshake == null)
                 return false;
 
-            Complex s = _runner.Handshake.CommittedInjectionVa;
+            var s = _runner.Handshake.CommittedInjectionVa;
             pKw = s.Real / 1000.0;
             qKvar = s.Imaginary / 1000.0;
             return true;

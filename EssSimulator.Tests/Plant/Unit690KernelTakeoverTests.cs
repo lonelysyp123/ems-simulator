@@ -106,4 +106,86 @@ public class Unit690KernelTakeoverTests
         Assert.Equal(bus.LineVoltageV, ess._pcsList[0].GetCurrentState().AcVoltage, 1);
         Assert.Equal(bus.LineVoltageV, ess.GetUnitAcBusVoltage(0), 1);
     }
+
+    [Fact]
+    public void IslandedTwoForming_TransformerSyncDoesNotReplaceKernelBus()
+    {
+        using var ess = CreateEss();
+        ess.SetMainBreakerClosed(false);
+        ess.SetUnitBreakerClosed(0, true);
+        var bus = ess.RadialGraph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FixedFormingSource("a", 690));
+        bus.RegisterVoltageSource(new FixedFormingSource("b", 650));
+
+        Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
+        double kernelV = bus.LineVoltageV;
+        Assert.InRange(kernelV, 665, 675);
+        Assert.Equal(kernelV, ess._pcsList[0].GetCurrentState().AcVoltage, 1);
+        Assert.True(
+            Math.Abs(ess._unitTransformers[0].GetCurrentState().SecondaryVoltage - kernelV) > 10,
+            "单元变二次不得在 PCS.Update 之后把核母线改写成变比电压");
+    }
+
+    [Fact]
+    public void TwoSimpleUnits_Both690BusesKernelOwned()
+    {
+        using var ess = new EnergyStorageSystem(
+            new SimulatorConfig { Devices = { new EssUnitConfig(), new EssUnitConfig() } },
+            new PcsPhysicalConfig { AcVoltageNominal = 690 },
+            new TransformerConfig(),
+            new UnitTransformerConfig(),
+            new LoadConfig(),
+            new PccConfig(),
+            new MeterConfig());
+        Assert.True(ess.RadialGraph.UnitBuses690[0].KernelOwned);
+        Assert.True(ess.RadialGraph.UnitBuses690[1].KernelOwned);
+        ess.SetMainBreakerClosed(true);
+        ess.SetUnitBreakerClosed(0, true);
+        ess.SetUnitBreakerClosed(1, true);
+        Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
+        Assert.InRange(ess.RadialGraph.UnitBuses690[0].LineVoltageV, 600, 750);
+        Assert.InRange(ess.RadialGraph.UnitBuses690[1].LineVoltageV, 600, 750);
+    }
+
+    [Fact]
+    public void SplitTransformer_BothEarsKernelOwnedAndIndependent()
+    {
+        using var ess = new EnergyStorageSystem(
+            new SimulatorConfig
+            {
+                Devices =
+                {
+                    new EssUnitConfig
+                    {
+                        Pcs = { new Configuration.PcsDeviceConfig(), new Configuration.PcsDeviceConfig() },
+                        Bms = { new BmsDeviceConfig(), new BmsDeviceConfig() },
+                        SplitTransformer = new SplitTransformerRuntimeConfig
+                        {
+                            Present = true,
+                            LeftEarPcsIndices = { 0 },
+                            RightEarPcsIndices = { 1 }
+                        }
+                    }
+                }
+            },
+            new PcsPhysicalConfig { AcVoltageNominal = 690 },
+            new TransformerConfig(),
+            new UnitTransformerConfig(),
+            new LoadConfig(),
+            new PccConfig(),
+            new MeterConfig());
+
+        var left = ess.RadialGraph.UnitBuses690[0];
+        var right = ess.RadialGraph.ExtraUnitBuses690[0];
+        Assert.True(left.KernelOwned);
+        Assert.True(right.KernelOwned);
+
+        ess.SetMainBreakerClosed(false);
+        ess.SetUnitBreakerClosed(0, true);
+        left.RegisterVoltageSource(new FixedFormingSource("left", 690));
+        right.RegisterVoltageSource(new FixedFormingSource("right", 650));
+        Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
+        Assert.InRange(left.LineVoltageV, 680, 700);
+        Assert.InRange(right.LineVoltageV, 640, 660);
+    }
 }

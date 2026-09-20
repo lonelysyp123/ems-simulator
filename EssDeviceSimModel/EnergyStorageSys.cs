@@ -672,15 +672,17 @@ namespace EssSimulator.EssDeviceSimModel
 
         private void RefreshUnitBlackStartBusContext(int unitIndex)
         {
-            double busV = GetUnitAcBusVoltage(unitIndex);
             var (freqHz, phaseRad) = GetUnitFormingReference(unitIndex);
             int baseIdx = PcsBaseIndexOfUnit(unitIndex);
             int count = PcsCountOfUnit(unitIndex);
             for (int k = 0; k < count; k++)
             {
                 int i = baseIdx + k;
-                if (i >= 0 && i < _pcsList.Count)
-                    _pcsList[i].RefreshBlackStartBusContext(busV, freqHz, phaseRad);
+                if (i < 0 || i >= _pcsList.Count)
+                    continue;
+                var ear = RadialGraph.Bus690ForPcsChannel(i);
+                double busV = ear.KernelOwned ? ear.LineVoltageV : GetUnitAcBusVoltage(unitIndex);
+                _pcsList[i].RefreshBlackStartBusContext(busV, freqHz, phaseRad);
             }
         }
 

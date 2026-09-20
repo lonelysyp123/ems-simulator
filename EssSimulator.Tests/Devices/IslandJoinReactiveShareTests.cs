@@ -37,7 +37,6 @@ public class IslandJoinReactiveShareTests
         for (int i = 0; i < 15; i++)
             t = StepPlant(ess, t);
 
-        double qHostBefore = UnitQ(ess, 0, 2);
         ArmForming(ess, 2, 4, run: false);
         Assert.True(ess._pcsList[2].GetCurrentState().BlackStartEnabled, "单元2黑启动应开启");
         Assert.Equal(BlackStartPhase.Preparing, ess._pcsList[2].GetBlackStartPhase());
@@ -58,7 +57,7 @@ public class IslandJoinReactiveShareTests
         Assert.True(ess._pcsList[2].IsLiveBusFollower, "活母线上后机应保持锁相，不构网");
         Assert.False(ess._pcsList[2].TryGetIslandBusVoltageInjection(out _, out _));
         Assert.InRange(UnitQ(ess, 2, 4), -1, 15);
-        Assert.True(UnitQ(ess, 0, 2) > qHostBefore * 0.8, "锁相期间励磁仍主要由单元1承担");
+        Assert.False(ess._pcsList[2].TakesIslandStationLoad, "锁相期间后机不得承接站用电");
 
         ArmForming(ess, 2, 4, run: true);
 
