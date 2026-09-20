@@ -43,7 +43,7 @@ namespace EssSimulator.EssDeviceSimModel
     {
         public readonly ClusterConfiguration _config;
         public readonly List<BatteryPackSimulator> _packs; // 串联的电池模组
-        private readonly Random _random = new Random();
+        private readonly Random _random = new Random(0);
         public ClusterState _currentState;
 
         // 构造函数

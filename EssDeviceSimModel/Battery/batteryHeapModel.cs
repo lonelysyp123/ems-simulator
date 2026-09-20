@@ -90,7 +90,7 @@ namespace EssSimulator.EssDeviceSimModel
     {
         public RackConfiguration _config { get; }
         public List<BatteryClusterSimulator> _clusters { get; set; } //并联的电池簇
-        private readonly Random _random = new Random();
+        private readonly Random _random = new Random(0);
         public RackState _currentState { get; set; }
         private double _totalChargeEnergy;        // 累计充电能量(kWh)
         private double _totalDischargeEnergy;     // 累计放电能量(kWh)
@@ -121,6 +121,29 @@ namespace EssSimulator.EssDeviceSimModel
             }
 
             UpdateRackState(0, 25.0, DateTime.Now, TimeSpan.Zero);
+        }
+
+        internal (double Soc, double TotalCurrent, double ChargeEnergy, double DischargeEnergy) CaptureStepMemento()
+        {
+            return (
+                _currentState.MinClusterSOC,
+                _currentState.TotalCurrent,
+                _totalChargeEnergy,
+                _totalDischargeEnergy);
+        }
+
+        internal void RestoreStepMemento(double soc, double totalCurrent, double chargeEnergy, double dischargeEnergy)
+        {
+            foreach (var cluster in _clusters)
+                cluster.SetSoc(soc);
+
+            _totalChargeEnergy = chargeEnergy;
+            _totalDischargeEnergy = dischargeEnergy;
+            UpdateRackState(
+                totalCurrent,
+                _currentState.AvgClusterTemp != 0 ? _currentState.AvgClusterTemp : 25.0,
+                _currentState.Timestamp == default ? DateTime.UtcNow : _currentState.Timestamp,
+                TimeSpan.Zero);
         }
 
         // 获取当前堆状态

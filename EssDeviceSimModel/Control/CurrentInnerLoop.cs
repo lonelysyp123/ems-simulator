@@ -21,6 +21,12 @@ namespace EssSimulator.EssDeviceSimModel.Control
             Saturated = false;
         }
 
+        internal void Restore(double output, bool saturated)
+        {
+            Output = output;
+            Saturated = saturated;
+        }
+
         public double Step(double iRef, double iMeas, double dt, double iMax)
         {
             if (dt <= 0)

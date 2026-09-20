@@ -12,6 +12,11 @@ namespace EssSimulator.EssDeviceSimModel.Control
 
         public void Reset() => _pi.Reset();
 
+        internal double Integral => _pi.Integral;
+        internal double Output => _pi.Output;
+
+        internal void Restore(double integral, double output) => _pi.Restore(integral, output);
+
         public double Step(double vRef, double vMeas, double dt, double iMax)
         {
             iMax = Math.Max(0, iMax);

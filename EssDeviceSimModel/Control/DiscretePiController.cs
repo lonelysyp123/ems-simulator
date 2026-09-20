@@ -33,6 +33,12 @@ namespace EssSimulator.EssDeviceSimModel.Control
             Output = 0;
         }
 
+        internal void Restore(double integral, double output)
+        {
+            Integral = integral;
+            Output = output;
+        }
+
         public double Step(double error, double dt)
         {
             if (dt <= 0)

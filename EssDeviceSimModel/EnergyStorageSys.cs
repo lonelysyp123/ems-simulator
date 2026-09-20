@@ -86,6 +86,15 @@ namespace EssSimulator.EssDeviceSimModel
         /// <summary>35kV 站内母线线电压（V），由 PCC 电压按额定变比推导。</summary>
         public double StationBus35LineVoltageV { get; private set; }
 
+        /// <summary>逻辑仿真时钟。Host 定时器只控制墙钟速率。</summary>
+        public SimulationClock Clock { get; }
+
+        /// <summary>上一拍求解失败时为 true；成功拍清零。协议/UI 可读，不新增点表。</summary>
+        public bool SolverFault { get; private set; }
+
+        /// <summary>失败诊断摘要；成功拍为空。</summary>
+        public string? SolverFaultMessage { get; private set; }
+
         /// <summary>新电气网络（阶段 4 起始终初始化）。</summary>
         public ElectricalNetwork ElectricalNetwork => _electricalNetwork;
 
@@ -224,10 +233,13 @@ namespace EssSimulator.EssDeviceSimModel
             // 保存仿真时钟参数
             double integrationMult = simCfg.IntegrationStepMultiplier;
             _integrationMultiplier = integrationMult > 0 ? integrationMult : 1.0;
-            _lastCycleUtc = DateTime.UtcNow;
             _transCfg  = transCfg;
             _pcsCfg    = pcsCfg;
             _propagationIntervalMs = Math.Max(10, simCfg.Runtime.PropagationIntervalMs);
+            Clock = new SimulationClock(
+                TimeSpan.FromMilliseconds(_propagationIntervalMs),
+                _integrationMultiplier,
+                DateTime.SpecifyKind(new DateTime(2026, 1, 1, 0, 0, 0), DateTimeKind.Utc));
             PccLineVoltageV = pccCfg.NominalLineVoltage;
             StationBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage;
 
@@ -526,24 +538,23 @@ namespace EssSimulator.EssDeviceSimModel
             NetworkControlBridge.SetBmsPcsLinked(_electricalNetwork, _bmsRackDevices[channelIndex], channelIndex, linked);
         }
 
-        // 仿真时钟：每次主循环 / 电压源 SolveCycle 回调时，用真实墙钟间隔作为 dt
-        private DateTime _lastCycleUtc;
+        // 仿真时钟：逻辑 dt 固定为 PropagationIntervalMs；墙钟只决定推进速率。
         private readonly double _integrationMultiplier;
 
         /// <summary>电压源（Grid）激活周期（ms），主循环休眠间隔。</summary>
         public int LoopIntervalMs => _propagationIntervalMs;
 
-        private (TimeSpan elapsed, TimeSpan integrationElapsed) AdvanceCycleClock()
+        internal void SetSolverFault(string message)
         {
-            var now = DateTime.UtcNow;
-            var elapsed = now - _lastCycleUtc;
-            _lastCycleUtc = now;
+            SolverFault = true;
+            SolverFaultMessage = message;
+            _log.Warn($"[EnergyStorageSystem] SolverFault: {message}");
+        }
 
-            if (elapsed <= TimeSpan.Zero)
-                elapsed = TimeSpan.FromMilliseconds(1);
-
-            var integrationElapsed = TimeSpan.FromTicks((long)(elapsed.Ticks * _integrationMultiplier));
-            return (elapsed, integrationElapsed);
+        internal void ClearSolverFault()
+        {
+            SolverFault = false;
+            SolverFaultMessage = null;
         }
 
         private readonly TransformerConfig _transCfg;
@@ -554,7 +565,7 @@ namespace EssSimulator.EssDeviceSimModel
         /// <summary>
         /// 仿真主循环（IHostedService / BackgroundService）。
         /// 由 .NET Host 在 StartAsync 时调用，stoppingToken 取消时自动退出。
-        /// 每 tick 只推进时钟并调用 <see cref="PlantEngine.Step"/>（导演逻辑已迁入引擎门面）。
+        /// 每 tick 推进逻辑时钟并调用 <see cref="PlantEngine.Step"/>（导演逻辑已迁入引擎门面）。
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -564,8 +575,7 @@ namespace EssSimulator.EssDeviceSimModel
             {
                 while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
-                    var (elapsed, integrationElapsed) = AdvanceCycleClock();
-                    DateTime simTime = DateTime.UtcNow;
+                    var (simTime, elapsed, integrationElapsed) = Clock.Tick();
                     PlantEngine.Step(simTime, elapsed, integrationElapsed);
                 }
             }

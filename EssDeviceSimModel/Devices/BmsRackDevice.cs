@@ -52,6 +52,28 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         public double GetElectricalLossWatts() => _lastLossWatts;
 
+        internal BmsStepMemento CaptureStepMemento()
+        {
+            var rack = _rack.CaptureStepMemento();
+            return new BmsStepMemento(
+                rack.Soc,
+                rack.TotalCurrent,
+                rack.ChargeEnergy,
+                rack.DischargeEnergy,
+                _ambientCelsius,
+                BatteryNodeTemperatureCelsius,
+                _lastLossWatts);
+        }
+
+        internal void RestoreStepMemento(BmsStepMemento m)
+        {
+            _ambientCelsius = m.AmbientCelsius;
+            BatteryNodeTemperatureCelsius = m.BatteryNodeTemperatureCelsius;
+            _lastLossWatts = m.LastLossWatts;
+            _rack.RestoreStepMemento(m.Soc, m.TotalCurrent, m.ChargeEnergy, m.DischargeEnergy);
+            SyncPortFromRack();
+        }
+
         public bool IsLinked
         {
             get => _rack.GetRackState()?.IsPcsLinked ?? false;
@@ -146,4 +168,13 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 Output = ElectricalPortSnapshot.FromDc(new DcSnapshot())
             };
     }
+
+    internal readonly record struct BmsStepMemento(
+        double Soc,
+        double TotalCurrent,
+        double ChargeEnergy,
+        double DischargeEnergy,
+        double AmbientCelsius,
+        double BatteryNodeTemperatureCelsius,
+        double LastLossWatts);
 }

@@ -45,7 +45,7 @@ namespace EssSimulator.EssDeviceSimModel
     {
         private readonly PackConfiguration _config;
         private readonly List<List<LiFePO4CellSimulator>> _cells; // 二维数组表示串并联结构
-        private readonly Random _random = new Random();
+        private readonly Random _random = new Random(0);
         private PackState _currentState;
 
         // 构造函数

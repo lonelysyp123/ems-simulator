@@ -138,5 +138,42 @@ namespace EssSimulator.EssDeviceSimModel.Thermal
             double rEq = rPerCluster / clusterCount + cfg.RackInternalResistance;
             return rackCurrentA * rackCurrentA * Math.Max(1e-9, rEq);
         }
+
+        internal ThermalStepMemento CaptureStepMemento()
+        {
+            var cabinets = new ThermalCabinetMemento[_cabinets.Count];
+            for (int i = 0; i < _cabinets.Count; i++)
+            {
+                var c = _cabinets[i].CaptureStepMemento();
+                cabinets[i] = new ThermalCabinetMemento(
+                    c.Outdoor, c.Shell, c.Air, c.Battery, c.PendingHeatW, c.HvacCoolingActive);
+            }
+
+            return new ThermalStepMemento(OutdoorCelsius, cabinets);
+        }
+
+        internal void RestoreStepMemento(ThermalStepMemento m)
+        {
+            OutdoorCelsius = m.OutdoorCelsius;
+            int n = Math.Min(_cabinets.Count, m.Cabinets.Length);
+            for (int i = 0; i < n; i++)
+            {
+                var c = m.Cabinets[i];
+                _cabinets[i].RestoreStepMemento(
+                    c.Outdoor, c.Shell, c.Air, c.Battery, c.PendingHeatW, c.HvacCoolingActive);
+            }
+        }
     }
+
+    internal readonly record struct ThermalCabinetMemento(
+        double Outdoor,
+        double Shell,
+        double Air,
+        double Battery,
+        double PendingHeatW,
+        bool HvacCoolingActive);
+
+    internal readonly record struct ThermalStepMemento(
+        double OutdoorCelsius,
+        ThermalCabinetMemento[] Cabinets);
 }

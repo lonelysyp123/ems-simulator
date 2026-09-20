@@ -4,6 +4,7 @@ using EssSimulator.EssDeviceSimModel.Model;
 
 namespace EssSimulator.Tests.Plant;
 
+[Collection("PlantEngineStaticHooks")]
 public class PlantEngineCharacterizationTests
 {
     private static readonly TimeSpan Step = TimeSpan.FromMilliseconds(200);

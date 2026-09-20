@@ -25,6 +25,14 @@ namespace EssSimulator.EssDeviceSimModel.Control
             ThetaRad = 0;
         }
 
+        internal void Restore(bool enabled, double voltageV, double frequencyHz, double thetaRad)
+        {
+            Enabled = enabled;
+            VoltageV = voltageV;
+            FrequencyHz = frequencyHz;
+            ThetaRad = thetaRad;
+        }
+
         public void Step(double busV, double busF, double busTheta, double enableV, double dt)
         {
             if (busV < enableV)

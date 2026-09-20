@@ -7,6 +7,8 @@ namespace EssSimulator.EssDeviceSimModel.Control
 
         public void Reset(double thetaRad = 0) => ThetaRad = WrapToPi(thetaRad);
 
+        internal void Restore(double thetaRad) => ThetaRad = WrapToPi(thetaRad);
+
         public void Step(double freqHz, double dt)
         {
             if (dt <= 0)

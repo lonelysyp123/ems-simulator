@@ -22,6 +22,12 @@ namespace EssSimulator.EssDeviceSimModel.Control
             Target = value;
         }
 
+        internal void Restore(double output, double target)
+        {
+            Output = output;
+            Target = target;
+        }
+
         public double Step(double dt)
         {
             if (dt <= 0)

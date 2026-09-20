@@ -70,6 +70,31 @@ namespace EssSimulator.EssDeviceSimModel.Thermal
             PendingBatteryHeatW = 0;
         }
 
+        internal (double Outdoor, double Shell, double Air, double Battery, double PendingHeatW, bool HvacCoolingActive) CaptureStepMemento() =>
+            (
+                OutdoorCelsius,
+                ShellCelsius,
+                CabinetAirCelsius,
+                BatteryNodeCelsius,
+                PendingBatteryHeatW,
+                _hvacCoolingActive);
+
+        internal void RestoreStepMemento(
+            double outdoor,
+            double shell,
+            double air,
+            double battery,
+            double pendingHeatW,
+            bool hvacCoolingActive)
+        {
+            _network.GetNode(OutdoorId).TemperatureCelsius = outdoor;
+            _network.GetNode(ShellId).TemperatureCelsius = shell;
+            _network.GetNode(AirId).TemperatureCelsius = air;
+            _network.GetNode(BatteryId).TemperatureCelsius = battery;
+            PendingBatteryHeatW = pendingHeatW;
+            _hvacCoolingActive = hvacCoolingActive;
+        }
+
         private double ApplyHvacCooling()
         {
             if (!AirConditioningOn || _cfg.HvacCoolingPowerW <= 0)
