@@ -47,11 +47,16 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             Complex zth = LeakageOhmLv(LeakageConfigFor(graph, bus));
             Complex? gridEmf = null;
             Complex? gridZ = null;
-            if (graph.Bus35.LineVoltageV > 1.0)
+            bool gridTied = sweep.MainBreakerClosed && sweep.OpenCircuitBus35LineVoltageV > 1.0;
+            bool islandPassive = !sweep.MainBreakerClosed
+                && graph.Bus35.LineVoltageV > 1.0
+                && sources.Count == 0;
+            if (gridTied || islandPassive)
             {
+                double v35oc = gridTied ? sweep.OpenCircuitBus35LineVoltageV : graph.Bus35.LineVoltageV;
                 double ratio = bus.NominalLineVoltageV / Math.Max(graph.Bus35.NominalLineVoltageV, 1.0);
-                gridEmf = graph.Bus35.LineVoltageV * ratio;
-                gridZ = zth * 10.0;
+                gridEmf = v35oc * ratio;
+                gridZ = zth * RadialTheveninPort.StandInGridZMultiple;
             }
 
             return new IslandShadowSnapshot(bus.BusId, sources, gridEmf, gridZ, zth);

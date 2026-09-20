@@ -2,6 +2,7 @@ using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssDeviceSimModel.Model;
 using EssSimulator.EssDeviceSimModel.Propagation;
+using EssSimulator.EssDeviceSimModel.Shadow;
 
 namespace EssSimulator.Tests.Plant;
 
@@ -31,11 +32,12 @@ public class Unit690KernelTakeoverTests
             new MeterConfig());
 
     [Fact]
-    public void DefaultSimpleUnit_MarksUnit0KernelOwned()
-    {
-        using var ess = CreateEss();
-        Assert.True(ess.RadialGraph.UnitBuses690[0].KernelOwned);
-    }
+        public void DefaultSimpleUnit_MarksUnit0KernelOwned()
+        {
+            using var ess = CreateEss();
+            Assert.True(ess.RadialGraph.UnitBuses690[0].KernelOwned);
+            Assert.True(ess.RadialGraph.Bus35.KernelOwned);
+        }
 
     [Fact]
     public void GridTied_OwnedBusVoltageComesFromKernelNotCouplerZero()
@@ -71,10 +73,12 @@ public class Unit690KernelTakeoverTests
         ess.SetUnitBreakerClosed(0, true);
         Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
         double v0 = ess.RadialGraph.UnitBuses690[0].LineVoltageV;
+        double v35 = ess.RadialGraph.Bus35.LineVoltageV;
 
         ess.PlantEngine.FailNextStep = true;
         Assert.False(ess.PlantEngine.Step(SimTime + Step, Step, Step));
         Assert.Equal(v0, ess.RadialGraph.UnitBuses690[0].LineVoltageV, 3);
+        Assert.Equal(v35, ess.RadialGraph.Bus35.LineVoltageV, 1);
     }
 
     [Fact]
@@ -121,9 +125,9 @@ public class Unit690KernelTakeoverTests
         double kernelV = bus.LineVoltageV;
         Assert.InRange(kernelV, 665, 675);
         Assert.Equal(kernelV, ess._pcsList[0].GetCurrentState().AcVoltage, 1);
-        Assert.True(
-            Math.Abs(ess._unitTransformers[0].GetCurrentState().SecondaryVoltage - kernelV) > 10,
-            "单元变二次不得在 PCS.Update 之后把核母线改写成变比电压");
+        Assert.Equal(kernelV, ess.GetUnitAcBusVoltage(0), 1);
+        double referred35 = RadialTheveninPort.ReferLvToHv(kernelV, bus, ess.RadialGraph.Bus35);
+        Assert.InRange(ess.RadialGraph.Bus35.LineVoltageV, referred35 - 250, referred35 + 250);
     }
 
     [Fact]

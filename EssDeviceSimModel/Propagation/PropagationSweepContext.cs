@@ -14,5 +14,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         public required double LastBus35LineVoltageV { get; init; }
         public required double StationBusNominalLineVoltageV { get; init; }
         public required bool MainBreakerClosed { get; init; }
+        /// <summary>并网开路 35 kV（PCC 折算），供下域 GridEmf。不得用已加载的 Bus35 回写，避免 GridZ 双计。</summary>
+        public required double OpenCircuitBus35LineVoltageV { get; init; }
     }
 }

@@ -5,7 +5,7 @@ using EssSimulator.EssDeviceSimModel.Propagation;
 namespace EssSimulator.EssDeviceSimModel.Shadow
 {
     /// <summary>
-    /// 生产接替的一条 690 V 母线：本拍用上层径向已解出的 Voc，下层提交只留在本对象。
+    /// 生产接替的一条 690 V 母线：本拍用上层 PCC 开路 Voc，下层提交只留在本对象。
     /// 求解失败抛给 PlantEngine 整步冻结。
     /// </summary>
     public sealed class ProductionUnit690Host

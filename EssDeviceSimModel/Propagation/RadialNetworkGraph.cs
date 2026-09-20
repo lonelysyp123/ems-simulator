@@ -119,13 +119,17 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             ApplyLocalVoltageSources(sweep);
         }
 
-        /// <summary>离网/主断分：直接设定 35kV 母线并传播至各单元 690V。</summary>
+        /// <summary>离网/主断分：未接管时设定 35kV；KernelOwned 的 Bus35 由核在岛解之后写。</summary>
         public void PropagateVoltageIsland(PropagationSweepContext sweep, double bus35LineVoltageV)
         {
-            Bus35.SetVoltage(
-                bus35LineVoltageV,
-                bus35LineVoltageV > 1.0 ? sweep.SystemFrequencyHz : 0,
-                sweep);
+            if (!Bus35.KernelOwned)
+            {
+                Bus35.SetVoltage(
+                    bus35LineVoltageV,
+                    bus35LineVoltageV > 1.0 ? sweep.SystemFrequencyHz : 0,
+                    sweep);
+            }
+
             ApplyLocalVoltageSources(sweep);
         }
 

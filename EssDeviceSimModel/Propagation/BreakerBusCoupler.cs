@@ -44,6 +44,9 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 ? _breaker.Secondary.Output.Ac?.Internal.LineVoltageV ?? 0
                 : 0;
 
+            if (DownstreamBus.KernelOwned)
+                return;
+
             DownstreamBus.SetVoltage(
                 downstreamV,
                 downstreamV > 1.0 ? args.FrequencyHz : 0,

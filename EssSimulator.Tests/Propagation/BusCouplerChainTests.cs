@@ -28,7 +28,8 @@ public class BusCouplerChainTests
             SystemFrequencyHz = 50,
             LastBus35LineVoltageV = 35000,
             StationBusNominalLineVoltageV = 35000,
-            MainBreakerClosed = true
+            MainBreakerClosed = true,
+            OpenCircuitBus35LineVoltageV = 35000
         };
 
         upstream.SetVoltage(220000, 50, sweep);

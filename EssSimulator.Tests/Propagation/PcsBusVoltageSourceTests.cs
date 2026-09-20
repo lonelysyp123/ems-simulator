@@ -28,7 +28,8 @@ public class PcsBusVoltageSourceTests
             SystemFrequencyHz = 50,
             LastBus35LineVoltageV = 0,
             StationBusNominalLineVoltageV = 35000,
-            MainBreakerClosed = false
+            MainBreakerClosed = false,
+            OpenCircuitBus35LineVoltageV = 0
         };
 
         Assert.True(bus.ApplyLocalVoltageSources(sweep));
@@ -52,7 +53,8 @@ public class PcsBusVoltageSourceTests
             SystemFrequencyHz = 50,
             LastBus35LineVoltageV = 0,
             StationBusNominalLineVoltageV = 35000,
-            MainBreakerClosed = false
+            MainBreakerClosed = false,
+            OpenCircuitBus35LineVoltageV = 0
         };
 
         Assert.True(bus.ApplyLocalVoltageSources(sweep));
@@ -81,7 +83,8 @@ public class PcsBusVoltageSourceTests
             SystemFrequencyHz = 50,
             LastBus35LineVoltageV = 0,
             StationBusNominalLineVoltageV = 35000,
-            MainBreakerClosed = false
+            MainBreakerClosed = false,
+            OpenCircuitBus35LineVoltageV = 0
         };
 
         Assert.False(bus.ApplyLocalVoltageSources(sweep));

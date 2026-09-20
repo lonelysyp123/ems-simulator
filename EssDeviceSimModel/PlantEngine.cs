@@ -107,6 +107,8 @@ namespace EssSimulator.EssDeviceSimModel
         private double _systemFrequencyHz;
         private double[] _bus690V = Array.Empty<double>();
         private double[] _bus690F = Array.Empty<double>();
+        private double _graphBus35V;
+        private double _graphBus35F;
         private CommittedPortMeasurements _committed = CommittedPortMeasurements.Empty;
 
         public static PlantStepMemento Capture(EnergyStorageSystem ess)
@@ -134,6 +136,8 @@ namespace EssSimulator.EssDeviceSimModel
                 m._bus690V[i] = buses[i].LineVoltageV;
                 m._bus690F[i] = buses[i].FrequencyHz;
             }
+            m._graphBus35V = ess.RadialGraph.Bus35.LineVoltageV;
+            m._graphBus35F = ess.RadialGraph.Bus35.FrequencyHz;
             m._committed = ess.PlantEngine.LastCommittedMeasurements;
             return m;
         }
@@ -157,6 +161,8 @@ namespace EssSimulator.EssDeviceSimModel
                 buses[i].LineVoltageV = _bus690V[i];
                 buses[i].FrequencyHz = _bus690F[i];
             }
+            ess.RadialGraph.Bus35.LineVoltageV = _graphBus35V;
+            ess.RadialGraph.Bus35.FrequencyHz = _graphBus35F;
             ess.PlantEngine.RestoreCommitted(_committed);
         }
     }

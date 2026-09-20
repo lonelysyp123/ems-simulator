@@ -49,7 +49,11 @@ public class RadialIslandShadowTests
         return new RadialNetworkGraph(network, pccCfg, pcsCfg);
     }
 
-    private static PropagationSweepContext Sweep(RadialNetworkGraph graph, double lastBus35 = 0) => new()
+    private static PropagationSweepContext Sweep(
+        RadialNetworkGraph graph,
+        double lastBus35 = 0,
+        bool mainBreakerClosed = false,
+        double openCircuitBus35 = 0) => new()
     {
         DeviceContext = new DeviceStepContext(),
         Step = TimeSpan.FromMilliseconds(100),
@@ -58,7 +62,8 @@ public class RadialIslandShadowTests
         SystemFrequencyHz = 50,
         LastBus35LineVoltageV = lastBus35,
         StationBusNominalLineVoltageV = graph.Bus35.NominalLineVoltageV,
-        MainBreakerClosed = false
+        MainBreakerClosed = mainBreakerClosed,
+        OpenCircuitBus35LineVoltageV = openCircuitBus35
     };
 
     [Fact]
@@ -146,7 +151,7 @@ public class RadialIslandShadowTests
         graph.Bus35.FrequencyHz = 50;
         var bus = graph.UnitBuses690[0];
         bus.RegisterVoltageSource(new FixedFormingSource("a", 690));
-        var sweep = Sweep(graph, lastBus35: 35000);
+        var sweep = Sweep(graph, lastBus35: 35000, mainBreakerClosed: true, openCircuitBus35: 35000);
 
         var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
         Assert.NotNull(snap.ReferredGridEmf);

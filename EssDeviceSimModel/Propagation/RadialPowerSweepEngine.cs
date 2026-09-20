@@ -45,9 +45,10 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 ?? throw new InvalidOperationException("Grid 必须实现 ISelfActivatingElectricalSource");
             _lastBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage;
             _ownedIslands = ProductionUnit690Host.AttachAll(graph);
+            StationBoundaryApply.Attach(graph);
             _log.Info(
                 $"[RadialSweep] 母线前推回代引擎已就绪（Q-U/V 最多 {_quvMaxIterations} 轮，容差 {_voltageTolerancePu:P3} pu）" +
-                (_ownedIslands.Count > 0 ? $"；已接管 {_ownedIslands.Count} 条 690 V 母线" : ""));
+                (_ownedIslands.Count > 0 ? $"；已接管 {_ownedIslands.Count} 条 690 V 母线与 35 kV" : ""));
         }
 
         public RadialNetworkGraph Graph => _graph;
@@ -126,20 +127,39 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             _graph.BusGrid.FrequencyHz = _network.SystemFrequencyHz;
         }
 
-        /// <summary>④ 电压自上而下：经 Coupler 链 Grid → 主断 → 主变 → 35kV → 单元 → 690V。</summary>
+        /// <summary>④ 电压自上而下：220 kV 仍由径向；35 kV 由核 Voc / 690 反送写入。</summary>
         private void Phase4PropagateVoltageTopDown(DeviceStepContext context, TimeSpan step)
         {
-            var sweep = BuildSweepContext(context, step);
+            double oc35 = 0;
+            if (context.MainBreakerClosed)
+            {
+                double v220 = _graph.BusGrid.LineVoltageV;
+                _network.PccLineVoltageV = v220;
+                oc35 = GridFeedbackConventions.DeriveStationBusVoltage(
+                    v220, _pccCfg.NominalLineVoltage, _pccCfg.StationBusNominalLineVoltage);
+            }
+            else
+            {
+                _network.PccLineVoltageV = 0;
+            }
+
+            var sweep = BuildSweepContext(context, step, oc35);
 
             if (!context.MainBreakerClosed)
             {
-                _network.PccLineVoltageV = 0;
-                double islandV = EstimateBus35WhenMainOpen();
-                _network.StationBus35LineVoltageV = islandV;
+                _graph.Bus35.SetVoltage(0, 0, sweep, notifyCouplers: false);
+                _graph.PropagateVoltageIsland(sweep, 0);
+                ApplyOwnedIslands(sweep);
+                StationBoundaryApply.CommitBus35(_graph, _ownedIslands, sweep);
+                if (_graph.Bus35.LineVoltageV > 1.0)
+                {
+                    ApplyOwnedIslands(sweep);
+                    StationBoundaryApply.CommitBus35(_graph, _ownedIslands, sweep);
+                }
+
+                double islandV = _graph.Bus35.LineVoltageV;
                 if (_network.HasMainTransformer)
                 {
-                    // 主断分闸后 Coupler 不再驱动主变；必须本步 Step，否则端口残留并网电压。
-                    // 35kV 有黑启动反送时，按变比折到一次侧供并网点抽头采样。
                     double afterV = islandV > 1.0
                         ? islandV * _network.MainTransformer.TurnsRatio
                         : 0;
@@ -149,23 +169,20 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                     StepMainTransformerIsolated(context, step, islandV, afterV, afterF);
                 }
 
-                _graph.PropagateVoltageIsland(sweep, islandV);
-                ApplyOwnedIslands(sweep);
                 _lastBus35LineVoltageV = islandV;
                 return;
             }
 
-            double v220 = _graph.BusGrid.LineVoltageV;
-            _network.PccLineVoltageV = v220;
-            _network.StationBus35LineVoltageV = GridFeedbackConventions.DeriveStationBusVoltage(
-                v220, _pccCfg.NominalLineVoltage, _pccCfg.StationBusNominalLineVoltage);
-
             _graph.PropagateVoltageFromGrid(sweep);
             ApplyOwnedIslands(sweep);
+            StationBoundaryApply.CommitBus35(_graph, _ownedIslands, sweep);
             _lastBus35LineVoltageV = _graph.Bus35.LineVoltageV;
         }
 
-        private PropagationSweepContext BuildSweepContext(DeviceStepContext context, TimeSpan step) =>
+        private PropagationSweepContext BuildSweepContext(
+            DeviceStepContext context,
+            TimeSpan step,
+            double openCircuitBus35LineVoltageV) =>
             new()
             {
                 DeviceContext = context,
@@ -175,7 +192,8 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 SystemFrequencyHz = _network.SystemFrequencyHz,
                 LastBus35LineVoltageV = _lastBus35LineVoltageV,
                 StationBusNominalLineVoltageV = _pccCfg.StationBusNominalLineVoltage,
-                MainBreakerClosed = context.MainBreakerClosed
+                MainBreakerClosed = context.MainBreakerClosed,
+                OpenCircuitBus35LineVoltageV = openCircuitBus35LineVoltageV
             };
 
         private void ApplyOwnedIslands(PropagationSweepContext sweep)
@@ -258,7 +276,15 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             if (!context.MainBreakerClosed || !_network.HasMainTransformer)
                 return;
 
-            var sweep = BuildSweepContext(context, step);
+            var sweep = BuildSweepContext(
+                context,
+                step,
+                context.MainBreakerClosed
+                    ? GridFeedbackConventions.DeriveStationBusVoltage(
+                        _graph.BusGrid.LineVoltageV,
+                        _pccCfg.NominalLineVoltage,
+                        _pccCfg.StationBusNominalLineVoltage)
+                    : 0);
             double bus35V = _graph.Bus35.LineVoltageV;
             var stationCurrent = _graph.ResolveStationSecondaryCurrent(sweep);
 
@@ -406,27 +432,6 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             var bus = _network.GetBus(busId);
             if (bus != null)
                 bus.BusQuantity = qty;
-        }
-
-        private double EstimateBus35WhenMainOpen()
-        {
-            if (!NetworkControlBridge.IsBreakerClosed(_network.MainBreaker))
-            {
-                return EssIslandBusLogic.EstimateIslandedBus35LineVoltageV(
-                    _ess._unitTransformers,
-                    _ess._unitBreakers,
-                    _ess._pcsList);
-            }
-
-            double max690 = 0;
-            foreach (var xfmr in _network.UnitTransformers)
-                max690 = Math.Max(max690, xfmr.Secondary.Output.Ac?.Internal.LineVoltageV ?? 0);
-
-            if (max690 <= 1.0 || _network.UnitTransformers.Count == 0)
-                return 0;
-
-            double ratio = _pccCfg.StationBusNominalLineVoltage / Math.Max(_pcsCfg.AcVoltageNominal, 1.0);
-            return max690 * ratio;
         }
 
         /// <summary>

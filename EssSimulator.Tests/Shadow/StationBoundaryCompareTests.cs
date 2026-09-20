@@ -1,8 +1,8 @@
-using System.Numerics;
 using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssDeviceSimModel.Kernel;
 using EssSimulator.EssDeviceSimModel.Model;
+using EssSimulator.EssDeviceSimModel.Propagation;
 using EssSimulator.EssDeviceSimModel.Shadow;
 
 namespace EssSimulator.Tests.Shadow;
@@ -13,18 +13,41 @@ public class StationBoundaryCompareTests
     private static readonly TimeSpan Step = TimeSpan.FromMilliseconds(200);
     private static readonly DateTime SimTime = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private static EnergyStorageSystem CreateEss() =>
-        new(
-            new SimulatorConfig { Devices = { new EssUnitConfig() } },
+    private sealed class FixedFormingSource : IBusVoltageSource
+    {
+        public FixedFormingSource(string id, double lineV) => (SourceId, _lineV) = (id, lineV);
+        public string SourceId { get; }
+        private readonly double _lineV;
+        public bool IsInjecting(DeviceStepContext context) => true;
+        public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (_lineV, 50);
+    }
+
+    private static EnergyStorageSystem CreateEss(params EssUnitConfig[] units)
+    {
+        var cfg = new SimulatorConfig();
+        if (units.Length == 0)
+            cfg.Devices.Add(new EssUnitConfig());
+        else
+            cfg.Devices.AddRange(units);
+        return new EnergyStorageSystem(
+            cfg,
             new PcsPhysicalConfig { AcVoltageNominal = 690 },
             new TransformerConfig(),
             new UnitTransformerConfig(),
             new LoadConfig(),
             new PccConfig(),
             new MeterConfig());
+    }
 
     [Fact]
-    public void GridTied_FirstTick_KernelVocMatchesRadialReferral()
+    public void Attach_MarksBus35KernelOwned()
+    {
+        using var ess = CreateEss();
+        Assert.True(ess.RadialGraph.Bus35.KernelOwned);
+    }
+
+    [Fact]
+    public void GridTied_FirstTick_Bus35FollowsKernelVoc()
     {
         using var ess = CreateEss();
         ess.SetMainBreakerClosed(true);
@@ -34,14 +57,14 @@ public class StationBoundaryCompareTests
         var host = ess.PowerSweepEngine.OwnedIslands[0];
         var sample = StationBoundaryCompare.Capture(ess.RadialGraph, host);
 
-        Assert.InRange(sample.RadialV35, 33_000, 37_000);
-        Assert.True(sample.VocResidualV < 1e-6, $"首拍 I=0，核 Voc 应等于径向折算，残差 {sample.VocResidualV}");
+        Assert.True(sample.VocResidualV < 1.0, $"生产 35 kV 应等于核 Voc 折算，残差 {sample.VocResidualV}");
         Assert.True((sample.KernelZth - sample.RadialZth).Magnitude < 1e-12);
         Assert.InRange(sample.KernelBus690, 600, 750);
+        Assert.InRange(sample.RadialV35, 25_000, 40_000);
     }
 
     [Fact]
-    public void SecondTick_KernelVocAppliesDelayedDrop_RadialKeeps35kV()
+    public void SecondTick_Bus35DropsWithDelayedGridZ()
     {
         using var ess = CreateEss();
         ess.SetMainBreakerClosed(true);
@@ -50,17 +73,19 @@ public class StationBoundaryCompareTests
 
         var host = ess.PowerSweepEngine.OwnedIslands[0];
         var afterFirst = StationBoundaryCompare.Capture(ess.RadialGraph, host);
-        Complex iPrev = afterFirst.KernelTheveninCurrent;
-        double v35First = afterFirst.RadialV35;
+        double oc35 = RadialTheveninPort.ReferLvToHv(
+            host.Handshake!.GridEmf.Magnitude, host.Bus, ess.RadialGraph.Bus35);
 
         Assert.True(ess.PlantEngine.Step(SimTime + Step, Step, Step));
         var afterSecond = StationBoundaryCompare.Capture(ess.RadialGraph, host);
-        Complex vocExpected = afterSecond.RadialReferredVoc - iPrev * host.Handshake!.GridZ;
 
-        Assert.True((afterSecond.KernelVoc - vocExpected).Magnitude < 1e-4);
-        Assert.InRange(afterSecond.RadialV35, 33_000, 37_000);
-        Assert.True(Math.Abs(afterSecond.RadialV35 - v35First) < 500,
-            "35 kV 仍由径向拥有，不被核 Voc 改写成 690 折算值");
+        Assert.True(afterSecond.VocResidualV < 1.0, "接替后 35 kV 必须跟核 Voc，不得再留径向开路值");
+        if (afterFirst.KernelTheveninCurrent.Magnitude > 1)
+        {
+            Assert.True(
+                Math.Abs(afterSecond.RadialV35 - oc35) > 5,
+                "有注入时 35 kV 应相对开路出现 GridZ 压降");
+        }
     }
 
     [Fact]
@@ -81,5 +106,30 @@ public class StationBoundaryCompareTests
 
         Assert.Equal(v35, ess.RadialGraph.Bus35.LineVoltageV);
         Assert.Equal(v690, host.Bus.LineVoltageV);
+    }
+
+    [Fact]
+    public void IslandedTwoUnits_Bus35IsAdmittanceWeighted_NotMaxOfForming()
+    {
+        using var ess = CreateEss(new EssUnitConfig(), new EssUnitConfig());
+        ess.SetMainBreakerClosed(false);
+        ess.SetUnitBreakerClosed(0, true);
+        ess.SetUnitBreakerClosed(1, true);
+        ess.RadialGraph.UnitBuses690[0].RegisterVoltageSource(new FixedFormingSource("a", 690));
+        ess.RadialGraph.UnitBuses690[1].RegisterVoltageSource(new FixedFormingSource("b", 650));
+        Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
+
+        double v0 = ess.RadialGraph.UnitBuses690[0].LineVoltageV;
+        double v1 = ess.RadialGraph.UnitBuses690[1].LineVoltageV;
+        Assert.InRange(v0, 680, 700);
+        Assert.InRange(v1, 640, 660);
+
+        double expected35 = RadialTheveninPort.ReferLvToHv(670, ess.RadialGraph.UnitBuses690[0], ess.RadialGraph.Bus35);
+        double max35 = RadialTheveninPort.ReferLvToHv(690, ess.RadialGraph.UnitBuses690[0], ess.RadialGraph.Bus35);
+        Assert.InRange(ess.RadialGraph.Bus35.LineVoltageV, expected35 - 250, expected35 + 250);
+        Assert.True(
+            ess.RadialGraph.Bus35.LineVoltageV < max35 - 400,
+            "离网 35 kV 不得再按构网电压取最大反送");
+        Assert.Equal(ess.RadialGraph.Bus35.LineVoltageV, ess.ElectricalNetwork.StationBus35LineVoltageV, 1);
     }
 }
