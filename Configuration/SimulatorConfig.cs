@@ -203,6 +203,36 @@ namespace EssSimulator.Configuration
 
         /// <summary>光伏低压电表端口步长。</summary>
         public int PvMeterPortStep { get; set; } = 1;
+
+        /// <summary>PCS PTP 对时（L2 + P2P，模拟器软件戳）。默认关闭，不影响既有功能。</summary>
+        public PtpProtocolConfig Ptp { get; set; } = new();
+    }
+
+    /// <summary>IEEE 1588 从钟：二层以太网 + 对等时延，本机软件时间戳。</summary>
+    public sealed class PtpProtocolConfig
+    {
+        public bool Enabled { get; set; }
+
+        /// <summary>网卡名。空则复用 <see cref="ProtocolConfig.EmuIec61850GooseInterface"/>；none/off 不收。</summary>
+        public string? Interface { get; set; }
+
+        public byte DomainNumber { get; set; }
+
+        /// <summary>软件戳锁定阈值（ns）。默认 100 μs，勿按硬件 1 μs 设。</summary>
+        public int LockThresholdNs { get; set; } = 100_000;
+
+        public int SyncTimeoutSec { get; set; } = 3;
+        public int HoldoverLimitSec { get; set; } = 300;
+
+        /// <summary>软硬混戳路径不对称补偿（ns），现场标定后填写。</summary>
+        public int AsymmetryCompensationNs { get; set; }
+
+        /// <summary>守时晶振漂移（ppb），仅 Holdover 使用。</summary>
+        public double OscillatorDriftPpb { get; set; } = 50;
+
+        public int AcquireCycles { get; set; } = 3;
+        public int PdelayIntervalMs { get; set; } = 1000;
+        public ushort PortNumber { get; set; } = 1;
     }
 
     public class PcsDeviceConfig

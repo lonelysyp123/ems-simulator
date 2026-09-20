@@ -6,6 +6,7 @@ using EssSimulator.EssDeviceSimModel.Model;
 using EssSimulator.EssDeviceSimModel.Solver;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
 using EssSimulator.EssSimModelApi.EnergyManagementSystem;
+using EssSimulator.Protocol.Ptp;
 
 namespace EssSimulator.EssSimModelApi.Mappers
 {
@@ -69,7 +70,18 @@ namespace EssSimulator.EssSimModelApi.Mappers
             dst.IslandVoltageFeedback = (float)src.IslandVoltageEffectiveV;
             dst.DriveFault = src.FaultType == 3;
             dst.OperationStatus = PcsDisplayLabels.ToOperationStatusCode(src, dst.pcsOnOffSwitch);
+            MapPtp(dst);
             // BlackStartEnabled 为 EMS 下发命令，勿用仿真状态回写覆盖（否则 Modbus 写 5305 后会被 MapPcsState 清回 0）
+        }
+
+        private static void MapPtp(PcsData dst)
+        {
+            var ptp = PtpClockHub.Instance.Current;
+            dst.PtpSyncStatus = (ushort)ptp.Status;
+            dst.PtpOffsetFromMasterNs = ptp.OffsetFromMasterNs;
+            dst.PtpMeanPathDelayNs = ptp.MeanPathDelayNs;
+            dst.PtpTimeAccuracyNs = ptp.TimeAccuracyNs;
+            dst.PtpLostAlarm = ptp.LostAlarm;
         }
 
         /// <summary>故障跳闸撤回启停后，将 DTO 启停位同步为 0，供 Modbus Hold 反馈写线圈。</summary>

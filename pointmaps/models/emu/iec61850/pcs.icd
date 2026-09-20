@@ -118,6 +118,8 @@
       <DO name="IntIn1" type="INS"/>
       <DO name="IntIn2" type="INS"/>
       <DO name="IntIn3" type="INS"/>
+      <DO name="IntIn4" type="INS"/>
+      <DO name="IntIn5" type="INS"/>
       <DO name="AnIn1" type="MV"/>
       <DO name="AnIn2" type="MV"/>
       <DO name="AnIn3" type="MV"/>
@@ -138,6 +140,9 @@
       <DO name="AnIn18" type="MV"/>
       <DO name="AnIn19" type="MV"/>
       <DO name="AnIn20" type="MV"/>
+      <DO name="AnIn21" type="MV"/>
+      <DO name="AnIn22" type="MV"/>
+      <DO name="AnIn23" type="MV"/>
     </LNodeType>
     <DOType id="DEL" cdc="DEL">
       <DA name="phsAB" bType="Struct" type="CMV" fc="MX"/>

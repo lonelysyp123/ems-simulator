@@ -49,6 +49,11 @@ yc44,PCS/GGIO1.IntIn1.stVal,INS,ST,0,1,PCS运行状态,mms
 yc45,PCS/GGIO1.IntIn2.stVal,INS,ST,0,1,PCS当前告警,mms
 yc46,PCS/GGIO1.IntIn3.stVal,INS,ST,0,1,PCS当前故障,mms
 yc74,PCS/MMXN1.Vol.mag.f,MV,MX,0,1,PCS孤岛电压反馈V,mms
+yc75,PCS/GGIO1.IntIn4.stVal,INS,ST,0,1,PCS PTP同步状态,mms
+yc76,PCS/GGIO1.AnIn21.mag.f,MV,MX,0,1,PCS PTP主钟偏差ns,mms
+yc77,PCS/GGIO1.AnIn22.mag.f,MV,MX,0,1,PCS PTP路径时延ns,mms
+yc78,PCS/GGIO1.AnIn23.mag.f,MV,MX,0,1,PCS PTP时间品质ns,mms
+yc79,PCS/GGIO1.IntIn5.stVal,INS,ST,0,1,PCS PTP对时异常,mms
 yt0,PCS/DRCC1.OutWSet.setMag.f,APC,SP,1,1,PCS有功功率设置值,goose
 yt1,PCS/DRCC1.OutVarSet.setMag.f,APC,SP,1,1,PCS无功设置值,goose
 yt2,PCS/DRCC1.OutPFSet.setMag.f,APC,SP,1,1,PCS功率因数设置值,goose

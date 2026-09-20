@@ -96,6 +96,12 @@ copy_runtime_files() {
   cp -f "$config" "$out/appsettings.json"
   echo "    appsettings.json (from $(basename "$config"))"
 
+  mkdir -p "$out/configs"
+  if [[ -f "$ROOT/configs/protocol-bindings.json" ]]; then
+    cp -f "$ROOT/configs/protocol-bindings.json" "$out/configs/protocol-bindings.json"
+    echo "    configs/protocol-bindings.json"
+  fi
+
   local f
   for f in "${RUNTIME_FILES[@]}"; do
     cp -f "$ROOT/$f" "$out/$f"

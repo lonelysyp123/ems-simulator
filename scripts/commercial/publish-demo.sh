@@ -68,6 +68,10 @@ fi
 echo "==> Copying topology data (组态编辑器预设工程/设备库)..."
 rm -rf "$OUT/configs"
 mkdir -p "$OUT/configs"
+if [[ -f "$ROOT/configs/protocol-bindings.json" ]]; then
+  cp -f "$ROOT/configs/protocol-bindings.json" "$OUT/configs/protocol-bindings.json"
+  echo "    configs/protocol-bindings.json"
+fi
 if [[ -d "$ROOT/configs/topology" ]]; then
   cp -R "$ROOT/configs/topology" "$OUT/configs/topology"
   echo "    configs/topology/"

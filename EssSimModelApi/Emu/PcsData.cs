@@ -420,5 +420,20 @@ namespace EssSimulator.EssSimModelApi.EnergyManagementSystem
 
         /// <summary>数值遥信扩展区（反射可绑 emuN.PcsList[i].ExtraDigitalValues[j]）。</summary>
         public bool[] ExtraDigitalValues { get; set; } = new bool[16];
+
+        /// <summary>PTP 同步状态：0关闭 1未锁定 2捕获 3已锁定 4守时。未启用时为 0，不对时告警。</summary>
+        public ushort PtpSyncStatus { get; set; }
+
+        /// <summary>相对主钟残余偏差（ns，软件戳）。</summary>
+        public long PtpOffsetFromMasterNs { get; set; }
+
+        /// <summary>P2P 平均路径时延（ns）。</summary>
+        public long PtpMeanPathDelayNs { get; set; }
+
+        /// <summary>当前时间品质（ns）。锁定时约 100 μs 档。</summary>
+        public long PtpTimeAccuracyNs { get; set; }
+
+        /// <summary>对时异常：未锁定或守时。PTP 关闭时为 false。</summary>
+        public bool PtpLostAlarm { get; set; }
     }
 }

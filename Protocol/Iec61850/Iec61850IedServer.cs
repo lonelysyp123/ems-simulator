@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using EssSimulator.DataExchange.Adapters;
 using IEC61850.Common;
 using IEC61850.GOOSE.Subscriber;
+using IEC61850.Model;
 using IEC61850.Server;
 using log4net;
 
@@ -41,6 +43,14 @@ namespace EssSimulator.Protocol.Iec61850
         private GooseSubscriber? _gooseSubscriber;
         private GooseListener? _gooseListener;
         private Iec61850GooseReceiverHost? _gooseHost;
+        private IedServer.ConnectionIndicationHandler? _connectionHandler;
+        private IedServer.ReadAccessHandler? _readAccessHandler;
+        private IedServer.DirectoryAccessHandler? _directoryAccessHandler;
+        private IedServer.DataSetAccessHandler? _dataSetAccessHandler;
+        private IedServer.ControlBlockAccessHandler? _controlBlockAccessHandler;
+        private RCBEventHandler? _rcbEventHandler;
+        private readonly ConcurrentDictionary<string, long> _mmsReadThrottleTicks = new(StringComparer.Ordinal);
+        private const int MmsReadThrottleMs = 300;
         private int _seqNum;
         private int _inNativeCallback;
         private bool _disposed;
@@ -360,6 +370,18 @@ namespace EssSimulator.Protocol.Iec61850
                 uint sqNum = subscriber.GetSqNum();
                 bool isTest = subscriber.IsTest();
                 string? goCbRef = subscriber.GetGoCbRef();
+                string? goId = subscriber.GetGoId();
+                string? datSet = subscriber.GetDataSet();
+                uint confRev = subscriber.GetConfRev();
+                uint ttl = subscriber.GetTimeAllowedToLive();
+                bool ndsCom = subscriber.NeedsCommission();
+                string? gooseTsUtc = null;
+                try
+                {
+                    gooseTsUtc = subscriber.GetTimestampsDateTimeOffset().UtcDateTime.ToString("o");
+                }
+                catch { /* 时间戳异常时仍记其它头字段 */ }
+
                 bool ok = _ingress.TryAccept(stNum, isTest, goCbRef, values, out var writes, out var reason);
                 if (ok)
                 {
@@ -379,10 +401,26 @@ namespace EssSimulator.Protocol.Iec61850
                     ? $"GOOSE stNum={stNum} sqNum={sqNum} {writeSummary}".Trim()
                     : $"GOOSE stNum={stNum} sqNum={sqNum} {reason}";
 
-                var valueMap = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
                 var goose = _mapping.GooseEntries;
-                for (int i = 0; i < values.Count && i < goose.Count; i++)
-                    valueMap[goose[i].ParamName] = values[i];
+                var valueMap = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                var allData = new List<Iec61850GooseDataEntry>(values.Count);
+                for (int i = 0; i < values.Count; i++)
+                {
+                    string param = i < goose.Count ? goose[i].ParamName : $"[{i}]";
+                    string desc = i < goose.Count ? goose[i].Description : "";
+                    object? raw = values[i];
+                    valueMap[param] = raw;
+                    allData.Add(new Iec61850GooseDataEntry
+                    {
+                        Index = i,
+                        ParamName = param,
+                        Type = FormatTrafficType(raw),
+                        Value = raw is bool or float or double or int or long or string
+                            ? raw
+                            : FormatTrafficValue(raw ?? ""),
+                        Description = string.IsNullOrEmpty(desc) ? null : desc
+                    });
+                }
 
                 Iec61850TrafficLog.Append(new Iec61850TrafficMessage
                 {
@@ -392,15 +430,23 @@ namespace EssSimulator.Protocol.Iec61850
                     IedName = IedName,
                     AppId = GooseSubscribeAppId,
                     GoCbRef = goCbRef,
+                    GoId = goId,
+                    DatSet = datSet,
                     StNum = stNum,
                     SqNum = sqNum,
                     IsTest = isTest,
+                    NeedsCommission = ndsCom,
+                    ConfRev = confRev,
+                    TimeAllowedToLive = ttl,
+                    GooseTimestampUtc = gooseTsUtc,
+                    NumDatSetEntries = values.Count,
                     Result = result,
                     Summary = summary,
                     Writes = writes.Count > 0
                         ? writes.ToDictionary(kv => kv.Key, kv => (object?)kv.Value, StringComparer.OrdinalIgnoreCase)
                         : null,
-                    Values = valueMap.Count > 0 ? valueMap : null
+                    Values = valueMap.Count > 0 ? valueMap : null,
+                    AllData = allData
                 });
 
                 if (!ok && !string.IsNullOrEmpty(reason) && reason is not "stNum")
@@ -427,6 +473,18 @@ namespace EssSimulator.Protocol.Iec61850
                 Interlocked.Decrement(ref _inNativeCallback);
             }
         }
+
+        private static string FormatTrafficType(object? value) =>
+            value switch
+            {
+                null => "null",
+                bool => "boolean",
+                float => "floating-point",
+                double => "floating-point",
+                int or long or short or byte or uint or ulong => "integer",
+                string => "visible-string",
+                _ => value.GetType().Name
+            };
 
         private static string FormatTrafficValue(object value) =>
             value switch
@@ -458,6 +516,24 @@ namespace EssSimulator.Protocol.Iec61850
 
         private void RegisterHandlers(IedServer server)
         {
+            _connectionHandler = OnClientConnection;
+            server.SetConnectionIndicationHandler(_connectionHandler, this);
+
+            _readAccessHandler = OnReadAccess;
+            server.SetReadAccessHandler(_readAccessHandler, this);
+
+            _directoryAccessHandler = OnDirectoryAccess;
+            server.SetDirectoryAccessHandler(_directoryAccessHandler, this);
+
+            _dataSetAccessHandler = OnDataSetAccess;
+            server.SetDataSetAccessHandler(_dataSetAccessHandler, this);
+
+            _controlBlockAccessHandler = OnControlBlockAccess;
+            server.SetControlBlockAccessHandler(_controlBlockAccessHandler, this);
+
+            _rcbEventHandler = OnRcbEvent;
+            server.SetRCBEventHandler(_rcbEventHandler, this);
+
             foreach (var pair in _model.ControlDoByParam)
             {
                 if (!_mapping.ByParam.TryGetValue(pair.Key, out var entry))
@@ -478,22 +554,211 @@ namespace EssSimulator.Protocol.Iec61850
             }
         }
 
+        private MmsDataAccessError OnReadAccess(
+            LogicalDevice ld,
+            LogicalNode ln,
+            DataObject dataObject,
+            FunctionalConstraint fc,
+            ClientConnection connection,
+            object parameter)
+        {
+            string peer = SafePeer(connection);
+            string objectRef = FormatModelRef(dataObject) ?? FormatModelRef(ln) ?? FormatModelRef(ld) ?? "";
+            string key = $"{peer}|{fc}|{objectRef}";
+            if (ShouldLogMmsRead(key))
+            {
+                Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+                {
+                    Direction = "ingress",
+                    Protocol = "mms",
+                    Service = "Get",
+                    ServerName = ServerName,
+                    IedName = IedName,
+                    ClientPeer = peer,
+                    ObjectRef = string.IsNullOrEmpty(objectRef) ? null : objectRef,
+                    OrCat = fc.ToString(),
+                    Result = "system",
+                    Summary = $"MMS Get fc={fc} {objectRef} peer={peer}"
+                });
+            }
+
+            return MmsDataAccessError.SUCCESS;
+        }
+
+        private bool OnDirectoryAccess(
+            object parameter,
+            ClientConnection connection,
+            IedServer.IedServer_DirectoryCategory category,
+            LogicalDevice ld)
+        {
+            string peer = SafePeer(connection);
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = "ingress",
+                Protocol = "mms",
+                Service = "GetDirectory",
+                ServerName = ServerName,
+                IedName = IedName,
+                ClientPeer = peer,
+                ObjectRef = FormatModelRef(ld),
+                OrCat = category.ToString(),
+                Result = "system",
+                Summary = $"MMS GetDirectory {category} {FormatModelRef(ld)} peer={peer}"
+            });
+            return true;
+        }
+
+        private bool OnDataSetAccess(
+            object parameter,
+            ClientConnection connection,
+            DataSetOperation operation,
+            string datasetRef)
+        {
+            string peer = SafePeer(connection);
+            string service = operation switch
+            {
+                DataSetOperation.DATASET_READ => "GetDataSet",
+                DataSetOperation.DATASET_WRITE => "SetDataSet",
+                DataSetOperation.DATASET_CREATE => "CreateDataSet",
+                DataSetOperation.DATASET_DELETE => "DeleteDataSet",
+                DataSetOperation.DATASET_GET_DIRECTORY => "GetDataSetDirectory",
+                _ => operation.ToString()
+            };
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = "ingress",
+                Protocol = "mms",
+                Service = service,
+                ServerName = ServerName,
+                IedName = IedName,
+                ClientPeer = peer,
+                ObjectRef = datasetRef,
+                DatSet = datasetRef,
+                Result = "system",
+                Summary = $"MMS {service} {datasetRef} peer={peer}"
+            });
+            return true;
+        }
+
+        private bool OnControlBlockAccess(
+            object parameter,
+            ClientConnection connection,
+            ACSIClass acsiClass,
+            LogicalDevice ld,
+            LogicalNode ln,
+            string objectName,
+            string subObjectName,
+            ControlBlockAccessType accessType)
+        {
+            string peer = SafePeer(connection);
+            string path = $"{FormatModelRef(ln) ?? FormatModelRef(ld)}.{objectName}"
+                          + (string.IsNullOrEmpty(subObjectName) ? "" : $".{subObjectName}");
+            string service = accessType == ControlBlockAccessType.IEC61850_CB_ACCESS_TYPE_WRITE
+                ? "SetRCB"
+                : "GetRCB";
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = "ingress",
+                Protocol = "mms",
+                Service = service,
+                ServerName = ServerName,
+                IedName = IedName,
+                ClientPeer = peer,
+                ObjectRef = path,
+                OrCat = acsiClass.ToString(),
+                Result = "system",
+                Summary = $"MMS {service} {path} peer={peer}"
+            });
+            return true;
+        }
+
+        private void OnRcbEvent(
+            object parameter,
+            ReportControlBlock rcb,
+            ClientConnection con,
+            RCBEventType eventType,
+            string parameterName,
+            MmsDataAccessError serviceError)
+        {
+            string peer = SafePeer(con);
+            string rcbName = "";
+            try { rcbName = rcb?.Name ?? ""; } catch { /* ignore */ }
+            bool egress = eventType is RCBEventType.REPORT_CREATED or RCBEventType.GI or RCBEventType.OVERFLOW;
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = egress ? "egress" : "ingress",
+                Protocol = "mms",
+                Service = "RCB." + eventType,
+                ServerName = ServerName,
+                IedName = IedName,
+                ClientPeer = peer,
+                ObjectRef = string.IsNullOrEmpty(rcbName) ? null : rcbName,
+                ParamName = string.IsNullOrEmpty(parameterName) ? null : parameterName,
+                Result = serviceError == MmsDataAccessError.SUCCESS || (int)serviceError == 0
+                    ? (egress ? "applied" : "system")
+                    : "error",
+                Summary = $"MMS RCB {eventType} {rcbName}"
+                          + (string.IsNullOrEmpty(parameterName) ? "" : $".{parameterName}")
+                          + $" peer={peer}"
+            });
+        }
+
+        private void OnClientConnection(IedServer iedServer, ClientConnection clientConnection, bool connected, object parameter)
+        {
+            string peer = SafePeer(clientConnection);
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = "system",
+                Protocol = "mms",
+                Service = connected ? "Associate" : "Release",
+                ServerName = ServerName,
+                IedName = IedName,
+                ClientPeer = peer,
+                Result = "system",
+                Summary = connected
+                    ? $"MMS Associate peer={peer}"
+                    : $"MMS Release peer={peer}"
+            });
+        }
+
         private ControlHandlerResult OnControl(ControlAction action, object parameter, MmsValue ctlVal, bool test)
         {
-            if (test)
-                return ControlHandlerResult.OK;
             if (parameter is not Iec61850MapEntry entry)
                 return ControlHandlerResult.FAILED;
+
+            string peer = SafePeer(action.GetClientConnection());
+            string service = action.IsSelect() ? "Select" : "Operate";
+            object? ctlObj = null;
+            try { ctlObj = FromMms(ctlVal); } catch { /* 仍记头字段 */ }
+            string orCat = "";
+            int ctlNum = -1;
+            try { orCat = action.GetOrCat().ToString(); } catch { /* ignore */ }
+            try { ctlNum = action.GetCtlNum(); } catch { /* ignore */ }
+
+            if (test)
+            {
+                AppendMmsControl(service, entry, peer, orCat, ctlNum, ctlObj, test: true, ok: true, "skip:test");
+                return ControlHandlerResult.OK;
+            }
+
+            if (ctlObj == null)
+            {
+                AppendMmsControl(service, entry, peer, orCat, ctlNum, null, test: false, ok: false, "error");
+                return ControlHandlerResult.FAILED;
+            }
+
             Interlocked.Increment(ref _inNativeCallback);
             try
             {
-                return TryWrite(entry, FromMms(ctlVal), out _)
-                    ? ControlHandlerResult.OK
-                    : ControlHandlerResult.FAILED;
+                bool ok = TryWrite(entry, ctlObj, out _);
+                AppendMmsControl(service, entry, peer, orCat, ctlNum, ctlObj, test: false, ok,
+                    ok ? "applied" : "error");
+                return ok ? ControlHandlerResult.OK : ControlHandlerResult.FAILED;
             }
             catch (Exception ex)
             {
-                Log.Warn($"[IEC61850] {ServerName} Operate {entry.ParamName} 失败", ex);
+                Log.Warn($"[IEC61850] {ServerName} {service} {entry.ParamName} 失败", ex);
+                AppendMmsControl(service, entry, peer, orCat, ctlNum, ctlObj, test: false, ok: false, "error");
                 return ControlHandlerResult.FAILED;
             }
             finally
@@ -508,16 +773,128 @@ namespace EssSimulator.Protocol.Iec61850
                 entry = parameter as Iec61850MapEntry;
             if (entry == null)
                 return MmsDataAccessError.OBJECT_UNDEFINED;
+
+            string peer = SafePeer(connection);
+            object? raw = null;
+            try { raw = FromMms(value); } catch { /* ignore */ }
+            if (raw == null)
+            {
+                Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+                {
+                    Direction = "ingress",
+                    Protocol = "mms",
+                    Service = "Write",
+                    ServerName = ServerName,
+                    IedName = IedName,
+                    ClientPeer = peer,
+                    ParamName = entry.ParamName,
+                    ObjectRef = entry.ObjectRef,
+                    Result = "error",
+                    Summary = $"MMS Write {entry.ParamName} decode-failed peer={peer}"
+                });
+                return MmsDataAccessError.OBJECT_VALUE_INVALID;
+            }
+
             Interlocked.Increment(ref _inNativeCallback);
             try
             {
-                return TryWrite(entry, FromMms(value), out _)
-                    ? MmsDataAccessError.SUCCESS
-                    : MmsDataAccessError.OBJECT_VALUE_INVALID;
+                bool ok = TryWrite(entry, raw, out _);
+                Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+                {
+                    Direction = "ingress",
+                    Protocol = "mms",
+                    Service = "Write",
+                    ServerName = ServerName,
+                    IedName = IedName,
+                    ClientPeer = peer,
+                    ParamName = entry.ParamName,
+                    ObjectRef = entry.ObjectRef,
+                    Result = ok ? "applied" : "error",
+                    Summary = $"MMS Write {entry.ParamName}={FormatTrafficValue(raw ?? "")} peer={peer}",
+                    Writes = ok
+                        ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                            { [entry.ParamName] = raw }
+                        : null,
+                    Values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                        { [entry.ParamName] = raw }
+                });
+                return ok ? MmsDataAccessError.SUCCESS : MmsDataAccessError.OBJECT_VALUE_INVALID;
             }
             finally
             {
                 Interlocked.Decrement(ref _inNativeCallback);
+            }
+        }
+
+        private void AppendMmsControl(
+            string service,
+            Iec61850MapEntry entry,
+            string peer,
+            string orCat,
+            int ctlNum,
+            object? ctlVal,
+            bool test,
+            bool ok,
+            string result)
+        {
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = "ingress",
+                Protocol = "mms",
+                Service = service,
+                ServerName = ServerName,
+                IedName = IedName,
+                ClientPeer = peer,
+                ParamName = entry.ParamName,
+                ObjectRef = entry.ObjectRef,
+                OrCat = string.IsNullOrEmpty(orCat) ? null : orCat,
+                CtlNum = ctlNum >= 0 ? ctlNum : null,
+                IsTest = test,
+                Result = result,
+                Summary = $"MMS {service} {entry.ParamName}={FormatTrafficValue(ctlVal ?? "")}"
+                          + (test ? " test=true" : "")
+                          + (string.IsNullOrEmpty(peer) ? "" : $" peer={peer}"),
+                Writes = ok && !test && ctlVal != null
+                    ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                        { [entry.ParamName] = ctlVal }
+                    : null,
+                Values = ctlVal == null
+                    ? null
+                    : new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                        { [entry.ParamName] = ctlVal }
+            });
+        }
+
+        private static string SafePeer(ClientConnection? connection)
+        {
+            if (connection == null)
+                return "";
+            try { return connection.GetPeerAddress() ?? ""; }
+            catch { return ""; }
+        }
+
+        private bool ShouldLogMmsRead(string key)
+        {
+            long now = Environment.TickCount64;
+            if (_mmsReadThrottleTicks.TryGetValue(key, out var last) && now - last < MmsReadThrottleMs)
+                return false;
+            _mmsReadThrottleTicks[key] = now;
+            return true;
+        }
+
+        private static string? FormatModelRef(ModelNode? node)
+        {
+            if (node == null)
+                return null;
+            try
+            {
+                string? r = node.GetObjectReference(withoutIedName: true);
+                return string.IsNullOrWhiteSpace(r) ? node.GetName() : r;
+            }
+            catch
+            {
+                try { return node.GetName(); }
+                catch { return null; }
             }
         }
 
@@ -587,12 +964,39 @@ namespace EssSimulator.Protocol.Iec61850
                 return;
 
             int seq = Interlocked.Increment(ref _seqNum);
-            ReportGenerated?.Invoke(this, new Iec61850ReportEventArgs
+            var args = new Iec61850ReportEventArgs
             {
                 RptId = $"{IedName}PCS/LLN0.{Iec61850PcsModel.UrcbName}",
                 Reason = "dchg",
                 SeqNum = seq,
                 Entries = entries
+            };
+            ReportGenerated?.Invoke(this, args);
+
+            var allData = entries.Select((e, i) => new Iec61850GooseDataEntry
+            {
+                Index = i,
+                ParamName = e.Ref,
+                Type = FormatTrafficType(e.Value),
+                Value = e.Value is bool or float or double or int or long or string
+                    ? e.Value
+                    : FormatTrafficValue(e.Value ?? ""),
+                Description = null
+            }).ToList();
+            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
+            {
+                Direction = "egress",
+                Protocol = "mms",
+                Service = "Report",
+                ServerName = ServerName,
+                IedName = IedName,
+                ObjectRef = args.RptId,
+                SqNum = seq,
+                NumDatSetEntries = allData.Count,
+                Result = "applied",
+                Summary = $"MMS Report {args.RptId} seq={seq} reason={args.Reason} n={allData.Count}",
+                AllData = allData,
+                Values = entries.ToDictionary(e => e.Ref, e => e.Value, StringComparer.OrdinalIgnoreCase)
             });
         }
 

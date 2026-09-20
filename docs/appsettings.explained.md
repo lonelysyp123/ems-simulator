@@ -120,7 +120,7 @@
   - **作用**：PCS IEC 61850 MMS 起始端口与步长。第 N 台 = `Base + (N-1) × Step`（也可由 `configs/protocol-bindings.json` 覆盖）。
 
 - `Simulator.Protocol.EmuIec61850GooseInterface`（string?）
-  - **作用**：入向 GOOSE 二层网卡名。空=按 OS 默认（macOS `en0` / Windows `0` / Linux `eth0`）；`none`/`off`=不收二层 GOOSE。须与外部发布端同一二层网段。
+  - **作用**：入向 GOOSE 二层网卡。空=按 OS 默认（Windows `"0"` / macOS `en0` / Linux `eth0`）；`none`/`off`=不收。Windows 上与 IEDScout 选同一物理网卡（索引或网卡名）；须同一二层，非按 IP 订阅。
 
 - `Simulator.Protocol.EmuIec61850GooseSubscribe`（bool，默认 `true`）
   - **作用**：是否订阅入向 GOOSE（外部 EMS/IED 遥控 yk/yt）。仿真器**不发布**设备侧 GOOSE。
@@ -130,6 +130,17 @@
 
 - `Simulator.Protocol.EmuIec61850GooseSubscribeGoCbRef`（string?）
   - **作用**：入向 GoCbRef 过滤。空=按台使用默认 `EMS_PCSxxPCS/LLN0$GO$GoCB1`（与 `ems_goose.icd` 一致）。
+
+- `Simulator.Protocol.Ptp`（对象，默认 `Enabled=false`）
+  - **作用**：PCS PTP 对时。外部对时装置为 **L2 + P2P 硬件戳 GM**，模拟器为 **软件戳从钟**（不改 OS 时钟，不参与电气求解）。
+  - `Enabled`：默认 `false`，不占网卡、不发 1588 帧，点表 `yc75` 为 0、`yc79` 不对时告警。
+  - `Interface`：网卡名。空则复用 `EmuIec61850GooseInterface`；`none`/`off` 不收。滤镜仅为 Ethertype `0x88F7`，与 GOOSE `0x88B8` 分离。
+  - `DomainNumber`：须与装置 domain 一致（电力 profile 常见 0）。
+  - `LockThresholdNs`：软件戳锁定阈值，默认 `100000`（100 μs）。
+  - `SyncTimeoutSec` / `HoldoverLimitSec`：丢 Sync 后守时、再失锁。
+  - `AsymmetryCompensationNs`：软硬混戳路径不对称补偿，现场标定后填写。
+  - `OscillatorDriftPpb`：守时漂移。
+  - 点表：`yc75` 同步状态（0关闭/1未锁定/2捕获/3锁定/4守时），`yc76` 偏差 ns，`yc77` 路径时延 ns，`yc78` 时间品质 ns，`yc79` 对时异常。
 
 - `Simulator.Protocol.EmModbusPort`（int）
   - **作用**：并网电表（`simEm`）Modbus TCP 端口。

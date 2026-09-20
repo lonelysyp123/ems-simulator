@@ -49,6 +49,11 @@ FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
 4,10054,u16,16,yc45,1,PCS当前告警,model=4|arg1=emuDeviceId.PcsList[pcsIndex].AlarmSummary1|arg2=|arg3=|arg4=1000
 4,10055,u16,16,yc46,1,PCS当前故障,model=4|arg1=emuDeviceId.PcsList[pcsIndex].CurrentFault|arg2=|arg3=|arg4=1000
 4,10092,u16,16,yc74,1,PCS孤岛电压反馈V,model=4|arg1=emuDeviceId.PcsList[pcsIndex].IslandVoltageFeedback|arg2=|arg3=|arg4=1000
+4,10093,u16,16,yc75,1,PCS PTP同步状态,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PtpSyncStatus|arg2=|arg3=|arg4=1000
+4,10094,int32,32,yc76,1,PCS PTP主钟偏差ns,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PtpOffsetFromMasterNs|arg2=|arg3=|arg4=1000
+4,10096,u32,32,yc77,1,PCS PTP路径时延ns,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PtpMeanPathDelayNs|arg2=|arg3=|arg4=1000
+4,10098,u32,32,yc78,1,PCS PTP时间品质ns,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PtpTimeAccuracyNs|arg2=|arg3=|arg4=1000
+4,10100,u16,16,yc79,1,PCS PTP对时异常,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PtpLostAlarm|arg2=|arg3=|arg4=1000
 6,40000,int16,16,yt0,10,PCS有功功率设置值,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PCSActivePowerSetting|arg2=|arg3=|arg4=1000
 6,40001,int16,16,yt1,10,PCS无功设置值,model=4|arg1=emuDeviceId.PcsList[pcsIndex].PCSReactivePowerSetting|arg2=|arg3=|arg4=1000
 6,40002,int16,16,yt2,1000,PCS功率因数设置值,0

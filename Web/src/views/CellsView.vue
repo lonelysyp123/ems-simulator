@@ -12,27 +12,55 @@
         电池节点温度 {{ formatTemp(data.batteryNodeTempC) }}
       </el-tag>
       <el-tag v-if="data" style="margin-left:12px" size="small">
-        单体最高 簇{{ clusterNumber }} 包{{ data.maxCellVoltagePackId }} 单体{{ data.maxCellVoltageCellId }}
-        {{ data.maxCellVoltage.toFixed(3) }} V
+        电压最高 簇{{ clusterNumber }} 包{{ data.maxCellVoltagePackId }} 单体{{ data.maxCellVoltageCellId }}
+        {{ formatVoltage(data.maxCellVoltage) }}
         /
-        最低 簇{{ clusterNumber }} 包{{ data.minCellVoltagePackId }} 单体{{ data.minCellVoltageCellId }}
-        {{ data.minCellVoltage.toFixed(3) }} V
+        最低 包{{ data.minCellVoltagePackId }} 单体{{ data.minCellVoltageCellId }}
+        {{ formatVoltage(data.minCellVoltage) }}
+      </el-tag>
+      <el-tag v-if="data" style="margin-left:12px" size="small" type="info">
+        温度最高 簇{{ clusterNumber }} 包{{ data.maxCellTempPackId }} 单体{{ data.maxCellTempCellId }}
+        {{ formatTemp(data.maxCellTemp) }}
+        /
+        最低 包{{ data.minCellTempPackId }} 单体{{ data.minCellTempCellId }}
+        {{ formatTemp(data.minCellTemp) }}
       </el-tag>
     </div>
 
     <div class="card" v-if="data">
+      <div class="section-title">单体电压</div>
       <div class="cell-grid">
-        <div class="cell-pack" v-for="(pack, pi) in data.packs" :key="pi">
+        <div class="cell-pack" v-for="(pack, pi) in data.packs" :key="'v-' + pi">
           <div class="pack-title">包 {{ pi }}（{{ data.cellsPerPack }} 节）</div>
           <div class="cell-grid-inner">
             <div
               v-for="(v, ci) in pack"
               :key="ci"
               class="cell-box"
-              :class="cellClass(pi, ci)"
+              :class="voltageCellClass(pi, ci)"
               :title="`簇${clusterNumber} 包${pi} 单体${ci} ${formatVoltage(v)}`"
             >
               {{ formatVoltage(v) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" v-if="data">
+      <div class="section-title">单体温度</div>
+      <div class="cell-grid">
+        <div class="cell-pack" v-for="(pack, pi) in data.tempPacks" :key="'t-' + pi">
+          <div class="pack-title">包 {{ pi }}（{{ data.cellsPerPack }} 节）</div>
+          <div class="cell-grid-inner">
+            <div
+              v-for="(t, ci) in pack"
+              :key="ci"
+              class="cell-box"
+              :class="tempCellClass(pi, ci)"
+              :title="`簇${clusterNumber} 包${pi} 单体${ci} ${formatTemp(t)}`"
+            >
+              {{ formatTempShort(t) }}
             </div>
           </div>
         </div>
@@ -52,15 +80,21 @@ const clusterCount = ref(12)
 const data = ref(null)
 
 function formatVoltage(v) {
-  return v > 0 ? v.toFixed(3) : '—'
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n.toFixed(3) : '—'
 }
 
 function formatTemp(t) {
   const n = Number(t)
-  return Number.isFinite(n) && n > 0 ? `${n.toFixed(1)} °C` : '—'
+  return Number.isFinite(n) && n !== 0 ? `${n.toFixed(1)} °C` : '—'
 }
 
-function cellClass(packIndex, cellIndex) {
+function formatTempShort(t) {
+  const n = Number(t)
+  return Number.isFinite(n) && n !== 0 ? n.toFixed(1) : '—'
+}
+
+function voltageCellClass(packIndex, cellIndex) {
   const d = data.value
   if (!d) return 'cell-empty'
   const v = d.packs?.[packIndex]?.[cellIndex]
@@ -68,6 +102,16 @@ function cellClass(packIndex, cellIndex) {
   if (packIndex === d.maxCellVoltagePackId && cellIndex === d.maxCellVoltageCellId) return 'cell-max'
   if (packIndex === d.minCellVoltagePackId && cellIndex === d.minCellVoltageCellId) return 'cell-min'
   return 'cell-normal'
+}
+
+function tempCellClass(packIndex, cellIndex) {
+  const d = data.value
+  if (!d) return 'cell-empty'
+  const t = d.tempPacks?.[packIndex]?.[cellIndex]
+  if (!Number.isFinite(Number(t)) || Number(t) === 0) return 'cell-empty'
+  if (packIndex === d.maxCellTempPackId && cellIndex === d.maxCellTempCellId) return 'cell-max'
+  if (packIndex === d.minCellTempPackId && cellIndex === d.minCellTempCellId) return 'cell-min'
+  return 'cell-temp-normal'
 }
 
 async function reload() {
@@ -85,8 +129,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #303133;
+}
+
 .cell-box.cell-normal {
   background: #8bc34a;
+  color: #fff;
+}
+
+.cell-box.cell-temp-normal {
+  background: #26a69a;
   color: #fff;
 }
 

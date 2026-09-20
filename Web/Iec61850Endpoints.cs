@@ -141,17 +141,39 @@ namespace EssSimulator.Web
             localTime = m.Utc.ToLocalTime().ToString("HH:mm:ss.fff"),
             m.Direction,
             m.Protocol,
+            service = m.Service,
             server = m.ServerName,
             iedName = m.IedName,
+            clientPeer = m.ClientPeer,
+            paramName = m.ParamName,
+            objectRef = m.ObjectRef,
+            orCat = m.OrCat,
+            ctlNum = m.CtlNum,
             appId = m.AppId,
             goCbRef = m.GoCbRef,
+            goId = m.GoId,
+            datSet = m.DatSet,
             stNum = m.StNum,
             sqNum = m.SqNum,
             isTest = m.IsTest,
+            simulation = m.IsTest,
+            ndsCom = m.NeedsCommission,
+            confRev = m.ConfRev,
+            timeAllowedToLive = m.TimeAllowedToLive,
+            t = m.GooseTimestampUtc,
+            numDatSetEntries = m.NumDatSetEntries,
             m.Result,
             m.Summary,
             writes = m.Writes,
-            values = m.Values
+            values = m.Values,
+            allData = m.AllData?.Select(e => new
+            {
+                e.Index,
+                paramName = e.ParamName,
+                type = e.Type,
+                value = e.Value,
+                description = e.Description
+            })
         };
     }
 }

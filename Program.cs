@@ -439,6 +439,7 @@ namespace EssSimulator
 
             builder.Services.AddHostedService<ModbusHostedService>();
             builder.Services.AddHostedService<EssSimulator.Protocol.Iec61850.Iec61850HostedService>();
+            builder.Services.AddHostedService<EssSimulator.Protocol.Ptp.PtpHostedService>();
 
             // Web 层服务
             builder.Services.AddSingleton<WebCommandExecutor>();
@@ -491,17 +492,39 @@ namespace EssSimulator
                                 localTime = msg.Utc.ToLocalTime().ToString("HH:mm:ss.fff"),
                                 msg.Direction,
                                 msg.Protocol,
+                                service = msg.Service,
                                 server = msg.ServerName,
                                 iedName = msg.IedName,
+                                clientPeer = msg.ClientPeer,
+                                paramName = msg.ParamName,
+                                objectRef = msg.ObjectRef,
+                                orCat = msg.OrCat,
+                                ctlNum = msg.CtlNum,
                                 appId = msg.AppId,
                                 goCbRef = msg.GoCbRef,
+                                goId = msg.GoId,
+                                datSet = msg.DatSet,
                                 stNum = msg.StNum,
                                 sqNum = msg.SqNum,
                                 isTest = msg.IsTest,
+                                simulation = msg.IsTest,
+                                ndsCom = msg.NeedsCommission,
+                                confRev = msg.ConfRev,
+                                timeAllowedToLive = msg.TimeAllowedToLive,
+                                t = msg.GooseTimestampUtc,
+                                numDatSetEntries = msg.NumDatSetEntries,
                                 msg.Result,
                                 msg.Summary,
                                 writes = msg.Writes,
-                                values = msg.Values
+                                values = msg.Values,
+                                allData = msg.AllData?.Select(e => new
+                                {
+                                    e.Index,
+                                    paramName = e.ParamName,
+                                    type = e.Type,
+                                    value = e.Value,
+                                    description = e.Description
+                                })
                             });
                     }
                     catch { /* ignore */ }
