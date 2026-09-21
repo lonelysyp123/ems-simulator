@@ -290,6 +290,31 @@ namespace EssSimulator.EssDeviceSimModel
             return null;
         }
 
+        /// <summary>
+        /// 硬规则4：从相量内核接管的 690 V 岛取本拍解出的某 PCS 交付母线的交流功率
+        /// （流出设备为正，kW/kvar）。该 PCS 本拍未被内核解出（母线未接管/无网络交换）时返回 false，
+        /// 调用方据此回退控制需求值。只读，不得据此回写生产戴维南或注入。
+        /// </summary>
+        public bool TryGetNetworkSolvedAcPower(
+            string pcsDeviceId,
+            out double activePowerKw,
+            out double reactivePowerKvar)
+        {
+            foreach (var host in PowerSweepEngine.OwnedIslands)
+            {
+                if (host.TryGetSolvedAcPower(pcsDeviceId, out double pW, out double qVAr))
+                {
+                    activePowerKw = pW / 1000.0;
+                    reactivePowerKvar = qVAr / 1000.0;
+                    return true;
+                }
+            }
+
+            activePowerKw = 0;
+            reactivePowerKvar = 0;
+            return false;
+        }
+
         private static IReadOnlyList<PvUnitDevice> CreatePvUnits(SimulatorConfig simCfg)
         {
             var list = new List<PvUnitDevice>();

@@ -37,8 +37,16 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 && stack.BlackStartEnterSuccess == BmsBlackStartEnterSuccess;
         }
 
-        /// <summary>将一路 PCS 物理状态同步到 PcsData DTO。</summary>
-        public static void MapPcsState(PcsState src, PcsData dst, BatteryRackSimulator bms)
+        /// <summary>
+        /// 将一路 PCS 物理状态同步到 PcsData DTO。
+        /// <paramref name="solvedAcKwKvar"/> 为相量内核本拍解出的交付母线功率（流出设备为正，kW/kvar）；
+        /// 有值时上报它而非控制需求，使遥测反映网络真值（硬规则4）。null 时回退控制需求值。
+        /// </summary>
+        public static void MapPcsState(
+            PcsState src,
+            PcsData dst,
+            BatteryRackSimulator bms,
+            (double ActivePowerKw, double ReactivePowerKvar)? solvedAcKwKvar = null)
         {
             dst.SimulatorMode = src.Mode;
             dst.LineVoltageAB = (float)src.AcVoltage;
@@ -53,14 +61,22 @@ namespace EssSimulator.EssSimModelApi.Mappers
             dst.BatteryCurrent = (float)src.DcCurrent;
             dst.BatteryPower   = (float)(src.DcVoltage * src.DcCurrent / 1000.0);
 
-            dst.ActivePower        = (float)src.ActivePower;
-            dst.ReactivePower      = (float)src.ReactivePower;
+            double reportedP = src.ActivePower;
+            double reportedQ = src.ReactivePower;
+            if (solvedAcKwKvar is { } ac)
+            {
+                reportedP = ac.ActivePowerKw;
+                reportedQ = ac.ReactivePowerKvar;
+            }
+
+            dst.ActivePower        = (float)reportedP;
+            dst.ReactivePower      = (float)reportedQ;
             // 可用容量（%）：从所属电池堆 SOC 推导（无 BMS 关联时回退 100）
             dst.AvailableCapacity  = bms != null ? (float)Math.Clamp(bms.GetRackSOC() * 100.0, 0, 100) : 100f;
 
-            double denom = Math.Sqrt(Math.Pow(src.ActivePower, 2) + Math.Pow(src.ReactivePower, 2));
+            double denom = Math.Sqrt(Math.Pow(reportedP, 2) + Math.Pow(reportedQ, 2));
             dst.ApparentPower = (float)denom;
-            dst.PowerFactor = denom > 0 ? (float)(src.ActivePower / denom) : 0f;
+            dst.PowerFactor = denom > 0 ? (float)(reportedP / denom) : 0f;
 
             dst.TotalChargeEnergy    = (float)src.TotalChargeEnergy;
             dst.TotalDischargeEnergy = (float)src.TotalDischargeEnergy;

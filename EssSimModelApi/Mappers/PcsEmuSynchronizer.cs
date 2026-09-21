@@ -160,11 +160,17 @@ namespace EssSimulator.EssSimModelApi.Mappers
 
             for (int i = 0; i < pcsCount; i++)
             {
+                var pcsSim = ess._pcsList[pcsBaseIndex + i];
+                (double ActivePowerKw, double ReactivePowerKvar)? solvedAc =
+                    ess.TryGetNetworkSolvedAcPower(pcsSim.DeviceId, out double pKw, out double qKvar)
+                        ? (pKw, qKvar)
+                        : null;
                 PcsMapper.MapPcsState(
-                    ess._pcsList[pcsBaseIndex + i].GetCurrentState(),
+                    pcsSim.GetCurrentState(),
                     emu.PcsList[i],
-                    ess._batteryRacks[pcsBaseIndex + i]);
-                PcsMapper.SyncRunCommandFeedback(ess._pcsList[pcsBaseIndex + i], emu.PcsList[i]);
+                    ess._batteryRacks[pcsBaseIndex + i],
+                    solvedAc);
+                PcsMapper.SyncRunCommandFeedback(pcsSim, emu.PcsList[i]);
             }
         }
     }

@@ -88,6 +88,23 @@ public class IslandJoinReactiveShareTests
             $"斜坡结束后应接近均分，u1={qHost:F1} u2={qJoin:F1}");
     }
 
+    [Fact]
+    public void SolvedAcPower_ExposedForEnergizedIsland_FallsBackWhenNotSolved()
+    {
+        using var ess = CreatePlant();
+        BuildUnit1(ess);
+
+        // 单元1（PCS 0/1）已建压构网，内核接管其 690 母线并解出每台机交流功率。
+        Assert.True(ess.TryGetNetworkSolvedAcPower(ess._pcsList[0].DeviceId, out double p0Kw, out double q0Kvar));
+        Assert.True(ess.TryGetNetworkSolvedAcPower(ess._pcsList[1].DeviceId, out double p1Kw, out double q1Kvar));
+        Assert.True(double.IsFinite(p0Kw) && double.IsFinite(q0Kvar), $"u1p0 解出应有限 P={p0Kw} Q={q0Kvar}");
+        Assert.True(double.IsFinite(p1Kw) && double.IsFinite(q1Kvar), $"u1p1 解出应有限 P={p1Kw} Q={q1Kvar}");
+
+        // 单元2（PCS 2/3）高压分闸、母线无源，本拍未解出 → 回退（false），调用方报控制值。
+        Assert.False(ess.TryGetNetworkSolvedAcPower(ess._pcsList[2].DeviceId, out _, out _));
+        Assert.False(ess.TryGetNetworkSolvedAcPower("missing", out _, out _));
+    }
+
     private static DateTime BuildUnit1(EnergyStorageSystem ess)
     {
         ess.SetMainBreakerClosed(false);

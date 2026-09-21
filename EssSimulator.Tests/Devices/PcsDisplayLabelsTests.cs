@@ -73,6 +73,35 @@ public class PcsDisplayLabelsTests
     }
 
     [Fact]
+    public void MapPcsState_WithoutSolvedOverride_ReportsControlDemand()
+    {
+        var src = new PcsState { ActivePower = 800, ReactivePower = 300 };
+        var dst = new PcsData();
+
+        PcsMapper.MapPcsState(src, dst, null!);
+
+        Assert.Equal(800f, dst.ActivePower, precision: 3);
+        Assert.Equal(300f, dst.ReactivePower, precision: 3);
+        Assert.Equal(854.400f, dst.ApparentPower, precision: 1);
+    }
+
+    [Fact]
+    public void MapPcsState_WithSolvedOverride_ReportsKernelSolvedNotControlDemand()
+    {
+        // 控制需求 800/300，但内核解出被限流削减到 120/45：上报应取解出值。
+        var src = new PcsState { ActivePower = 800, ReactivePower = 300 };
+        var dst = new PcsData();
+
+        PcsMapper.MapPcsState(src, dst, null!, (120, 45));
+
+        Assert.Equal(120f, dst.ActivePower, precision: 3);
+        Assert.Equal(45f, dst.ReactivePower, precision: 3);
+        double apparent = Math.Sqrt(120 * 120 + 45 * 45);
+        Assert.Equal((float)apparent, dst.ApparentPower, precision: 2);
+        Assert.Equal((float)(120 / apparent), dst.PowerFactor, precision: 4);
+    }
+
+    [Fact]
     public void MapEmuState_SumsPcsActiveAndReactivePower()
     {
         var emu = new EnergyManagementData();
