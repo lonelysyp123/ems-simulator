@@ -14,6 +14,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         private string _key = "";
         private bool _hasCommitted;
         private readonly Dictionary<string, ConverterEnergyResult> _settledDc = new();
+        private readonly Dictionary<string, (double ActivePowerW, double ReactivePowerVAr)> _solvedAc = new();
 
         public ProductionUnit690Host(ElectricalBusNode bus) =>
             Bus = bus ?? throw new ArgumentNullException(nameof(bus));
@@ -40,6 +41,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             if (empty)
             {
                 _settledDc.Clear();
+                _solvedAc.Clear();
                 Bus.SetVoltage(0, 0, sweep, notifyCouplers: false);
                 return;
             }
@@ -60,6 +62,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
 
             var tick = _runner.Tick();
             RecordSettledDc(snap, tick);
+            RecordSolvedAc(snap, tick);
             double mag = tick.BusVoltage.Magnitude;
             Bus.SetVoltage(mag, mag > 1.0 ? sweep.SystemFrequencyHz : 0, sweep, notifyCouplers: false);
             if (_runner.Handshake != null)
@@ -83,6 +86,29 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         }
 
         /// <summary>
+        /// 记录本拍内核解出的每台机交付母线的交流复功率 S = Vbus·conj(I_intoBus)。
+        /// 构网取 <see cref="IslandSolveResult.PcsCurrents"/>（限流时即钳位电流），跟网取
+        /// <see cref="IslandSolveResult.GflCurrents"/>，二者都以流向母线为正。不依赖直流侧是否存在。
+        /// </summary>
+        private void RecordSolvedAc(IslandShadowSnapshot snap, IslandShadowTickResult tick)
+        {
+            _solvedAc.Clear();
+            Complex vbus = tick.BusVoltage;
+            var island = tick.Island;
+            for (int i = 0; i < snap.Sources.Count && i < island.PcsCurrents.Count; i++)
+            {
+                Complex s = vbus * Complex.Conjugate(island.PcsCurrents[i]);
+                _solvedAc[snap.Sources[i].Id] = (s.Real, s.Imaginary);
+            }
+
+            for (int j = 0; j < snap.Following.Count && j < island.GflCurrents.Count; j++)
+            {
+                Complex s = vbus * Complex.Conjugate(island.GflCurrents[j]);
+                _solvedAc[snap.Following[j].Id] = (s.Real, s.Imaginary);
+            }
+        }
+
+        /// <summary>
         /// 只读：本拍按网络解出的交流功率结算的某源直流电流（流入设备为正，A）。
         /// 无直流侧或本拍未结算时返回 false。不得据此回写生产戴维南或注入。
         /// </summary>
@@ -95,6 +121,25 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             }
 
             idcIntoDeviceA = 0;
+            return false;
+        }
+
+        /// <summary>
+        /// 只读：本拍内核解出的某源交付母线的交流功率（流出设备为正，W/VAr）。
+        /// 构网源为限流钳位后的实际值，跟网源为限流后的实际注入，均可能不同于控制设定。
+        /// 本源不在本岛或本拍未求解时返回 false。不得据此回写生产戴维南或注入。
+        /// </summary>
+        public bool TryGetSolvedAcPower(string sourceId, out double activePowerW, out double reactivePowerVAr)
+        {
+            if (sourceId != null && _solvedAc.TryGetValue(sourceId, out var ac))
+            {
+                activePowerW = ac.ActivePowerW;
+                reactivePowerVAr = ac.ReactivePowerVAr;
+                return true;
+            }
+
+            activePowerW = 0;
+            reactivePowerVAr = 0;
             return false;
         }
 

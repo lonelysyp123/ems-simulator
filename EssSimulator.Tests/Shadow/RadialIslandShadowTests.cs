@@ -371,4 +371,61 @@ public class RadialIslandShadowTests
         Assert.True(host.TryGetSettledDcCurrent("gfl", out double idc));
         Assert.True(idc > 0, "放电（向母线送电）时直流电流流入设备（为正）");
     }
+
+    [Fact]
+    public void Host_SolvedAcPower_IsCurtailed_ForCurrentLimitedGridFollowing()
+    {
+        const double setpointW = 100_000;
+
+        var unlimited = CreateTwoPcsUnitGraph();
+        unlimited.Bus35.LineVoltageV = 35000;
+        var uBus = unlimited.UnitBuses690[0];
+        uBus.RegisterVoltageSource(new FollowingSource("gfl", setpointW, dcV: 1200, eff: 0.98));
+        var uHost = new ProductionUnit690Host(uBus);
+        var uSweep = Sweep(unlimited, lastBus35: 35000, mainBreakerClosed: true, openCircuitBus35: 35000);
+        uHost.ApplyAfterUpper(unlimited, uSweep);
+        Assert.True(uHost.TryGetSolvedAcPower("gfl", out double pFreeW, out _));
+
+        var limited = CreateTwoPcsUnitGraph();
+        limited.Bus35.LineVoltageV = 35000;
+        var lBus = limited.UnitBuses690[0];
+        lBus.RegisterVoltageSource(new FollowingSource("gfl", setpointW, dcV: 1200, eff: 0.98, limitA: 10));
+        var lHost = new ProductionUnit690Host(lBus);
+        var lSweep = Sweep(limited, lastBus35: 35000, mainBreakerClosed: true, openCircuitBus35: 35000);
+        lHost.ApplyAfterUpper(limited, lSweep);
+        Assert.True(lHost.TryGetSolvedAcPower("gfl", out double pLimitedW, out _));
+
+        Assert.False(lHost.TryGetSolvedAcPower("missing", out _, out _));
+        Assert.True(pFreeW > setpointW * 0.9,
+            $"不限流时解出有功应≈设定 100 kW，实际 {pFreeW / 1000.0:F1} kW");
+        Assert.True(pLimitedW > 0, "限流后仍向母线送有功");
+        Assert.True(pLimitedW < setpointW * 0.5,
+            $"硬限流后解出有功应远低于设定，实际 {pLimitedW / 1000.0:F1} kW");
+        Assert.True(pLimitedW < pFreeW,
+            $"限流应削减实际交付功率，限流 {pLimitedW / 1000.0:F1} kW < 不限流 {pFreeW / 1000.0:F1} kW");
+    }
+
+    [Fact]
+    public void Host_SolvedAcPower_ShowsCirculatingSplit_ForUnequalParallelForming()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FixedFormingSource("a", 690));
+        bus.RegisterVoltageSource(new FixedFormingSource("b", 650));
+        var host = new ProductionUnit690Host(bus);
+        var sweep = Sweep(graph, mainBreakerClosed: false, openCircuitBus35: 0);
+
+        host.ApplyAfterUpper(graph, sweep);
+
+        Assert.True(host.TryGetSolvedAcPower("a", out double paW, out double qaVAr));
+        Assert.True(host.TryGetSolvedAcPower("b", out double pbW, out double qbVAr));
+
+        // 生产平均把两机压成同一 670 V、看不到任何交换；内核解出方向相反的环流功率。
+        Assert.True(paW > 1_000, $"高电势源应向母线送有功（环流），实际 {paW:F0} W");
+        Assert.True(pbW < -1_000, $"低电势源应从母线吸收有功（环流），实际 {pbW:F0} W");
+        Assert.True(Math.Abs(paW + pbW) < 1e-3 * Math.Abs(paW),
+            $"无负荷等阻抗并联，两机有功在母线处守恒互抵，a={paW:F0} b={pbW:F0}");
+        Assert.True(qaVAr > 1_000 && qbVAr < -1_000,
+            $"无功同样按环流分裂，a={qaVAr:F0} b={qbVAr:F0}");
+    }
 }
