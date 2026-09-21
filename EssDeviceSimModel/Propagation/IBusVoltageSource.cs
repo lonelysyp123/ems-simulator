@@ -22,5 +22,11 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         /// 实际 PCS 源按额定折算标幺电抗覆盖。
         /// </summary>
         Complex OutputImpedanceOhm => MinPcsPort.DefaultOutputImpedanceOhm;
+
+        /// <summary>本拍直流结算用的已提交电池电压（V）。&lt;=0 表示无直流侧，不结算。默认 0。</summary>
+        double DcVoltageV => 0;
+
+        /// <summary>变流器效率 (0,1]，用于直流结算。默认取平均变流器占位效率。</summary>
+        double Efficiency => AverageConverterPort.DefaultEfficiency;
     }
 }

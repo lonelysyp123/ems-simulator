@@ -40,6 +40,63 @@ public class RadialIslandShadowTests
         public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (_lineV, 50);
     }
 
+    private sealed class DcFormingSource : IBusVoltageSource
+    {
+        public DcFormingSource(string id, double lineV, double dcV, double eff)
+        {
+            SourceId = id;
+            _lineV = lineV;
+            DcVoltageV = dcV;
+            Efficiency = eff;
+        }
+
+        public string SourceId { get; }
+        private readonly double _lineV;
+        public double DcVoltageV { get; }
+        public double Efficiency { get; }
+        public bool IsInjecting(DeviceStepContext context) => true;
+        public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (_lineV, 50);
+    }
+
+    [Fact]
+    public void Capture_PopulatesDcVoltageAndEfficiency_FromSource()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new DcFormingSource("a", 690, 1200, 0.98));
+        bus.RegisterVoltageSource(new FixedFormingSource("b", 650));
+        var sweep = Sweep(graph);
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
+
+        Assert.Equal(1200, snap.Sources[0].DcVoltageV);
+        Assert.Equal(0.98, snap.Sources[0].Efficiency);
+        Assert.Equal(0, snap.Sources[1].DcVoltageV, 6);
+        Assert.Equal(AverageConverterPort.DefaultEfficiency, snap.Sources[1].Efficiency);
+    }
+
+    [Fact]
+    public void Host_SettlesPerSourceDcCurrent_WithoutWritingBusAgain()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new DcFormingSource("a", 690, 1200, 0.98));
+        bus.RegisterVoltageSource(new DcFormingSource("b", 650, 1100, 0.98));
+        var host = new ProductionUnit690Host(bus);
+        var sweep = Sweep(graph);
+
+        host.ApplyAfterUpper(graph, sweep);
+        double busAfterSolve = bus.LineVoltageV;
+
+        Assert.True(busAfterSolve > 1.0, "内核应把 690 母线解出非零电压");
+        Assert.True(host.TryGetSettledDcCurrent("a", out double idcA));
+        Assert.True(host.TryGetSettledDcCurrent("b", out double idcB));
+        Assert.True(idcA > 0, "高电势源放电，直流电流流入设备");
+        Assert.True(idcB < 0, "低电势源充电，直流电流流出设备");
+        Assert.False(host.TryGetSettledDcCurrent("missing", out _));
+        Assert.Equal(busAfterSolve, bus.LineVoltageV);
+    }
+
     [Fact]
     public void Capture_UsesPerSourceOutputImpedance_NotSingleDefault()
     {

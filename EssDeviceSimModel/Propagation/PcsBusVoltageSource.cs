@@ -17,6 +17,14 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         public Complex OutputImpedanceOhm =>
             MinPcsPort.FormingImpedanceOhm(_pcs._config.RatedPower, _pcs._config.AcVoltageNominal);
 
+        /// <summary>已提交电池电压（上一拍耦合边写入），供本拍直流结算用。</summary>
+        public double DcVoltageV => _pcs.GetCurrentState().DcVoltage;
+
+        public double Efficiency =>
+            _pcs._config.Efficiency > 0 && _pcs._config.Efficiency <= 1.0
+                ? _pcs._config.Efficiency
+                : AverageConverterPort.DefaultEfficiency;
+
         public bool IsInjecting(DeviceStepContext context) =>
             _pcs.TryGetIslandBusVoltageInjection(out _, out _);
 

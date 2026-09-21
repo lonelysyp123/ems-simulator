@@ -41,7 +41,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
                 if (v <= 1.0)
                     continue;
                 Complex zout = pcsOutputZ ?? src.OutputImpedanceOhm;
-                sources.Add(new FormingSourceSample(src.SourceId, v, zout));
+                sources.Add(new FormingSourceSample(src.SourceId, v, zout, src.DcVoltageV, src.Efficiency));
             }
 
             Complex zth = LeakageOhmLv(LeakageConfigFor(graph, bus));
