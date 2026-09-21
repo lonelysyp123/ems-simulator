@@ -28,5 +28,14 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
 
         /// <summary>变流器效率 (0,1]，用于直流结算。默认取平均变流器占位效率。</summary>
         double Efficiency => AverageConverterPort.DefaultEfficiency;
+
+        /// <summary>本拍是否作为跟网（GFL）PQ 电流源注入（与定压源互斥）。默认否。</summary>
+        bool IsGridFollowing(DeviceStepContext context) => false;
+
+        /// <summary>跟网注入的有功/无功（W/VAr，正=向母线送电）。默认 0。</summary>
+        (double ActivePowerW, double ReactivePowerVAr) GetFollowingInjection(DeviceStepContext context) => (0, 0);
+
+        /// <summary>跟网硬限流幅值（A）；null=不限流。默认 null。</summary>
+        double? FollowingCurrentLimitA => null;
     }
 }

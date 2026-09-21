@@ -33,15 +33,23 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             ArgumentNullException.ThrowIfNull(graph);
             ArgumentNullException.ThrowIfNull(bus);
             var sources = new List<FormingSourceSample>();
+            var following = new List<FollowingSourceSample>();
             foreach (var src in bus.VoltageSources)
             {
-                if (!src.IsInjecting(sweep.DeviceContext))
-                    continue;
-                var (v, _) = src.GetInjection(sweep.DeviceContext);
-                if (v <= 1.0)
-                    continue;
-                Complex zout = pcsOutputZ ?? src.OutputImpedanceOhm;
-                sources.Add(new FormingSourceSample(src.SourceId, v, zout, src.DcVoltageV, src.Efficiency));
+                if (src.IsInjecting(sweep.DeviceContext))
+                {
+                    var (v, _) = src.GetInjection(sweep.DeviceContext);
+                    if (v <= 1.0)
+                        continue;
+                    Complex zout = pcsOutputZ ?? src.OutputImpedanceOhm;
+                    sources.Add(new FormingSourceSample(src.SourceId, v, zout, src.DcVoltageV, src.Efficiency));
+                }
+                else if (src.IsGridFollowing(sweep.DeviceContext))
+                {
+                    var (pW, qVAr) = src.GetFollowingInjection(sweep.DeviceContext);
+                    following.Add(new FollowingSourceSample(
+                        src.SourceId, pW, qVAr, src.DcVoltageV, src.Efficiency, src.FollowingCurrentLimitA));
+                }
             }
 
             Complex zth = LeakageOhmLv(LeakageConfigFor(graph, bus));
@@ -59,7 +67,13 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
                 gridZ = zth * RadialTheveninPort.StandInGridZMultiple;
             }
 
-            return new IslandShadowSnapshot(bus.BusId, sources, gridEmf, gridZ, zth);
+            // 跟网源只在母线本拍有定压参考（上域戴维南或构网源）时贴入，否则纯 PQ 岛无解（Y 奇异）。
+            IReadOnlyList<FollowingSourceSample> followingOut =
+                gridEmf.HasValue || sources.Count > 0
+                    ? following
+                    : Array.Empty<FollowingSourceSample>();
+
+            return new IslandShadowSnapshot(bus.BusId, sources, gridEmf, gridZ, zth, followingOut);
         }
 
         public static TransformerDeviceConfig? LeakageConfigFor(RadialNetworkGraph graph, ElectricalBusNode bus)

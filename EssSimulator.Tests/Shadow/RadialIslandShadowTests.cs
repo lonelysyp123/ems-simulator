@@ -58,6 +58,37 @@ public class RadialIslandShadowTests
         public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (_lineV, 50);
     }
 
+    private sealed class FollowingSource : IBusVoltageSource
+    {
+        public FollowingSource(
+            string id,
+            double activePowerW,
+            double reactivePowerVAr = 0,
+            double dcV = 0,
+            double eff = AverageConverterPort.DefaultEfficiency,
+            double? limitA = null)
+        {
+            SourceId = id;
+            _pW = activePowerW;
+            _qVAr = reactivePowerVAr;
+            DcVoltageV = dcV;
+            Efficiency = eff;
+            FollowingCurrentLimitA = limitA;
+        }
+
+        public string SourceId { get; }
+        private readonly double _pW;
+        private readonly double _qVAr;
+        public double DcVoltageV { get; }
+        public double Efficiency { get; }
+        public double? FollowingCurrentLimitA { get; }
+        public bool IsInjecting(DeviceStepContext context) => false;
+        public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (0, 50);
+        public bool IsGridFollowing(DeviceStepContext context) => true;
+        public (double ActivePowerW, double ReactivePowerVAr) GetFollowingInjection(DeviceStepContext context) =>
+            (_pW, _qVAr);
+    }
+
     [Fact]
     public void Capture_PopulatesDcVoltageAndEfficiency_FromSource()
     {
@@ -266,5 +297,78 @@ public class RadialIslandShadowTests
 
         Assert.Equal(35000, graph.Bus35.LineVoltageV);
         Assert.Equal(0, bus.LineVoltageV);
+    }
+
+    [Fact]
+    public void Capture_EmitsGridFollowingSources_WhenGridTied()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        graph.Bus35.LineVoltageV = 35000;
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FollowingSource("gfl", 100_000, 20_000, dcV: 1200, eff: 0.98, limitA: 1588));
+        var sweep = Sweep(graph, lastBus35: 35000, mainBreakerClosed: true, openCircuitBus35: 35000);
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
+
+        Assert.Empty(snap.Sources);
+        Assert.Single(snap.Following);
+        var f = snap.Following[0];
+        Assert.Equal("gfl", f.Id);
+        Assert.Equal(100_000, f.ActivePowerW, 6);
+        Assert.Equal(20_000, f.ReactivePowerVAr, 6);
+        Assert.Equal(1200, f.DcVoltageV, 6);
+        Assert.Equal(0.98, f.Efficiency, 6);
+        Assert.Equal(1588, f.CurrentLimitA!.Value, 6);
+    }
+
+    [Fact]
+    public void Capture_DropsFollowing_WhenNoVoltageReference()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FollowingSource("gfl", 100_000));
+        var sweep = Sweep(graph, mainBreakerClosed: false, openCircuitBus35: 0);
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
+
+        Assert.Empty(snap.Sources);
+        Assert.Empty(snap.Following);
+        Assert.Null(snap.ReferredGridEmf);
+    }
+
+    [Fact]
+    public void Capture_KeepsFollowing_WhenIslandedWithFormingSource()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FixedFormingSource("gfm", 690));
+        bus.RegisterVoltageSource(new FollowingSource("gfl", 50_000));
+        var sweep = Sweep(graph, mainBreakerClosed: false, openCircuitBus35: 0);
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
+
+        Assert.Single(snap.Sources);
+        Assert.Single(snap.Following);
+        Assert.Null(snap.ReferredGridEmf);
+    }
+
+    [Fact]
+    public void Host_CommitsGridFollowingPower_AndSettlesDc_WhenGridTied()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        graph.Bus35.LineVoltageV = 35000;
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FollowingSource("gfl", 100_000, dcV: 1200, eff: 0.98));
+        var host = new ProductionUnit690Host(bus);
+        var sweep = Sweep(graph, lastBus35: 35000, mainBreakerClosed: true, openCircuitBus35: 35000);
+
+        host.ApplyAfterUpper(graph, sweep);
+
+        Assert.True(bus.LineVoltageV > 1.0, "并网跟网岛应解出非零母线电压");
+        Assert.True(host.TryGetCommittedInjectionKw(out double pKw, out _));
+        Assert.True(pKw > 90 && pKw < 105,
+            $"跟网 PCS 的有功应进入上域提交注入（修复此前丢失），实际 {pKw} kW");
+        Assert.True(host.TryGetSettledDcCurrent("gfl", out double idc));
+        Assert.True(idc > 0, "放电（向母线送电）时直流电流流入设备（为正）");
     }
 }

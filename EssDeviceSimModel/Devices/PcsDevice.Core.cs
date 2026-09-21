@@ -454,6 +454,30 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             return p >= 0 ? p * lineEfficiency : p / lineEfficiency;
         }
 
+        /// <summary>
+        /// 并网跟网（GFL）交流注入意图：PCS 作为母线的 PQ 电流源（非定压源）。
+        /// 仅当主网可用、处于 Normal 运行、且本拍不作为离网定压源时成立。
+        /// 有功/无功以 W/VAr 返回（内部 kW/kvar × 1000），符号：正=向母线送电（放电）。
+        /// </summary>
+        public bool TryGetGridFollowingInjection(out double activePowerW, out double reactivePowerVAr)
+        {
+            activePowerW = 0;
+            reactivePowerVAr = 0;
+
+            if (!_gridState.IsAvailable || _currentState.Mode != OperationMode.Normal)
+                return false;
+            if (TryGetIslandBusVoltageInjection(out _, out _))
+                return false;
+
+            activePowerW = GetGridSideActivePower() * 1000.0;
+            reactivePowerVAr = _currentState.ReactivePower * 1000.0;
+            return true;
+        }
+
+        /// <summary>跟网硬限流幅值（A）；无额定电流时 null（不限流）。</summary>
+        public double? GridFollowingCurrentLimitA =>
+            _config.MaxCurrent > 0 ? _config.MaxCurrent : (double?)null;
+
         private bool CanAcceptPowerCommand =>
             _currentState.Mode == OperationMode.Normal &&
             _gridState.IsAvailable;

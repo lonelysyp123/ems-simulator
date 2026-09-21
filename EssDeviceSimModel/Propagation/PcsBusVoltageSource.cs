@@ -34,5 +34,16 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                 return (0, 50);
             return (v, f);
         }
+
+        public bool IsGridFollowing(DeviceStepContext context) =>
+            _pcs.TryGetGridFollowingInjection(out _, out _);
+
+        public (double ActivePowerW, double ReactivePowerVAr) GetFollowingInjection(DeviceStepContext context)
+        {
+            _pcs.TryGetGridFollowingInjection(out var p, out var q);
+            return (p, q);
+        }
+
+        public double? FollowingCurrentLimitA => _pcs.GridFollowingCurrentLimitA;
     }
 }
