@@ -6,6 +6,7 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
     public sealed class IsolatedAcIsland
     {
         private readonly List<MinPcsPort> _pcs = new();
+        private readonly List<MinGflPort> _gfl = new();
         private Complex? _loadZ;
         private Complex? _vth;
         private Complex? _zth;
@@ -19,12 +20,20 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         public string BusNodeId { get; }
         public string GroundNodeId { get; }
         public IReadOnlyList<MinPcsPort> PcsPorts => _pcs;
+        public IReadOnlyList<MinGflPort> GflPorts => _gfl;
 
         public void AddPcs(MinPcsPort port)
         {
             if (port.TerminalNodeId != BusNodeId)
                 throw new ArgumentException("PCS terminal must attach to the island bus.", nameof(port));
             _pcs.Add(port);
+        }
+
+        public void AddGfl(MinGflPort port)
+        {
+            if (port.TerminalNodeId != BusNodeId)
+                throw new ArgumentException("GFL terminal must attach to the island bus.", nameof(port));
+            _gfl.Add(port);
         }
 
         public void SetLoadImpedance(Complex zLoadOhm) => _loadZ = zLoadOhm;
@@ -56,6 +65,16 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 });
             }
 
+            foreach (var gfl in _gfl)
+            {
+                copy.AddGfl(new MinGflPort(gfl.Id, gfl.TerminalNodeId)
+                {
+                    ActivePowerW = gfl.ActivePowerW,
+                    ReactivePowerVAr = gfl.ReactivePowerVAr,
+                    CurrentLimitA = gfl.CurrentLimitA
+                });
+            }
+
             if (_loadZ.HasValue)
                 copy.SetLoadImpedance(_loadZ.Value);
             return copy;
@@ -79,10 +98,11 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             var clamped = new Complex[n];
             Complex prevBus = Complex.Zero;
             bool havePrev = false;
+            Complex busEstimate = InitialBusEstimate();
 
             for (int iter = 0; iter < MaxCurrentLimitIterations; iter++)
             {
-                var (net, sol) = BuildAndSolve(limited, clamped);
+                var (net, sol) = BuildAndSolve(limited, clamped, busEstimate);
                 Complex bus = sol.Voltage(BusNodeId);
 
                 bool setChanged = false;
@@ -105,6 +125,7 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 bool settled = !setChanged && havePrev &&
                     (bus - prevBus).Magnitude <= BusVoltageSettleTolerance * Math.Max(1.0, bus.Magnitude);
                 prevBus = bus;
+                busEstimate = bus;
                 havePrev = true;
 
                 if (settled)
@@ -115,7 +136,20 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 $"Current-limit reassembly did not settle within {MaxCurrentLimitIterations} iterations on island '{BusNodeId}'.");
         }
 
-        private (PhasorNetwork net, PhasorSolution sol) BuildAndSolve(bool[] limited, Complex[] clamped)
+        /// <summary>
+        /// 跟网口注入电流依赖母线电压，需定点迭代；首拍用已知相角的源估计母线：
+        /// 并网岛取戴维南，孤岛取构网内电势，全无则 0（纯跟网无定压源时本就不收敛，按求解失败处理）。
+        /// </summary>
+        private Complex InitialBusEstimate()
+        {
+            if (_vth.HasValue)
+                return _vth.Value;
+            if (_pcs.Count > 0)
+                return _pcs[0].InternalVoltageV;
+            return Complex.Zero;
+        }
+
+        private (PhasorNetwork net, PhasorSolution sol) BuildAndSolve(bool[] limited, Complex[] clamped, Complex busEstimate)
         {
             var net = new PhasorNetwork();
             net.SetGround(GroundNodeId);
@@ -128,6 +162,9 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 else
                     _pcs[i].Stamp(net);
             }
+
+            foreach (var gfl in _gfl)
+                gfl.Stamp(net, busEstimate);
 
             if (_loadZ.HasValue)
                 net.AddImpedance(BusNodeId, GroundNodeId, _loadZ.Value);
@@ -149,6 +186,14 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 sumI += currents[i];
             }
 
+            var gflCurrents = new Complex[_gfl.Count];
+            Complex gflSum = Complex.Zero;
+            for (int i = 0; i < _gfl.Count; i++)
+            {
+                gflCurrents[i] = _gfl[i].InjectedCurrentA;
+                gflSum += gflCurrents[i];
+            }
+
             Complex loadI = Complex.Zero;
             if (_loadZ.HasValue)
                 loadI = net.BranchCurrent(sol, BusNodeId, GroundNodeId, _loadZ.Value);
@@ -157,7 +202,7 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             if (_vth.HasValue && _zth.HasValue)
                 theveninIntoBus = net.VoltageBehindZCurrent(sol, BusNodeId, _vth.Value, _zth.Value);
 
-            return new IslandSolveResult(sol, BusNodeId, currents, sumI, loadI, theveninIntoBus, limited);
+            return new IslandSolveResult(sol, BusNodeId, currents, sumI, gflCurrents, gflSum, loadI, theveninIntoBus, limited);
         }
     }
 
@@ -168,6 +213,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             string busNodeId,
             Complex[] pcsCurrents,
             Complex pcsCurrentSum,
+            Complex[] gflCurrents,
+            Complex gflCurrentSum,
             Complex loadCurrent,
             Complex theveninCurrentIntoBus,
             bool[] pcsCurrentLimited)
@@ -176,6 +223,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             BusNodeId = busNodeId;
             PcsCurrents = pcsCurrents;
             PcsCurrentSum = pcsCurrentSum;
+            GflCurrents = gflCurrents;
+            GflCurrentSum = gflCurrentSum;
             LoadCurrent = loadCurrent;
             TheveninCurrentIntoBus = theveninCurrentIntoBus;
             PcsCurrentLimited = pcsCurrentLimited;
@@ -185,6 +234,11 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         public string BusNodeId { get; }
         public IReadOnlyList<Complex> PcsCurrents { get; }
         public Complex PcsCurrentSum { get; }
+
+        /// <summary>各跟网口本拍注入母线的电流（流向母线为正，与 <see cref="IsolatedAcIsland.GflPorts"/> 同序）。</summary>
+        public IReadOnlyList<Complex> GflCurrents { get; }
+        public Complex GflCurrentSum { get; }
+
         public Complex LoadCurrent { get; }
 
         /// <summary>各 PCS 本拍是否处于限流模式（与 <see cref="PcsCurrents"/> 同序）。</summary>
