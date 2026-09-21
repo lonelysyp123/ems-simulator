@@ -206,6 +206,9 @@ namespace EssSimulator.Configuration
 
         /// <summary>PCS PTP 对时（L2 + P2P，模拟器软件戳）。默认关闭，不影响既有功能。</summary>
         public PtpProtocolConfig Ptp { get; set; } = new();
+
+        public bool EnableSel { get; set; }
+        public int SelModbusPort { get; set; } = 2001;
     }
 
     /// <summary>IEEE 1588 从钟：二层以太网 + 对等时延，本机软件时间戳。</summary>

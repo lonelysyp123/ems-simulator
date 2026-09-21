@@ -440,6 +440,9 @@ namespace EssSimulator
             builder.Services.AddHostedService<ModbusHostedService>();
             builder.Services.AddHostedService<EssSimulator.Protocol.Iec61850.Iec61850HostedService>();
             builder.Services.AddHostedService<EssSimulator.Protocol.Ptp.PtpHostedService>();
+            if (builder.Configuration.GetSection(SimulatorConfig.Section)
+                .GetSection(nameof(SimulatorConfig.Protocol)).GetValue<bool>(nameof(ProtocolConfig.EnableSel)))
+                builder.Services.AddHostedService<EssSimulator.SiteControl.SelHostedService>();
 
             // Web 层服务
             builder.Services.AddSingleton<WebCommandExecutor>();
