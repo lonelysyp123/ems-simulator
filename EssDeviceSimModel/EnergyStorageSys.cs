@@ -269,7 +269,25 @@ namespace EssSimulator.EssDeviceSimModel
 
             PlantEngine = new PlantEngine(this);
             Thermal = new PlantThermalSystem(simCfg.Runtime.Thermal, channelCount, DateTime.UtcNow);
-            CouplingGraph = PlantCouplingGraph.BuildDefault(_pcsList, _bmsRackDevices);
+            CouplingGraph = PlantCouplingGraph.BuildDefault(
+                _pcsList,
+                _bmsRackDevices,
+                settledDcIntoDeviceResolver: TryGetNetworkSettledDcCurrent);
+        }
+
+        /// <summary>
+        /// 硬规则4：从相量内核接管的 690 V 岛取本拍已结算的某 PCS 直流电流（流入设备为正，A）。
+        /// 该 PCS 本拍未被内核结算（无直流侧/无网络功率交换）时返回 null。
+        /// </summary>
+        private double? TryGetNetworkSettledDcCurrent(string pcsDeviceId)
+        {
+            foreach (var host in PowerSweepEngine.OwnedIslands)
+            {
+                if (host.TryGetSettledDcCurrent(pcsDeviceId, out double idcIntoDeviceA))
+                    return idcIntoDeviceA;
+            }
+
+            return null;
         }
 
         private static IReadOnlyList<PvUnitDevice> CreatePvUnits(SimulatorConfig simCfg)

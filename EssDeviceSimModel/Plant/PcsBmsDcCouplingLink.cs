@@ -11,11 +11,18 @@ namespace EssSimulator.EssDeviceSimModel.Plant
     /// </summary>
     public sealed class PcsBmsDcCouplingLink
     {
-        public PcsBmsDcCouplingLink(PcsDevice pcs, BmsRackDevice bms, int thermalCabinetIndex)
+        private readonly Func<string, double?>? _settledDcIntoDeviceResolver;
+
+        public PcsBmsDcCouplingLink(
+            PcsDevice pcs,
+            BmsRackDevice bms,
+            int thermalCabinetIndex,
+            Func<string, double?>? settledDcIntoDeviceResolver = null)
         {
             Pcs = pcs ?? throw new ArgumentNullException(nameof(pcs));
             Bms = bms ?? throw new ArgumentNullException(nameof(bms));
             ThermalCabinetIndex = thermalCabinetIndex;
+            _settledDcIntoDeviceResolver = settledDcIntoDeviceResolver;
         }
 
         public PcsDevice Pcs { get; }
@@ -49,7 +56,7 @@ namespace EssSimulator.EssDeviceSimModel.Plant
                     return;
 
                 Pcs.Update(rackState.TotalVoltage, rackState.IsFault, simTime, elapsed, integrationElapsed);
-                double rackCurrent = -Pcs.GetCurrentState().DcCurrent;
+                double rackCurrent = ResolveRackCurrentA();
                 Bms.UpdatePhysics(rackCurrent, cabinetAir, simTime, integrationElapsed);
             }
             else
@@ -61,6 +68,20 @@ namespace EssSimulator.EssDeviceSimModel.Plant
             thermal.RecordCabinetHeatWatts(
                 ThermalCabinetIndex,
                 ((IElectricalLossSource)Bms).GetElectricalLossWatts());
+        }
+
+        /// <summary>
+        /// 硬规则4：直流单一真相来自相量内核结算的 I_dc（= P_ac/V_dc + 损耗），SOC 不由 PCS 控制自算的
+        /// DcCurrent 推进。结算值「流入设备为正」（放电为正），BMS 堆电流「充电为正」，故取负。
+        /// 已接入内核但本拍未结算该 PCS（无网络功率交换）时不推进 SOC（0）；未接入内核（独立测试）时退回控制值。
+        /// </summary>
+        private double ResolveRackCurrentA()
+        {
+            if (_settledDcIntoDeviceResolver == null)
+                return -Pcs.GetCurrentState().DcCurrent;
+            return _settledDcIntoDeviceResolver(Pcs.DeviceId) is { } idcIntoDeviceA
+                ? -idcIntoDeviceA
+                : 0;
         }
     }
 }

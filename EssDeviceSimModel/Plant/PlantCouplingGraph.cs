@@ -14,18 +14,23 @@ namespace EssSimulator.EssDeviceSimModel.Plant
 
         public IReadOnlyList<PcsBmsDcCouplingLink> DcLinks => _dcLinks;
 
-        public void AddDcLink(PcsDevice pcs, BmsRackDevice bms, int thermalCabinetIndex) =>
-            _dcLinks.Add(new PcsBmsDcCouplingLink(pcs, bms, thermalCabinetIndex));
+        public void AddDcLink(
+            PcsDevice pcs,
+            BmsRackDevice bms,
+            int thermalCabinetIndex,
+            Func<string, double?>? settledDcIntoDeviceResolver = null) =>
+            _dcLinks.Add(new PcsBmsDcCouplingLink(pcs, bms, thermalCabinetIndex, settledDcIntoDeviceResolver));
 
         /// <summary>按通道一一配对构建默认直流耦合图。</summary>
         public static PlantCouplingGraph BuildDefault(
             IReadOnlyList<PcsDevice> pcsList,
-            IReadOnlyList<BmsRackDevice> bmsList)
+            IReadOnlyList<BmsRackDevice> bmsList,
+            Func<string, double?>? settledDcIntoDeviceResolver = null)
         {
             var graph = new PlantCouplingGraph();
             int n = Math.Min(pcsList.Count, bmsList.Count);
             for (int i = 0; i < n; i++)
-                graph.AddDcLink(pcsList[i], bmsList[i], thermalCabinetIndex: i);
+                graph.AddDcLink(pcsList[i], bmsList[i], thermalCabinetIndex: i, settledDcIntoDeviceResolver);
             return graph;
         }
 

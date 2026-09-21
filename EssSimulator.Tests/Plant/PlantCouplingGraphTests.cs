@@ -93,4 +93,57 @@ public class PlantCouplingGraphTests
         Assert.True(loss.GetElectricalLossWatts() >= 0);
         Assert.True(t.TemperatureCelsius > 0);
     }
+
+    private static PlantThermalSystem CreateThermal() =>
+        new(
+            new ThermalRuntimeConfig { Enabled = true, Climate = new ClimateConfig { FixedCelsius = 22 } },
+            bmsChannelCount: 1,
+            initialTime: DateTime.UtcNow);
+
+    private static BmsRackDevice CreateLinkedBms(string id)
+    {
+        var bms = new BmsRackDevice(id, BmsRackFactory.CreateRack(new BmsDeviceConfig { ClusterCount = 1 }));
+        bms.SetPcsLinked(true);
+        return bms;
+    }
+
+    [Fact]
+    public void DcLink_DrivesBmsFromNetworkSettledDc_NotControlDcCurrent()
+    {
+        var pcs = CreatePcs("pcs1");
+        var bms = CreateLinkedBms("bms1");
+        var thermal = CreateThermal();
+        // 内核结算：流入设备 +120 A（放电）。BMS 堆电流约定充电为正，故应为 -120 A。
+        var link = new PcsBmsDcCouplingLink(pcs, bms, 0, _ => 120);
+
+        link.Step(thermal, DateTime.UtcNow, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(-120, bms.Rack.GetRackState()!.TotalCurrent, 6);
+    }
+
+    [Fact]
+    public void DcLink_WhenNotSettledThisTick_DoesNotAdvanceSocFromControl()
+    {
+        var pcs = CreatePcs("pcs1");
+        var bms = CreateLinkedBms("bms1");
+        var thermal = CreateThermal();
+        var link = new PcsBmsDcCouplingLink(pcs, bms, 0, _ => null);
+
+        link.Step(thermal, DateTime.UtcNow, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(0, bms.Rack.GetRackState()!.TotalCurrent, 6);
+    }
+
+    [Fact]
+    public void DcLink_WithoutResolver_FallsBackToControlDcCurrent()
+    {
+        var pcs = CreatePcs("pcs1");
+        var bms = CreateLinkedBms("bms1");
+        var thermal = CreateThermal();
+        var link = new PcsBmsDcCouplingLink(pcs, bms, 0);
+
+        link.Step(thermal, DateTime.UtcNow, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(-pcs.GetCurrentState().DcCurrent, bms.Rack.GetRackState()!.TotalCurrent, 6);
+    }
 }
