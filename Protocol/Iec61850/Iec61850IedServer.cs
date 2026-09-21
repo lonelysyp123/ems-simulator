@@ -888,6 +888,11 @@ namespace EssSimulator.Protocol.Iec61850
                 return null;
             try
             {
+                // libiec61850 1.6.2 的 createObjectReference 会沿 parent 递归直到遇见 LogicalNode，
+                // 传入 LogicalDevice 会越过 IedModel 根读到野指针并 SIGSEGV，故 LD 只取名字。
+                if (node is LogicalDevice)
+                    return node.GetName();
+
                 string? r = node.GetObjectReference(withoutIedName: true);
                 return string.IsNullOrWhiteSpace(r) ? node.GetName() : r;
             }
