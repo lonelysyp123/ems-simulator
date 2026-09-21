@@ -1,4 +1,6 @@
+using System.Numerics;
 using EssSimulator.EssDeviceSimModel.Devices;
+using EssSimulator.EssDeviceSimModel.Kernel;
 using EssSimulator.EssDeviceSimModel.Model;
 
 namespace EssSimulator.EssDeviceSimModel.Propagation
@@ -11,6 +13,9 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         public PcsBusVoltageSource(PcsDevice pcs) => _pcs = pcs;
 
         public string SourceId => _pcs.DeviceId;
+
+        public Complex OutputImpedanceOhm =>
+            MinPcsPort.FormingImpedanceOhm(_pcs._config.RatedPower, _pcs._config.AcVoltageNominal);
 
         public bool IsInjecting(DeviceStepContext context) =>
             _pcs.TryGetIslandBusVoltageInjection(out _, out _);

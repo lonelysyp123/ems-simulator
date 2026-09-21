@@ -32,7 +32,6 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         {
             ArgumentNullException.ThrowIfNull(graph);
             ArgumentNullException.ThrowIfNull(bus);
-            Complex zout = pcsOutputZ ?? MinPcsPort.DefaultOutputImpedanceOhm;
             var sources = new List<FormingSourceSample>();
             foreach (var src in bus.VoltageSources)
             {
@@ -41,6 +40,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
                 var (v, _) = src.GetInjection(sweep.DeviceContext);
                 if (v <= 1.0)
                     continue;
+                Complex zout = pcsOutputZ ?? src.OutputImpedanceOhm;
                 sources.Add(new FormingSourceSample(src.SourceId, v, zout));
             }
 

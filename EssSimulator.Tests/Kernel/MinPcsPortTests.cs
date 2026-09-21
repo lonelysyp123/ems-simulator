@@ -41,6 +41,32 @@ public class MinPcsPortTests
     }
 
     [Fact]
+    public void FormingImpedanceOhm_AtRatedBase_MatchesPhaseTwoPlaceholder()
+    {
+        Complex z = MinPcsPort.FormingImpedanceOhm(2508, 690);
+        Assert.Equal(0.04, z.Real, 3);
+        Assert.Equal(0.18, z.Imaginary, 3);
+    }
+
+    [Fact]
+    public void FormingImpedanceOhm_ScalesInverselyWithRating()
+    {
+        Complex full = MinPcsPort.FormingImpedanceOhm(2508, 690);
+        Complex half = MinPcsPort.FormingImpedanceOhm(1254, 690);
+        Assert.Equal(full.Magnitude * 2, half.Magnitude, 9);
+        Assert.Equal(full.Real / full.Imaginary, half.Real / half.Imaginary, 9);
+    }
+
+    [Fact]
+    public void FormingImpedanceOhm_ScalesWithVoltageSquared()
+    {
+        Complex v690 = MinPcsPort.FormingImpedanceOhm(2508, 690);
+        Complex v400 = MinPcsPort.FormingImpedanceOhm(2508, 400);
+        double ratio = (400.0 * 400.0) / (690.0 * 690.0);
+        Assert.Equal(v690.Magnitude * ratio, v400.Magnitude, 9);
+    }
+
+    [Fact]
     public void TerminalMustMatchIslandBus()
     {
         var island = new IsolatedAcIsland("bus690");

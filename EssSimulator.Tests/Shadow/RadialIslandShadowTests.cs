@@ -24,6 +24,54 @@ public class RadialIslandShadowTests
         public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (_lineV, 50);
     }
 
+    private sealed class ImpedanceFormingSource : IBusVoltageSource
+    {
+        public ImpedanceFormingSource(string id, double lineV, Complex z)
+        {
+            SourceId = id;
+            _lineV = lineV;
+            OutputImpedanceOhm = z;
+        }
+
+        public string SourceId { get; }
+        private readonly double _lineV;
+        public Complex OutputImpedanceOhm { get; }
+        public bool IsInjecting(DeviceStepContext context) => true;
+        public (double LineVoltageV, double FrequencyHz) GetInjection(DeviceStepContext context) => (_lineV, 50);
+    }
+
+    [Fact]
+    public void Capture_UsesPerSourceOutputImpedance_NotSingleDefault()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        var zA = new Complex(0.05, 0.20);
+        bus.RegisterVoltageSource(new ImpedanceFormingSource("a", 690, zA));
+        bus.RegisterVoltageSource(new FixedFormingSource("b", 650));
+        var sweep = Sweep(graph);
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
+
+        Assert.Equal(2, snap.Sources.Count);
+        Assert.True((snap.Sources[0].OutputImpedanceOhm - zA).Magnitude < 1e-12);
+        Assert.True((snap.Sources[1].OutputImpedanceOhm - MinPcsPort.DefaultOutputImpedanceOhm).Magnitude < 1e-12,
+            "未覆盖的源走接口默认阻抗");
+    }
+
+    [Fact]
+    public void Capture_ExplicitOverrideWins_OverSourceImpedance()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new ImpedanceFormingSource("a", 690, new Complex(0.05, 0.20)));
+        var sweep = Sweep(graph);
+        var forced = new Complex(0.1, 0.3);
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep, pcsOutputZ: forced);
+
+        Assert.True((snap.Sources[0].OutputImpedanceOhm - forced).Magnitude < 1e-12);
+    }
+
     private static RadialNetworkGraph CreateTwoPcsUnitGraph()
     {
         var simCfg = new SimulatorConfig
