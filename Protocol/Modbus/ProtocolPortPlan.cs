@@ -17,7 +17,8 @@ namespace EssSimulator.Protocol.Modbus
         Em,
         Lc,
         PvLogger,
-        PvMeter
+        PvMeter,
+        Sel
     }
 
     /// <summary>单个协议设备的端口/从站号计划条目。</summary>
@@ -122,6 +123,9 @@ namespace EssSimulator.Protocol.Modbus
                         lcGroupCount: LcLayout.GroupCountForUnit(cfg, i)));
                 }
             }
+
+            if (p.EnableSel)
+                plan.Entries.Add(MakeEntry("simSel", ProtocolDeviceType.Sel, "sel.csv", p.SelModbusPort));
 
             return plan;
         }
