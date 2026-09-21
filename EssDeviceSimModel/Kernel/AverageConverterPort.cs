@@ -35,11 +35,19 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
 
         public void Stamp(PhasorNetwork network) => Ac.Stamp(network);
 
-        /// <summary>用本拍交流解结算直流。不修改 <see cref="InternalVoltageV"/>。</summary>
-        public ConverterEnergyResult SettleDc(PhasorSolution solution)
+        /// <summary>
+        /// 用本拍岛的<b>已提交</b>交流解结算直流：电流取 <see cref="IslandSolveResult.PcsCurrents"/>（限流时即钳位电流），
+        /// 而不是按 (E−Vbus)/Z 重算——后者在限流拍会高估功率、破坏能量守恒。<paramref name="portIndex"/> 必须对应本端口在岛中的装配序。
+        /// 不修改 <see cref="InternalVoltageV"/>。
+        /// </summary>
+        public ConverterEnergyResult SettleDc(IslandSolveResult result, int portIndex)
         {
-            Complex v = solution.Voltage(Ac.TerminalNodeId);
-            Complex iTowardBus = Ac.TerminalCurrent(solution);
+            ArgumentNullException.ThrowIfNull(result);
+            if (portIndex < 0 || portIndex >= result.PcsCurrents.Count)
+                throw new ArgumentOutOfRangeException(nameof(portIndex));
+
+            Complex v = result.Solution.Voltage(Ac.TerminalNodeId);
+            Complex iTowardBus = result.PcsCurrents[portIndex];
             Complex sIntoDevice = v * Complex.Conjugate(-iTowardBus);
             return DcEnergySettlement.Settle(sIntoDevice.Real, DcVoltageV, Efficiency);
         }
