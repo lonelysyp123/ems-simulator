@@ -72,4 +72,67 @@ public class IslandShadowRunnerTests
         var da = tick.DcSettlements[0]!.Value;
         Assert.Equal(da.PdcIntoDeviceW / 1150, da.IdcIntoDeviceA, 9);
     }
+
+    private static IslandShadowSnapshot GridSnap(params FollowingSourceSample[] following) =>
+        new("bus690",
+            Array.Empty<FormingSourceSample>(),
+            referredGridEmf: 690,
+            gridZ: new Complex(0, 0.5),
+            theveninZ: new Complex(0, 0.1),
+            following: following);
+
+    [Fact]
+    public void Tick_SettlesFollowingDc_FromGridSolvedPower()
+    {
+        var runner = new IslandShadowRunner(
+            GridSnap(new FollowingSourceSample("gfl1", 100_000, 0, dcVoltageV: 1200, efficiency: 0.98)));
+
+        var tick = runner.Tick();
+
+        Assert.NotNull(runner.Handshake);
+        var d = tick.FollowingDcSettlements[0];
+        Assert.NotNull(d);
+        Assert.Equal(-100_000, d!.Value.PacIntoDeviceW, 1);
+        Assert.True(d.Value.PdcIntoDeviceW > 0, "并网送电时直流口放电");
+        Assert.Equal(d.Value.PdcIntoDeviceW / 1200, d.Value.IdcIntoDeviceA, 9);
+        Assert.True(Math.Abs(d.Value.PdcIntoDeviceW + d.Value.PacIntoDeviceW - d.Value.LossW) < 1e-6);
+        Assert.True(Math.Abs(d.Value.PdcIntoDeviceW * 0.98 + d.Value.PacIntoDeviceW) < 1e-1);
+    }
+
+    [Fact]
+    public void Tick_FollowingNoDcSide_NullSettlement()
+    {
+        var runner = new IslandShadowRunner(GridSnap(new FollowingSourceSample("gfl1", 100_000)));
+
+        var tick = runner.Tick();
+
+        Assert.Null(tick.FollowingDcSettlements[0]);
+    }
+
+    [Fact]
+    public void Tick_FollowingCurrentLimit_SettlesFromClampedNotSetpoint()
+    {
+        var runner = new IslandShadowRunner(
+            GridSnap(new FollowingSourceSample("gfl1", 1_000_000_000, 0, dcVoltageV: 1200, efficiency: 0.98, currentLimitA: 100)));
+
+        var tick = runner.Tick();
+        var d = tick.FollowingDcSettlements[0]!.Value;
+
+        Assert.Equal(100, tick.Island.GflCurrents[0].Magnitude, 6);
+        Assert.True(-d.PacIntoDeviceW > 0 && -d.PacIntoDeviceW < 1_000_000_000, "限流后结算功率远低于设定");
+        Assert.True(Math.Abs(d.PdcIntoDeviceW + d.PacIntoDeviceW - d.LossW) < 1e-6);
+    }
+
+    [Fact]
+    public void SyncFormingReferences_UpdatesFollowingSetpoint()
+    {
+        var runner = new IslandShadowRunner(GridSnap(new FollowingSourceSample("gfl1", 50_000, 0, dcVoltageV: 1200)));
+        runner.Tick();
+
+        runner.SyncFormingReferences(GridSnap(new FollowingSourceSample("gfl1", 80_000, 0, dcVoltageV: 1200)));
+        var tick = runner.Tick();
+
+        Assert.Equal(80_000, runner.Island.GflPorts[0].ActivePowerW);
+        Assert.Equal(-80_000, tick.FollowingDcSettlements[0]!.Value.PacIntoDeviceW, 1);
+    }
 }

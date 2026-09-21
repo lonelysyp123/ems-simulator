@@ -47,15 +47,27 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 throw new ArgumentOutOfRangeException(nameof(portIndex));
 
             Complex v = result.Solution.Voltage(Ac.TerminalNodeId);
-            Complex iTowardBus = result.PcsCurrents[portIndex];
-            Complex sIntoDevice = v * Complex.Conjugate(-iTowardBus);
-            return DcEnergySettlement.Settle(sIntoDevice.Real, DcVoltageV, Efficiency);
+            return DcEnergySettlement.SettleFromAc(v, result.PcsCurrents[portIndex], DcVoltageV, Efficiency);
         }
     }
 
     /// <summary>交流口功率（流入设备为正）→ 直流电流。Vdc 必须是已提交的电池电压。</summary>
     public static class DcEnergySettlement
     {
+        /// <summary>
+        /// 由母线电压与本拍<b>流向母线</b>的端口电流结算直流。构网/跟网共用：电流取已提交解
+        /// （限流时即钳位电流），S_into_device = Vbus·conj(−I_towardBus)。
+        /// </summary>
+        public static ConverterEnergyResult SettleFromAc(
+            Complex busVoltage,
+            Complex currentTowardBus,
+            double dcVoltageV,
+            double efficiency)
+        {
+            Complex sIntoDevice = busVoltage * Complex.Conjugate(-currentTowardBus);
+            return Settle(sIntoDevice.Real, dcVoltageV, efficiency);
+        }
+
         public static ConverterEnergyResult Settle(double pacIntoDeviceW, double dcVoltageV, double efficiency)
         {
             if (dcVoltageV < PhasorNetwork.MinSeriesImpedanceOhm)

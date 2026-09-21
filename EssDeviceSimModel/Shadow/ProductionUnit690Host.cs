@@ -36,7 +36,7 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         public void ApplyAfterUpper(RadialNetworkGraph graph, PropagationSweepContext sweep)
         {
             var snap = RadialIslandShadowAdapter.CaptureBus(graph, Bus, sweep);
-            bool empty = snap.Sources.Count == 0 && snap.ReferredGridEmf is null;
+            bool empty = snap.Sources.Count == 0 && snap.Following.Count == 0 && snap.ReferredGridEmf is null;
             if (empty)
             {
                 _settledDc.Clear();
@@ -74,6 +74,12 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
                 if (tick.DcSettlements[i] is { } dc)
                     _settledDc[snap.Sources[i].Id] = dc;
             }
+
+            for (int j = 0; j < snap.Following.Count && j < tick.FollowingDcSettlements.Count; j++)
+            {
+                if (tick.FollowingDcSettlements[j] is { } dc)
+                    _settledDc[snap.Following[j].Id] = dc;
+            }
         }
 
         /// <summary>
@@ -110,7 +116,12 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             var ids = new string[snap.Sources.Count];
             for (int i = 0; i < snap.Sources.Count; i++)
                 ids[i] = snap.Sources[i].Id;
-            return string.Join(",", ids) + "|" + (snap.ReferredGridEmf.HasValue ? "g" : "i");
+            var followingIds = new string[snap.Following.Count];
+            for (int j = 0; j < snap.Following.Count; j++)
+                followingIds[j] = snap.Following[j].Id;
+            return string.Join(",", ids)
+                + "#" + string.Join(",", followingIds)
+                + "|" + (snap.ReferredGridEmf.HasValue ? "g" : "i");
         }
     }
 }
