@@ -1,0 +1,15 @@
+﻿FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
+4,0,Uint16,16,svg1,1,运行状态,0
+4,1,float,32,svg2,1,AB线电压,0
+4,3,float,32,svg3,1,BC线电压,0
+4,5,float,32,svg4,1,CA线电压,0
+4,7,float,32,svg5,1,A相电流,0
+4,9,float,32,svg6,1,B相电流,0
+4,11,float,32,svg7,1,C相电流,0
+4,13,float,32,svg8,1,总无功功率,0
+4,15,float,32,svg9,1,功率因数,0
+4,17,float,32,sv10,1,频率,0
+4,19,float,32,svg11,1,额定容量,0
+4,21,float,32,svg12,1,当前可用无功上限,0
+6,23,u16,16,mv_param1,1,开关机设置值(1:开机;0:关机),0
+6,24,float,32,mv_param1,1,无功设置值,0
