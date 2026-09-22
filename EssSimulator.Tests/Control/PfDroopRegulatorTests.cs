@@ -104,13 +104,22 @@ public class PllTrackerTests
 public class PreSyncSupervisorTests
 {
     [Fact]
-    public void IsReadyToCutIn_RequiresAllThreeWindows()
+    public void IsReadyToCutIn_RequiresBlackStartAndAllThreeWindows()
     {
         var pre = new PreSyncSupervisor();
-        Assert.False(pre.IsReadyToCutIn(690, 50, 0, vBus: 100, fBus: 50, thetaBus: 0, vNom: 690));
-        Assert.False(pre.IsReadyToCutIn(600, 50, 0, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690));
-        Assert.False(pre.IsReadyToCutIn(690, 50.5, 0, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690));
-        Assert.False(pre.IsReadyToCutIn(690, 50, 0.3, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690));
-        Assert.True(pre.IsReadyToCutIn(690, 50, 0.05, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690));
+        Assert.False(pre.IsReadyToCutIn(690, 50, 0.05, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: false));
+        Assert.False(pre.IsReadyToCutIn(690, 50, 0, vBus: 100, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: true));
+        Assert.False(pre.IsReadyToCutIn(600, 50, 0, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: true));
+        Assert.False(pre.IsReadyToCutIn(690, 50.5, 0, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: true));
+        Assert.False(pre.IsReadyToCutIn(690, 50, 0.3, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: true));
+        Assert.True(pre.IsReadyToCutIn(690, 50, 0.05, vBus: 690, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: true));
+        Assert.True(pre.IsReadyToCutIn(138, 50, 0.05, vBus: 138, fBus: 50, thetaBus: 0, vNom: 690,
+            blackStartEnabled: true));
     }
 }

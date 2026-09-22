@@ -332,6 +332,34 @@ public class LiveBusFollowerTests
     }
 
     [Fact]
+    public void PreSyncReady_AtTwentyPercentBus_AllowsCutInWhenBlackStartOn()
+    {
+        const double busV = 138; // 0.2 × 690：旧 0.7 pu 门槛会卡住后机
+        var follower = Create("pcs2");
+        follower.ApplyBlackStartEnabled(true);
+        follower.ApplyIslandVoltageCommand(busV);
+        follower.UpdateGridState(0, 50, false);
+        follower.SyncExternalRunCommand(true);
+        follower.RefreshBlackStartBusContext(busV, 50, 0.1);
+        follower.TransitionToMode(OperationMode.Standby);
+        follower.TransitionToGMode(GridMode.Islanded);
+
+        var t = DateTime.UtcNow;
+        for (int i = 0; i < 10; i++)
+        {
+            t = t.AddMilliseconds(50);
+            follower.RefreshBlackStartBusContext(busV, 50, 0.1);
+            follower.Update(1200, 0, t, TimeSpan.FromMilliseconds(50));
+        }
+
+        Assert.False(follower.IsLiveBusFollower);
+        Assert.Equal(BlackStartPhase.Synchronized, follower.GetBlackStartPhase());
+        Assert.Equal(OperationMode.Normal, follower.GetCurrentState().Mode);
+        Assert.True(follower.TryGetIslandBusVoltageInjection(out var inj, out _));
+        Assert.InRange(inj, 120, 160);
+    }
+
+    [Fact]
     public void PreSyncReady_WithRunCommand_CutsInOnUpdateWithoutMapper()
     {
         var follower = Create("pcs2");

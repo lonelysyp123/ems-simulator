@@ -1,8 +1,12 @@
 namespace EssSimulator.EssDeviceSimModel.Control
 {
-    /// <summary>预同步窗口：母线达到门槛后比较待发 V/f/θ 与母线。</summary>
+    /// <summary>
+    /// 预同步窗口：黑启动使能后比较待发 V/f/θ 与母线。
+    /// 母线最低电压由 PLL（<c>PllEnableVoltagePu</c>）启锁承担，不再另设预同步电压门槛。
+    /// </summary>
     public sealed class PreSyncSupervisor
     {
+        /// <summary>历史配置项，已不参与切入判定；保留以免旧配置报错。</summary>
         public double EnableVoltagePu { get; }
         public double VoltageWindowPu { get; }
         public double FrequencyWindowHz { get; }
@@ -20,8 +24,7 @@ namespace EssSimulator.EssDeviceSimModel.Control
             PhaseWindowRad = Math.Abs(phaseWindowDeg) * Math.PI / 180.0;
         }
 
-        public bool IsPreSyncActive(double busV, double vNom) =>
-            busV >= EnableVoltagePu * Math.Max(vNom, 1.0);
+        public bool IsPreSyncActive(bool blackStartEnabled) => blackStartEnabled;
 
         public bool IsReadyToCutIn(
             double vOwn,
@@ -30,9 +33,10 @@ namespace EssSimulator.EssDeviceSimModel.Control
             double vBus,
             double fBus,
             double thetaBus,
-            double vNom)
+            double vNom,
+            bool blackStartEnabled)
         {
-            if (!IsPreSyncActive(vBus, vNom))
+            if (!IsPreSyncActive(blackStartEnabled))
                 return false;
 
             double vn = Math.Max(vNom, 1.0);

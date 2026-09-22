@@ -39,6 +39,7 @@ namespace EssSimulator.EssDeviceSimModel.Model
         public double PfDroopP0Kw { get; set; }
         public double PllEnableVoltagePu { get; set; } = 0.20;
         public double PllTauSec { get; set; } = 0.10;
+        /// <summary>历史字段：预同步已改为看黑启动使能，不再用母线电压门槛。</summary>
         public double PreSyncEnableVoltagePu { get; set; } = 0.70;
         public double PreSyncVoltageWindowPu { get; set; } = 0.05;
         public double PreSyncFrequencyWindowHz { get; set; } = 0.2;

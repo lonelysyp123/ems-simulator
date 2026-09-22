@@ -365,14 +365,16 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             double enableV = _pllEnableVoltagePu * _config.AcVoltageNominal;
             double busF = _busFrequencyHz > 1 ? _busFrequencyHz : _config.FrequencyNominal;
             _pll.Step(_unitBusVoltageV, busF, _busPhaseRad, enableV, dt);
-            IsPreSyncReadyToCutIn = _pll.Enabled && _preSync.IsReadyToCutIn(
+            // 黑启动已投入 + PLL 已锁 + V/f/θ 窗口；母线电压门槛只由 PLL 启锁承担。
+            IsPreSyncReadyToCutIn = _blackStartEnabled && _pll.Enabled && _preSync.IsReadyToCutIn(
                 _pll.VoltageV,
                 _pll.FrequencyHz,
                 _pll.ThetaRad,
                 _unitBusVoltageV,
                 busF,
                 _busPhaseRad,
-                _config.AcVoltageNominal);
+                _config.AcVoltageNominal,
+                _blackStartEnabled);
             if (_blackStartPhase != BlackStartPhase.Following)
             {
                 _blackStartPhase = BlackStartPhase.Following;

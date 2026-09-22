@@ -109,14 +109,14 @@ namespace EssSimulator.Configuration
         /// <summary>外壳→柜内空气热阻（K/W）。</summary>
         public double ShellToAirResistanceKPerW { get; set; } = 0.015;
 
-        /// <summary>电池等效热容节点→柜内空气热阻（K/W）。</summary>
-        public double BatteryToAirResistanceKPerW { get; set; } = 0.008;
+        /// <summary>电池等效热容节点→柜内空气热阻（K/W）。越小电池越易被柜内冷空气带走热量。</summary>
+        public double BatteryToAirResistanceKPerW { get; set; } = 0.005;
 
         /// <summary>空调制冷功率（W）；0 表示无空调。</summary>
-        public double HvacCoolingPowerW { get; set; } = 0;
+        public double HvacCoolingPowerW { get; set; } = 15000;
 
         /// <summary>空调目标柜温（°C）。</summary>
-        public double HvacSetpointCelsius { get; set; } = 25;
+        public double HvacSetpointCelsius { get; set; } = 20;
 
         /// <summary>运行时是否允许空调工作（仍需 HvacCoolingPowerW&gt;0）。</summary>
         public bool HvacEnabled { get; set; } = true;
@@ -125,7 +125,7 @@ namespace EssSimulator.Configuration
         public double HvacHysteresisCelsius { get; set; } = 2;
 
         /// <summary>比例制冷增益（W/°C），与额定功率取小。</summary>
-        public double HvacProportionalGainWPerK { get; set; } = 800;
+        public double HvacProportionalGainWPerK { get; set; } = 2500;
     }
 
     public class PcsRampConfig
@@ -593,7 +593,7 @@ namespace EssSimulator.Configuration
         /// <summary>PLL 跟踪时间常数（秒）。</summary>
         public double PllTauSec { get; set; } = 0.10;
 
-        /// <summary>预同步使能门槛（相对 Vnom 标幺，通常看主机斜坡/母线）。</summary>
+        /// <summary>历史字段：预同步已改为「黑启动使能 + PLL 锁 + V/f/θ 窗口」，不再用母线电压门槛。</summary>
         public double PreSyncEnableVoltagePu { get; set; } = 0.70;
 
         /// <summary>预同步电压窗口（标幺）。</summary>
