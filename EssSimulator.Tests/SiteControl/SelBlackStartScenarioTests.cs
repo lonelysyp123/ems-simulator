@@ -40,6 +40,7 @@ public class SelBlackStartScenarioTests : SimulatorHostTestBase
             Assert.Equal(50f, pcs.IslandFrequencySetting);
             Assert.False(pcs.pcsOnOffSwitch);
         });
+        Assert.Equal(new ushort[] { 0, 0, 0, 0 }, fixture.ReadReadyRegisters(0));
         fixture.EnablePcsBlackStart();
         Assert.All(fixture.Commands, pcs => Assert.True(pcs.BlackStartEnabled));
         fixture.CloseUnitBreakers();
@@ -93,6 +94,8 @@ public class SelBlackStartScenarioTests : SimulatorHostTestBase
             Assert.InRange(state.AcVoltage, 650, 710);
             Assert.True(state.ReactivePower > 1);
         });
+        fixture.WaitUntilReady(0, new ushort[] { 1, 1, 0, 0 });
+        fixture.WaitUntilReady(1, new ushort[] { 1, 1, 0, 0 });
         Assert.False(fixture.Ess.IsMainBreakerClosed);
     }
 
@@ -113,6 +116,7 @@ public class SelBlackStartScenarioTests : SimulatorHostTestBase
         fixture.StartUnit(0);
         Assert.Equal(OperationMode.Off, fixture.Ess._pcsList[0].GetCurrentState().Mode);
         Assert.False(fixture.Ess._pcsList[0].GetCurrentState().BlackStartEnabled);
+        Assert.Equal(new ushort[] { 0, 0, 0, 0 }, fixture.ReadReadyRegisters(0));
     }
 
     private sealed class ScenarioClock : TimeProvider
@@ -251,6 +255,32 @@ public class SelBlackStartScenarioTests : SimulatorHostTestBase
             for (int slot = 0; slot < 2; slot++)
                 WritePoint(_lcs[unit], LcChannelMap.StartStop(1, slot), 1);
             CycleLc();
+        }
+
+        /// <summary>按 FC4 从 LC 读回本组 4 个「pcs 准备就绪」点（17236 起）。</summary>
+        public ushort[] ReadReadyRegisters(int unit)
+        {
+            var lc = _lcs[unit];
+            var point = lc.PointMap.DataMaps.Single(p => p.ParamName == LcChannelMap.Ready(1, 0));
+            Assert.Equal(17236, point.Address);
+            using var client = new TcpClient("127.0.0.1", lc.Port);
+            using var master = new ModbusFactory().CreateMaster(client);
+            return master.ReadInputRegisters(lc.SlaveId, (ushort)point.Address, 4);
+        }
+
+        /// <summary>EMU 遥测按 100ms 周期刷寄存器，LC 需再抄一拍，故轮询等待。</summary>
+        public void WaitUntilReady(int unit, ushort[] expected, int timeoutMs = 5000)
+        {
+            var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            var actual = ReadReadyRegisters(unit);
+            while (!actual.SequenceEqual(expected) && DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(20);
+                CycleLc();
+                actual = ReadReadyRegisters(unit);
+            }
+
+            Assert.Equal(expected, actual);
         }
 
         public void StepFor(double seconds)

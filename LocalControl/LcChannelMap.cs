@@ -17,6 +17,7 @@ namespace EssSimulator.LocalControl
         public static string IslandF(int n, int k) => $"group_param{76 + 20 * (n - 1) + k}";
         public static string ExtraActivePower(int n, int k) => $"group_param{102 + 8 * (n - 1) + k}";
         public static string ExtraReactivePower(int n, int k) => $"group_param{106 + 8 * (n - 1) + k}";
+        public static string Ready(int n, int k) => $"group_param{118 + 4 * (n - 1) + k}";
     }
 
     /// <summary>组内槽位到本单元扁平 PcsList 下标。</summary>

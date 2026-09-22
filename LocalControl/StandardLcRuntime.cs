@@ -82,6 +82,7 @@ namespace EssSimulator.LocalControl
                     lc.SetDataStoreByMesurePointName(LcChannelMap.Vbc(n, k), snap.Vbc);
                     lc.SetDataStoreByMesurePointName(LcChannelMap.Vca(n, k), snap.Vca);
                     WriteExtraChannelTelemetry(lc, n, k, snap.MeasP, snap.MeasQ);
+                    lc.SetDataStoreByMesurePointName(LcChannelMap.Ready(n, k), IsPcsReady(snap) ? 1 : 0);
                 }
             }
 
@@ -396,13 +397,23 @@ namespace EssSimulator.LocalControl
                 ReadParamOrDefault(emu, proto.BlackStart),
                 ReadParamOrDefault(emu, proto.StartStop),
                 ReadParamOrDefault(emu, proto.MeasActivePower),
-                ReadParamOrDefault(emu, proto.MeasReactivePower));
+                ReadParamOrDefault(emu, proto.MeasReactivePower),
+                ReadParamOrDefault(emu, proto.IslandV));
         }
 
         private readonly record struct ChannelSnapshot(
             object Fault, object Alarm, object Status, object Freq,
             object Vab, object Vbc, object Vca,
-            object BlackStart, object StartStop, object MeasP, object MeasQ);
+            object BlackStart, object StartStop, object MeasP, object MeasQ,
+            object IslandVSet);
+
+        private static bool IsPcsReady(in ChannelSnapshot snap) =>
+            LcPcsReady.IsReady(
+                ModbusValueConverter.ToDouble(snap.BlackStart) != 0,
+                ModbusValueConverter.ToDouble(snap.IslandVSet),
+                ModbusValueConverter.ToDouble(snap.Vab),
+                ModbusValueConverter.ToDouble(snap.Vbc),
+                ModbusValueConverter.ToDouble(snap.Vca));
 
         private void ApplyControls(
             Func<string, ModbusSimServer?> resolveEmu,
@@ -573,6 +584,7 @@ namespace EssSimulator.LocalControl
             lc.SetDataStoreByMesurePointName(LcChannelMap.Vbc(n, k), 0);
             lc.SetDataStoreByMesurePointName(LcChannelMap.Vca(n, k), 0);
             WriteExtraChannelTelemetry(lc, n, k, 0, 0);
+            lc.SetDataStoreByMesurePointName(LcChannelMap.Ready(n, k), 0);
         }
 
         /// <summary>

@@ -28,6 +28,15 @@ public class LcChannelMapTests
     }
 
     [Fact]
+    public void Ready_DoesNotCollideWithExtraPowerNames()
+    {
+        Assert.Equal("group_param118", LcChannelMap.Ready(1, 0));
+        Assert.Equal("group_param121", LcChannelMap.Ready(1, 3));
+        Assert.Equal("group_param122", LcChannelMap.Ready(2, 0));
+        Assert.Equal("group_param125", LcChannelMap.Ready(2, 3));
+    }
+
+    [Fact]
     public void Voltage_SlotOffsets()
     {
         Assert.Equal("group_param20", LcChannelMap.Vab(1, 0));
@@ -58,6 +67,24 @@ public class LcChannelMapTests
         Assert.Contains(LcChannelMap.IslandF(2, 3), names);
         Assert.Contains(LcChannelMap.ExtraActivePower(1, 0), names);
         Assert.Contains(LcChannelMap.ExtraReactivePower(2, 3), names);
+        Assert.Contains(LcChannelMap.Ready(1, 0), names);
+        Assert.Contains(LcChannelMap.Ready(2, 3), names);
+    }
+
+    [Fact]
+    public void Ready_Group1_OccupiesAddresses236To239()
+    {
+        var path = Path.Combine(FindRepoRoot(), "pointmaps", "models", "lc", "group", "lc.csv");
+        var ready = LcPointMapExpander.ExpandFile(path, 2)
+            .Where(e => e.ParamName == LcChannelMap.Ready(1, 0)
+                     || e.ParamName == LcChannelMap.Ready(1, 3)
+                     || e.ParamName == LcChannelMap.Ready(2, 0))
+            .Select(e => (e.ParamName, e.FunctionCode, e.Address))
+            .ToList();
+
+        Assert.Contains(("group_param118", 4, 17236), ready);
+        Assert.Contains(("group_param121", 4, 17239), ready);
+        Assert.Contains(("group_param122", 4, 17536), ready);
     }
 
     [Fact]
