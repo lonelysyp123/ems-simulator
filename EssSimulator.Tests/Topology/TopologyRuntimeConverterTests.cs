@@ -301,6 +301,31 @@ public class TopologyRuntimeConverterTests
         Assert.Contains(overlay.Notes, n => n.Contains("光伏单元") && n.Contains("已展开"));
     }
 
+    [Theory]
+    [InlineData(null, 200d)]
+    [InlineData(100d, 100d)]
+    [InlineData(0d, 0d)]
+    public void Convert_reads_pv_inverter_rated_reactive_power(double? configured, double expected)
+    {
+        var parameters = new Dictionary<string, object?>(TopologyTemplates.Get("pv_unit")!.DefaultParameters)
+        {
+            ["inverterRatedPowerKw"] = 200d
+        };
+        if (configured.HasValue)
+            parameters["inverterRatedReactivePowerKvar"] = configured.Value;
+        var project = new TopologyProject
+        {
+            Nodes =
+            {
+                new TopologyNode { Id = "pv1", TemplateId = "pv_unit", Parameters = parameters }
+            }
+        };
+
+        var (overlay, validation) = TopologyRuntimeConverter.Convert(project);
+        Assert.True(validation.Ok, validation.Message);
+        Assert.Equal(expected, overlay!.PvUnits[0].InverterRatedReactivePowerKvar);
+    }
+
     [Fact]
     public void Convert_reads_pv_unit_inverter_count_from_node_parameters()
     {

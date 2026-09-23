@@ -127,6 +127,7 @@ public class PointMapPathResolverSelectionTests : IDisposable
     [InlineData("bms_rack.csv", "bms")]
     [InlineData("pv_logger.csv", "pv")]
     [InlineData("pv_apm810.csv", "pv")]
+    [InlineData("pv_inverter.csv", "pv")]
     public void Resolve_RuntimeLogicalName_HitsModelsDirectory(string fileName, string typeId)
     {
         var resolved = Path.GetFullPath(PointMapPathResolver.Resolve(fileName));
@@ -134,6 +135,30 @@ public class PointMapPathResolverSelectionTests : IDisposable
         Assert.EndsWith(fileName, resolved);
         Assert.True(File.Exists(resolved));
         AssertNotRootCopy(resolved, fileName);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Resolve_PvInverter_WithOrWithoutSelection_LoadsBindableStandardMap(bool selected)
+    {
+        if (selected)
+            DeviceModelRegistry.SaveSelection(new DeviceModelSelection
+            {
+                Selections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pv"] = "standard"
+                }
+            });
+
+        var resolved = PointMapPathResolver.Resolve("pv_inverter.csv");
+        Assert.Contains(Path.Combine("pointmaps", "models", "pv", "standard"), resolved);
+        Assert.True(File.Exists(resolved));
+        AssertNotRootCopy(resolved, "pv_inverter.csv");
+
+        var map = new ModbusPointMap("pv_inverter.csv", "simPvInv17",
+            pvDeviceIdOverride: 2, inverterIndex: 0);
+        Assert.Equal("pv2.Inverters[0].Protocol.ActivePowerW", map.ParamModelLookup["yc14"].Arg1);
     }
 
     [Fact]

@@ -6,6 +6,8 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public int ModulesPerString { get; init; } = PvStringSimulator.DefaultModuleCount;
         public int StringCount { get; init; } = 16;
         public double RatedPowerKw { get; init; } = 320;
+        // 未配置时沿用额定有功数值作为仿真缺省，不代表厂家铭牌值。
+        public double? RatedReactivePowerKvar { get; init; }
         public double MaxPowerKw { get; init; } = 352;
         public double Efficiency { get; init; } = 0.99;
         public double DcVoltageRangeMinV { get; init; } = 500;

@@ -35,7 +35,9 @@ namespace EssSimulator.Protocol.Modbus
         public ModbusPointMap(
             IReadOnlyList<MapEntry> entries,
             string serverName,
-            int? emuDeviceIdOverride = null)
+            int? emuDeviceIdOverride = null,
+            int? pvDeviceIdOverride = null,
+            int? inverterIndex = null)
         {
             var arr = entries?.ToArray() ?? Array.Empty<MapEntry>();
             ApplyDeviceIdSubstitution(
@@ -43,7 +45,9 @@ namespace EssSimulator.Protocol.Modbus
                 serverName,
                 isEmu: serverName.Contains("Emu", StringComparison.OrdinalIgnoreCase),
                 emuDeviceIdOverride,
-                pcsIndex: 0);
+                pcsIndex: 0,
+                pvDeviceIdOverride,
+                inverterIndex);
             IndexBankEntries(arr);
             RawMaps.Add(arr);
         }
@@ -100,7 +104,9 @@ namespace EssSimulator.Protocol.Modbus
             int clusterCount = 0,
             int? emuDeviceIdOverride = null,
             int lcGroupCount = 2,
-            int pcsIndex = 0)
+            int pcsIndex = 0,
+            int? pvDeviceIdOverride = null,
+            int? inverterIndex = null)
         {
             var resolvedPath = PointMapPathResolver.Resolve(mapFilePath);
             var entries = LoadBankEntries(resolvedPath, lcGroupCount);
@@ -110,7 +116,9 @@ namespace EssSimulator.Protocol.Modbus
                 serverName,
                 isEmu: serverName.Contains("Emu", StringComparison.OrdinalIgnoreCase),
                 emuDeviceIdOverride,
-                pcsIndex);
+                pcsIndex,
+                pvDeviceIdOverride,
+                inverterIndex);
 
             IndexBankEntries(entries);
             RawMaps.Add(entries);
@@ -195,8 +203,27 @@ namespace EssSimulator.Protocol.Modbus
             string name,
             bool isEmu,
             int? emuDeviceIdOverride = null,
-            int pcsIndex = 0)
+            int pcsIndex = 0,
+            int? pvDeviceIdOverride = null,
+            int? inverterIndex = null)
         {
+            if (pvDeviceIdOverride is <= 0)
+                throw new ArgumentOutOfRangeException(nameof(pvDeviceIdOverride), "光伏单元编号必须大于 0");
+            if (inverterIndex is < 0)
+                throw new ArgumentOutOfRangeException(nameof(inverterIndex), "逆变器下标不能为负数");
+            if (entries.Any(e => e.ModelSim?.Contains("inverterIndex", StringComparison.Ordinal) == true)
+                && (!pvDeviceIdOverride.HasValue || !inverterIndex.HasValue))
+                throw new ArgumentException("逆变器点表必须显式指定光伏单元编号和单元内逆变器下标");
+
+            // 单机服务编号不是光伏单元编号，显式绑定不能依赖服务名中的数字。
+            foreach (var e in entries)
+            {
+                if (pvDeviceIdOverride is int pvId)
+                    e.ModelSim = e.ModelSim?.Replace("pvDeviceId", $"pv{pvId}", StringComparison.Ordinal);
+                if (inverterIndex is int invIndex)
+                    e.ModelSim = e.ModelSim?.Replace("inverterIndex", invIndex.ToString(), StringComparison.Ordinal);
+            }
+
             if (!int.TryParse(new string(name.Where(char.IsDigit).ToArray()), out int deviceId))
                 return;
 

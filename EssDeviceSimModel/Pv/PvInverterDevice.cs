@@ -10,23 +10,25 @@ namespace EssSimulator.EssDeviceSimModel.Pv
     {
         public const int DefaultStringCount = 16;
 
-        /// <summary>6 路 MPPT 上的组串分配：3+3+3+3+2+2 = 16。</summary>
-        private static readonly int[] StringsPerMppt = { 3, 3, 3, 3, 2, 2 };
+        private const int MpptCount = 6;
 
         private readonly PvInverterConfig _config;
         private readonly PvStringSimulator[] _strings;
         private readonly PcsState _state = new();
         private readonly GridState _grid = new();
+        private readonly PvModuleOperatingPoint[] _stringPoints;
+        private readonly double[] _stringAvailablePowerW;
+        private readonly double[] _stringVoltageV;
         private readonly double[] _stringCurrents;
         private readonly double[] _mpptVoltage;
         private readonly double[] _mpptCurrent;
+        private readonly object _commandGate = new();
 
         private bool _runCommand;
         private double _pendingActiveKw;
         private double _pendingReactiveKvar;
         private double _rampedActiveKw;
         private double _rampedReactiveKvar;
-        private bool _rampStop;
         private bool _dcOvervoltage;
         private bool _dcUndervoltage;
 
@@ -34,15 +36,21 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         {
             DeviceId = deviceId;
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            if (_config.RatedReactivePowerKvar is double ratedQ && (!double.IsFinite(ratedQ) || ratedQ < 0))
+                throw new ArgumentOutOfRangeException(nameof(config), "额定无功必须是非负有限值");
             var cell = module ?? PvModuleSimulator.CreateNeg21c20q();
             _strings = new PvStringSimulator[_config.StringCount];
             for (int i = 0; i < _strings.Length; i++)
                 _strings[i] = new PvStringSimulator(cell, _config.ModulesPerString);
+            _stringPoints = new PvModuleOperatingPoint[_config.StringCount];
+            _stringAvailablePowerW = new double[_config.StringCount];
+            _stringVoltageV = new double[_config.StringCount];
             _stringCurrents = new double[_config.StringCount];
-            _mpptVoltage = new double[StringsPerMppt.Length];
-            _mpptCurrent = new double[StringsPerMppt.Length];
+            _mpptVoltage = new double[MpptCount];
+            _mpptCurrent = new double[MpptCount];
             _pendingActiveKw = _config.RatedPowerKw;
             DisplayLabel = deviceId;
+            Protocol = new PvInverterProtocolData(this);
         }
 
         public static PvInverterDevice Create320kW(string deviceId) =>
@@ -54,6 +62,8 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public int ModulesPerString => _config.ModulesPerString;
         public int TotalModuleCount => StringCount * ModulesPerString;
         public double RatedPowerKw => _config.RatedPowerKw;
+        public double RatedReactivePowerKvar => _config.RatedReactivePowerKvar ?? _config.RatedPowerKw;
+        public PvInverterProtocolData Protocol { get; }
         public double AvailableDcPowerKw { get; private set; }
         public IReadOnlyList<double> StringCurrentsA => _stringCurrents;
         public IReadOnlyList<double> MpptVoltageV => _mpptVoltage;
@@ -83,35 +93,54 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         public PcsState GetCurrentState() => _state;
 
+        public bool IsExternalRunCommand
+        {
+            get { lock (_commandGate) return _runCommand; }
+        }
+
+        public double ActivePowerSettingKw
+        {
+            get { lock (_commandGate) return _pendingActiveKw; }
+            set { lock (_commandGate) _pendingActiveKw = Math.Clamp(value, 0, _config.MaxPowerKw); }
+        }
+
+        public double ReactivePowerSettingKvar
+        {
+            get { lock (_commandGate) return _pendingReactiveKvar; }
+            set { lock (_commandGate) _pendingReactiveKvar = Math.Clamp(value, -_config.MaxPowerKw, _config.MaxPowerKw); }
+        }
+
         public void SyncExternalRunCommand(bool run)
         {
-            bool rising = run && !_runCommand;
-            if (!run && _state.Mode != OperationMode.Off)
-                TransitionToMode(OperationMode.Off);
-            if (rising)
+            lock (_commandGate)
             {
-                _pendingActiveKw = _config.RatedPowerKw;
-                _rampStop = false;
+                _runCommand = run;
+                TransitionToMode(run ? OperationMode.Normal : OperationMode.Off);
             }
-            _runCommand = run;
         }
 
         public void TransitionToMode(OperationMode newMode)
         {
-            if (_state.Mode == newMode)
-                return;
-            _state.Mode = newMode;
-            if (newMode != OperationMode.Normal)
-                StopRampsAndZeroPower();
+            lock (_commandGate)
+            {
+                if (_state.Mode == newMode)
+                    return;
+                _state.Mode = newMode;
+                if (newMode != OperationMode.Normal)
+                    StopRampsAndZeroPower();
+            }
         }
 
         public void UpdateGridState(double voltage, double frequency, bool isUtilityGridAvailable)
         {
-            _grid.Voltage = voltage / (1 - _config.GridLossCoefficient);
-            _grid.Frequency = frequency;
-            _grid.IsAvailable = isUtilityGridAvailable;
-            if (!isUtilityGridAvailable)
-                StopRampsAndZeroPower();
+            lock (_commandGate)
+            {
+                _grid.Voltage = voltage / (1 - _config.GridLossCoefficient);
+                _grid.Frequency = frequency;
+                _grid.IsAvailable = isUtilityGridAvailable;
+                if (!isUtilityGridAvailable)
+                    StopRampsAndZeroPower();
+            }
         }
 
         /// <summary>
@@ -120,36 +149,48 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         /// </summary>
         public void SetPowerCommand(double activePowerKw, double reactivePowerKvar = 0)
         {
-            _pendingActiveKw = Math.Clamp(activePowerKw, 0, _config.MaxPowerKw);
-            _pendingReactiveKvar = Math.Clamp(reactivePowerKvar, -_config.MaxPowerKw, _config.MaxPowerKw);
-            _rampStop = false;
+            lock (_commandGate)
+            {
+                _pendingActiveKw = Math.Clamp(activePowerKw, 0, _config.MaxPowerKw);
+                _pendingReactiveKvar = Math.Clamp(reactivePowerKvar, -_config.MaxPowerKw, _config.MaxPowerKw);
+            }
         }
 
         public void Update(double gFrontWm2, double cellTempC, DateTime timeStamp, TimeSpan timeStep, double gRearWm2 = 0)
         {
-            if (_state.Timestamp.Date != timeStamp.Date)
-                _state.DailyDischargeEnergy = 0;
-            _state.Timestamp = timeStamp;
+            lock (_commandGate)
+            {
+                if (_state.Timestamp.Date != timeStamp.Date)
+                    _state.DailyDischargeEnergy = 0;
+                _state.Timestamp = timeStamp;
 
-            EvaluateArray(gFrontWm2, cellTempC, gRearWm2);
-            AvailableDcPowerKw *= ColdTemperatureScale(cellTempC);
+                EvaluateArray(gFrontWm2, cellTempC, gRearWm2);
+                AvailableDcPowerKw *= ColdTemperatureScale(cellTempC);
 
-            bool canRun = _runCommand && _grid.IsAvailable && _state.Mode == OperationMode.Normal;
-            double availableAcKw = AvailableDcPowerKw * _config.Efficiency;
-            double pTarget = canRun ? Math.Min(_pendingActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw)) : 0;
-            double qTarget = canRun ? _pendingReactiveKvar : 0;
-            ClampApparent(ref pTarget, ref qTarget, _config.RatedPowerKw * 1.1);
+                bool canRun = _runCommand && _grid.IsAvailable && _state.Mode == OperationMode.Normal;
+                double availableAcKw = AvailableDcPowerKw * _config.Efficiency;
+                double pTarget = canRun ? Math.Min(_pendingActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw)) : 0;
+                double qTarget = canRun ? _pendingReactiveKvar : 0;
+                ClampApparent(ref pTarget, ref qTarget, _config.RatedPowerKw * 1.1);
 
-            AdvanceRamp(pTarget, qTarget, timeStep);
+                if (canRun)
+                {
+                    AdvanceRamp(pTarget, qTarget, timeStep);
+                    _rampedActiveKw = Math.Min(_rampedActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw));
+                }
+                else
+                    StopRampsAndZeroPower();
 
-            _state.ActivePower = canRun ? _rampedActiveKw : 0;
-            _state.ReactivePower = canRun ? _rampedReactiveKvar : 0;
-            if (_state.ActivePower < 0)
-                _state.ActivePower = 0;
+                _state.ActivePower = canRun ? _rampedActiveKw : 0;
+                _state.ReactivePower = canRun ? _rampedReactiveKvar : 0;
+                if (_state.ActivePower < 0)
+                    _state.ActivePower = 0;
 
-            ApplyElectrical(canRun, cellTempC);
-            AccumulateEnergy(timeStep);
-            LimitReason = ClassifyLimitReason(gFrontWm2, cellTempC, availableAcKw);
+                ApplyDcOperatingPoints(gFrontWm2, cellTempC, gRearWm2);
+                ApplyElectrical(canRun, cellTempC);
+                AccumulateEnergy(timeStep);
+                LimitReason = ClassifyLimitReason(gFrontWm2, cellTempC, availableAcKw);
+            }
         }
 
         private string ClassifyLimitReason(double gFrontWm2, double cellTempC, double availableAcKw)
@@ -179,24 +220,16 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             _dcOvervoltage = false;
             _dcUndervoltage = false;
             double pDcW = 0;
-            double vOpSum = 0;
-            int live = 0;
             for (int i = 0; i < _strings.Length; i++)
             {
                 var s = _strings[i].Evaluate(gFront, cellTemp, gRear);
-                var (pW, vOp, iOp) = ConstrainStringToDcWindow(s, gFront, cellTemp, gRear);
-                _stringCurrents[i] = iOp;
+                _stringPoints[i] = s;
+                var (pW, _, _) = ConstrainStringToDcWindow(s, gFront, cellTemp, gRear);
+                _stringAvailablePowerW[i] = pW;
                 pDcW += pW;
-                if (vOp > 1)
-                {
-                    vOpSum += vOp;
-                    live++;
-                }
             }
 
             AvailableDcPowerKw = pDcW / 1000.0;
-            _state.DcVoltage = live > 0 ? vOpSum / live : 0;
-            FillMppt(gFront, cellTemp, gRear);
         }
 
         private (double PowerW, double VoltageV, double CurrentA) ConstrainStringToDcWindow(
@@ -244,27 +277,60 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             return (cellTempC - cut) / (full - cut);
         }
 
-        private void FillMppt(double gFront, double cellTemp, double gRear)
+        private void ApplyDcOperatingPoints(double gFront, double cellTemp, double gRear)
         {
-            int offset = 0;
-            for (int m = 0; m < StringsPerMppt.Length; m++)
+            double availableW = _stringAvailablePowerW.Sum();
+            double targetW = _state.ActivePower * 1000 / _config.Efficiency;
+            double powerFraction = availableW > 0 ? Math.Clamp(targetW / availableW, 0, 1) : 0;
+            double actualW = 0;
+            double totalCurrent = 0;
+            for (int i = 0; i < _strings.Length; i++)
             {
-                int n = StringsPerMppt[m];
+                var point = _stringPoints[i];
+                double stringTargetW = _stringAvailablePowerW[i] * powerFraction;
+                double voltage = point.VocV;
+                double current = 0;
+                if (stringTargetW > 0)
+                {
+                    // 限发沿 I-V 高压支路移向开路点，不能在固定电压下缩放光生电流。
+                    double lo = point.VmpV;
+                    double hi = point.VocV;
+                    for (int step = 0; step < 48; step++)
+                    {
+                        double mid = (lo + hi) / 2;
+                        double power = mid * _strings[i].CurrentAtVoltage(mid, gFront, cellTemp, gRear);
+                        if (power > stringTargetW)
+                            lo = mid;
+                        else
+                            hi = mid;
+                    }
+                    voltage = (lo + hi) / 2;
+                    current = _strings[i].CurrentAtVoltage(voltage, gFront, cellTemp, gRear);
+                }
+                _stringVoltageV[i] = voltage;
+                _stringCurrents[i] = current;
+                actualW += voltage * current;
+                totalCurrent += current;
+            }
+
+            _state.ActivePower = actualW * _config.Efficiency / 1000;
+            _state.DcCurrent = totalCurrent;
+            _state.DcVoltage = totalCurrent > 0 ? actualW / totalCurrent
+                : _strings.Length > 0 ? _stringVoltageV.Average() : 0;
+
+            int offset = 0;
+            for (int m = 0; m < MpptCount; m++)
+            {
+                int n = _strings.Length / MpptCount + (m < _strings.Length % MpptCount ? 1 : 0);
                 double iSum = 0;
                 double vSum = 0;
-                int live = 0;
-                for (int k = 0; k < n && offset + k < _strings.Length; k++)
+                for (int k = 0; k < n; k++)
                 {
-                    var s = _strings[offset + k].Evaluate(gFront, cellTemp, gRear);
-                    iSum += s.ImpA;
-                    if (s.VmpV > 1)
-                    {
-                        vSum += s.VmpV;
-                        live++;
-                    }
+                    iSum += _stringCurrents[offset + k];
+                    vSum += _stringVoltageV[offset + k];
                 }
                 _mpptCurrent[m] = iSum;
-                _mpptVoltage[m] = live > 0 ? vSum / live : 0;
+                _mpptVoltage[m] = n > 0 ? vSum / n : 0;
                 offset += n;
             }
         }
@@ -272,35 +338,15 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         private void ApplyElectrical(bool canRun, double cellTempC)
         {
             _state.Temperature = cellTempC;
-            if (!canRun || _state.ActivePower <= 1e-6)
-            {
-                _state.DcCurrent = 0;
-                _state.AcCurrent = 0;
-                _state.AcVoltage = 0;
-                _state.Frequency = 0;
-                if (!canRun)
-                    _state.ActivePower = 0;
-                return;
-            }
-
-            double dcPowerKw = _state.ActivePower / _config.Efficiency;
-            _state.DcCurrent = _state.DcVoltage > 1 ? dcPowerKw * 1000 / _state.DcVoltage : 0;
-            _state.AcVoltage = _grid.Voltage * (1 - _config.GridLossCoefficient);
-            _state.Frequency = _grid.Frequency;
+            _state.AcVoltage = _grid.IsAvailable ? _grid.Voltage * (1 - _config.GridLossCoefficient) : 0;
+            _state.Frequency = _grid.IsAvailable ? _grid.Frequency : 0;
             double s = Math.Sqrt(_state.ActivePower * _state.ActivePower + _state.ReactivePower * _state.ReactivePower);
-            double iMag = s * 1000 / (Math.Max(_state.AcVoltage, 10) * Math.Sqrt(3));
+            double iMag = canRun && _state.AcVoltage > 1 ? s * 1000 / (_state.AcVoltage * Math.Sqrt(3)) : 0;
             _state.AcCurrent = -iMag;
         }
 
         private void AdvanceRamp(double pTarget, double qTarget, TimeSpan timeStep)
         {
-            if (_rampStop)
-            {
-                _rampedActiveKw = 0;
-                _rampedReactiveKvar = 0;
-                return;
-            }
-
             double maxDelta = ComputeRampMaxDelta(timeStep);
             _rampedActiveKw = MoveToward(_rampedActiveKw, pTarget, maxDelta);
             _rampedReactiveKvar = MoveToward(_rampedReactiveKvar, qTarget, maxDelta);
@@ -335,13 +381,13 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         private void StopRampsAndZeroPower()
         {
-            _pendingActiveKw = 0;
-            _pendingReactiveKvar = 0;
             _rampedActiveKw = 0;
             _rampedReactiveKvar = 0;
-            _rampStop = true;
             _state.ActivePower = 0;
             _state.ReactivePower = 0;
+            _state.DcCurrent = 0;
+            Array.Clear(_stringCurrents);
+            Array.Clear(_mpptCurrent);
         }
 
         private void AccumulateEnergy(TimeSpan step)

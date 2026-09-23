@@ -217,6 +217,137 @@ public class PvUnitDeviceTests
         Assert.InRange(unit.ArrayB.RearWm2, 134, 136);
     }
 
+    [Fact]
+    public void SingleInverterCommand_DoesNotChangeSiblingOrLoggerCommand()
+    {
+        var unit = StartPair();
+        unit.Logger.SubarrayActivePowerKw = 400;
+        unit.Logger.SubarrayReactivePowerKvar = 40;
+        unit.Inverters[0].SetPowerCommand(80, -10);
+        for (int i = 0; i < 3; i++)
+            unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1));
+
+        Assert.Equal(80, unit.Inverters[0].ActivePowerSettingKw);
+        Assert.Equal(-10, unit.Inverters[0].ReactivePowerSettingKvar);
+        Assert.Equal(200, unit.Inverters[1].ActivePowerSettingKw);
+        Assert.Equal(20, unit.Inverters[1].ReactivePowerSettingKvar);
+        Assert.Equal(400, unit.Logger.SubarrayActivePowerKw);
+        Assert.Equal(40, unit.Logger.SubarrayReactivePowerKvar);
+        Assert.Equal(280000, unit.Logger.TotalActivePowerW, 6);
+        Assert.Equal(10000, unit.Logger.TotalReactivePowerVar, 6);
+    }
+
+    [Fact]
+    public void LoggerActiveCommand_PreservesIndividualReactiveSettings()
+    {
+        var unit = StartPair();
+        unit.Inverters[0].SetPowerCommand(80, -25);
+        unit.Inverters[1].SetPowerCommand(90, 30);
+        unit.Logger.SubarrayActivePowerKw = 200;
+
+        Assert.All(unit.Inverters, inv => Assert.Equal(100, inv.ActivePowerSettingKw));
+        Assert.Equal(-25, unit.Inverters[0].ReactivePowerSettingKvar);
+        Assert.Equal(30, unit.Inverters[1].ReactivePowerSettingKvar);
+        Assert.Equal(0, unit.Logger.SubarrayReactivePowerKvar);
+    }
+
+    [Fact]
+    public void LoggerReactiveCommand_PreservesIndividualActiveSettings()
+    {
+        var unit = StartPair();
+        unit.Inverters[0].SetPowerCommand(80, -25);
+        unit.Inverters[1].SetPowerCommand(90, 30);
+        unit.Logger.SubarrayReactivePowerKvar = -40;
+
+        Assert.All(unit.Inverters, inv => Assert.Equal(-20, inv.ReactivePowerSettingKvar));
+        Assert.Equal(80, unit.Inverters[0].ActivePowerSettingKw);
+        Assert.Equal(90, unit.Inverters[1].ActivePowerSettingKw);
+        Assert.Equal(unit.RatedPowerKw, unit.Logger.SubarrayActivePowerKw);
+    }
+
+    [Fact]
+    public void SingleStopAndGroupRestart_PreserveIndividualPowerSettings()
+    {
+        var unit = StartPair();
+        unit.Inverters[0].SetPowerCommand(80, -25);
+        unit.Inverters[1].SetPowerCommand(90, 30);
+        unit.Inverters[0].SyncExternalRunCommand(false);
+        unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1));
+
+        Assert.False(unit.Inverters[0].IsExternalRunCommand);
+        Assert.True(unit.Inverters[1].IsExternalRunCommand);
+        Assert.Equal(1, unit.Logger.SubarrayOnOff);
+        Assert.Equal(90, unit.ActivePowerKw, 6);
+
+        unit.Logger.SubarrayOnOff = 0;
+        Assert.All(unit.Inverters, inv => Assert.False(inv.IsExternalRunCommand));
+        unit.Logger.SubarrayOnOff = 1;
+        unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1));
+
+        Assert.All(unit.Inverters, inv => Assert.True(inv.IsExternalRunCommand));
+        Assert.Equal(80, unit.Inverters[0].ActivePowerSettingKw);
+        Assert.Equal(-25, unit.Inverters[0].ReactivePowerSettingKvar);
+        Assert.Equal(90, unit.Inverters[1].ActivePowerSettingKw);
+        Assert.Equal(30, unit.Inverters[1].ReactivePowerSettingKvar);
+        Assert.Equal(170, unit.ActivePowerKw, 6);
+        Assert.Equal(5, unit.ReactivePowerKvar, 6);
+    }
+
+    [Fact]
+    public void LoggerPercentCommands_UpdateOnlyRequestedPowerChannel()
+    {
+        var unit = StartPair();
+        unit.Inverters[0].ReactivePowerSettingKvar = -25;
+        unit.Inverters[1].ReactivePowerSettingKvar = 30;
+        unit.Logger.SubarrayActivePowerPercent = 50;
+        Assert.All(unit.Inverters, inv => Assert.Equal(160, inv.ActivePowerSettingKw));
+        Assert.Equal(-25, unit.Inverters[0].ReactivePowerSettingKvar);
+        Assert.Equal(30, unit.Inverters[1].ReactivePowerSettingKvar);
+
+        unit.Inverters[0].ActivePowerSettingKw = 80;
+        unit.Logger.SubarrayReactivePowerPercent = -25;
+        Assert.All(unit.Inverters, inv => Assert.Equal(-80, inv.ReactivePowerSettingKvar));
+        Assert.Equal(80, unit.Inverters[0].ActivePowerSettingKw);
+        Assert.Equal(160, unit.Inverters[1].ActivePowerSettingKw);
+        Assert.Equal(-160, unit.Logger.SubarrayReactivePowerKvar);
+        Assert.Equal(-25, unit.Logger.SubarrayReactivePowerPercent);
+    }
+
+    [Fact]
+    public void LoggerPowerFactorCommand_DoesNotOverwriteIndividualActiveSettings()
+    {
+        var unit = StartPair();
+        unit.Logger.SubarrayActivePowerKw = 200;
+        unit.Inverters[0].ActivePowerSettingKw = 80;
+        unit.Logger.SubarrayPowerFactor = -0.8;
+
+        Assert.Equal(80, unit.Inverters[0].ActivePowerSettingKw);
+        Assert.Equal(100, unit.Inverters[1].ActivePowerSettingKw);
+        Assert.All(unit.Inverters, inv => Assert.Equal(-75, inv.ReactivePowerSettingKvar, 6));
+    }
+
+    [Fact]
+    public void ConcurrentGroupActiveAndSingleReactiveCommands_PreserveBoth()
+    {
+        var unit = StartPair();
+        Parallel.Invoke(
+            () => { for (int i = 0; i < 100; i++) unit.Logger.SubarrayActivePowerKw = 200; },
+            () => { for (int i = 0; i < 100; i++) unit.Inverters[0].ReactivePowerSettingKvar = -25; });
+
+        Assert.All(unit.Inverters, inv => Assert.Equal(100, inv.ActivePowerSettingKw));
+        Assert.Equal(-25, unit.Inverters[0].ReactivePowerSettingKvar);
+        Assert.Equal(0, unit.Inverters[1].ReactivePowerSettingKvar);
+        Assert.Equal(200, unit.Logger.SubarrayActivePowerKw);
+    }
+
+    private static PvUnitDevice StartPair()
+    {
+        var unit = new PvUnitDevice("pv1", new PvUnitConfig { InverterCount = 2 });
+        unit.Logger.SubarrayOnOff = 1;
+        unit.UpdateGridState(690, 50, true);
+        return unit;
+    }
+
     private static PvUnitDevice StartDefault()
     {
         var unit = PvUnitDevice.CreateDefault("pv_unit1");

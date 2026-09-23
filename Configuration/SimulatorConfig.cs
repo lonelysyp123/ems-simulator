@@ -395,6 +395,7 @@ namespace EssSimulator.Configuration
         public int StringCount { get; set; } = 16;
         public int ModulesPerString { get; set; } = 30;
         public double InverterRatedPowerKw { get; set; } = 320;
+        public double? InverterRatedReactivePowerKvar { get; set; }
         public double InverterMaxPowerKw { get; set; } = 352;
         public double InverterEfficiency { get; set; } = 0.99;
         public double InverterAcVoltageV { get; set; } = 690;

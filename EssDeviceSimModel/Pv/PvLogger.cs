@@ -8,6 +8,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public const int ForwardedDeviceCount = 25;
 
         private readonly PvUnitDevice _unit;
+        private readonly object _commandGate = new();
         private DateTime _stamp;
         private double _activePercent = 100;
         private double _reactivePercent;
@@ -65,69 +66,80 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         public ushort SubarrayOnOff
         {
-            get => _onOff;
+            get { lock (_commandGate) return _onOff; }
             set
             {
-                _onOff = (ushort)(value != 0 ? 1 : 0);
-                bool on = _onOff != 0;
-                _unit.SyncExternalRunCommand(on);
-                _unit.TransitionToMode(on ? OperationMode.Normal : OperationMode.Off);
+                lock (_commandGate)
+                {
+                    _onOff = (ushort)(value != 0 ? 1 : 0);
+                    _unit.SyncExternalRunCommand(_onOff != 0);
+                }
             }
         }
 
         public double SubarrayActivePowerKw
         {
-            get => _activeKwSet;
+            get { lock (_commandGate) return _activeKwSet; }
             set
             {
-                _activeKwSet = Math.Clamp(value, 0, _unit.RatedPowerKw);
-                _activePercent = _unit.RatedPowerKw > 0 ? _activeKwSet / _unit.RatedPowerKw * 100 : 0;
-                _unit.SetPowerCommand(_activeKwSet, _reactiveKvarSet);
+                lock (_commandGate)
+                {
+                    _activeKwSet = Math.Clamp(value, 0, _unit.RatedPowerKw);
+                    _activePercent = _unit.RatedPowerKw > 0 ? _activeKwSet / _unit.RatedPowerKw * 100 : 0;
+                    _unit.SetActivePowerCommand(_activeKwSet);
+                }
             }
         }
 
         public double SubarrayActivePowerPercent
         {
-            get => _activePercent;
+            get { lock (_commandGate) return _activePercent; }
             set
             {
-                _activePercent = Math.Clamp(value, 0, 100);
-                SubarrayActivePowerKw = _unit.RatedPowerKw * _activePercent / 100.0;
+                lock (_commandGate)
+                    SubarrayActivePowerKw = _unit.RatedPowerKw * Math.Clamp(value, 0, 100) / 100.0;
             }
         }
 
         public double SubarrayReactivePowerKvar
         {
-            get => _reactiveKvarSet;
+            get { lock (_commandGate) return _reactiveKvarSet; }
             set
             {
-                _reactiveKvarSet = Math.Clamp(value, -_unit.RatedPowerKw, _unit.RatedPowerKw);
-                _unit.SetPowerCommand(_activeKwSet, _reactiveKvarSet);
+                lock (_commandGate)
+                {
+                    _reactiveKvarSet = Math.Clamp(value, -_unit.RatedPowerKw, _unit.RatedPowerKw);
+                    _reactivePercent = _unit.RatedPowerKw > 0 ? _reactiveKvarSet / _unit.RatedPowerKw * 100 : 0;
+                    _unit.SetReactivePowerCommand(_reactiveKvarSet);
+                }
             }
         }
 
         public double SubarrayReactivePowerPercent
         {
-            get => _reactivePercent;
+            get { lock (_commandGate) return _reactivePercent; }
             set
             {
-                _reactivePercent = Math.Clamp(value, -100, 100);
-                SubarrayReactivePowerKvar = _unit.RatedPowerKw * _reactivePercent / 100.0;
+                lock (_commandGate)
+                    SubarrayReactivePowerKvar = _unit.RatedPowerKw * Math.Clamp(value, -100, 100) / 100.0;
             }
         }
 
         public double SubarrayPowerFactor
         {
-            get => _powerFactorSet;
+            get { lock (_commandGate) return _powerFactorSet; }
             set
             {
-                _powerFactorSet = Math.Clamp(value, -1, 1);
-                double mag = Math.Max(0.2, Math.Abs(_powerFactorSet));
-                double p = Math.Max(_activeKwSet, 1e-6);
-                double q = p * Math.Tan(Math.Acos(Math.Clamp(mag, 0, 1)));
-                if (_powerFactorSet < 0)
-                    q = -q;
-                SubarrayReactivePowerKvar = q;
+                lock (_commandGate)
+                {
+                    _powerFactorSet = Math.Clamp(value, -1, 1);
+                    double mag = Math.Max(0.2, Math.Abs(_powerFactorSet));
+                    double p = Math.Max(_activeKwSet, 1e-6);
+                    double q = p * Math.Tan(Math.Acos(Math.Clamp(mag, 0, 1)));
+                    if (_powerFactorSet < 0)
+                        q = -q;
+                    SubarrayReactivePowerKvar = q;
+                }
             }
         }
 
@@ -161,7 +173,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             DailyYieldKwh = daily;
             TotalYieldKwh = total;
             NominalActivePowerKw = _unit.RatedPowerKw;
-            NominalReactivePowerKvar = _unit.RatedPowerKw;
+            NominalReactivePowerKvar = _unit.RatedReactivePowerKvar;
             MinAdjustableActivePowerKw = 0;
             MaxAdjustableActivePowerKw = _unit.RatedPowerKw;
             MinAdjustableReactivePowerKvar = -_unit.RatedPowerKw;

@@ -74,6 +74,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
                     ModulesPerString = Math.Max(1, runtime.ModulesPerString),
                     StringCount = Math.Max(1, runtime.StringCount),
                     RatedPowerKw = runtime.InverterRatedPowerKw,
+                    RatedReactivePowerKvar = runtime.InverterRatedReactivePowerKvar,
                     MaxPowerKw = runtime.InverterMaxPowerKw,
                     Efficiency = runtime.InverterEfficiency,
                     DcVoltageRangeMinV = runtime.DcVoltageMin,
@@ -93,6 +94,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public int InverterCount => _inverters.Length;
         public IReadOnlyList<PvInverterDevice> Inverters => _inverters;
         public double RatedPowerKw => _inverters.Sum(inv => inv.RatedPowerKw);
+        public double RatedReactivePowerKvar => _inverters.Sum(inv => inv.RatedReactivePowerKvar);
         public int TotalModuleCount => _inverters.Sum(inv => inv.TotalModuleCount);
         public double AvailableDcPowerKw => _inverters.Sum(inv => inv.AvailableDcPowerKw);
         public double ActivePowerKw => _inverters.Sum(inv => inv.GetCurrentState().ActivePower);
@@ -143,6 +145,20 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             double qEach = reactivePowerKvar / n;
             foreach (var inv in _inverters)
                 inv.SetPowerCommand(pEach, qEach);
+        }
+
+        public void SetActivePowerCommand(double activePowerKw)
+        {
+            double pEach = activePowerKw / _inverters.Length;
+            foreach (var inv in _inverters)
+                inv.ActivePowerSettingKw = pEach;
+        }
+
+        public void SetReactivePowerCommand(double reactivePowerKvar)
+        {
+            double qEach = reactivePowerKvar / _inverters.Length;
+            foreach (var inv in _inverters)
+                inv.ReactivePowerSettingKvar = qEach;
         }
 
         public PvArrayClimate ArrayClimate(string side) =>

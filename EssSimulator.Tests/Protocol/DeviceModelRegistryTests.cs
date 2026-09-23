@@ -36,6 +36,7 @@ public class DeviceModelRegistryTests
         var pv = byId["pv"];
         Assert.Contains("pv_logger.csv", pv.Files);
         Assert.Contains("pv_apm810.csv", pv.Files);
+        Assert.Contains("pv_inverter.csv", pv.Files);
 
         var modelIds = bms.Models.Select(m => m.Id).ToList();
         Assert.Contains("standard", modelIds);
@@ -93,6 +94,7 @@ public class DeviceModelRegistryTests
         Assert.Equal("lc", DeviceModelRegistry.FindTypeForFile("lc.csv", root));
         Assert.Equal("pv", DeviceModelRegistry.FindTypeForFile("pv_logger.csv", root));
         Assert.Equal("pv", DeviceModelRegistry.FindTypeForFile("pv_apm810.csv", root));
+        Assert.Equal("pv", DeviceModelRegistry.FindTypeForFile("pv_inverter.csv", root));
     }
 
     [Fact]

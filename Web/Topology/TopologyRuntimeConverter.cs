@@ -580,6 +580,7 @@ namespace EssSimulator.Web.Topology
                 StringCount = (int)Math.Max(1, TopologyParamHelper.GetDouble(p, "stringCount", 16)),
                 ModulesPerString = (int)Math.Max(1, TopologyParamHelper.GetDouble(p, "modulesPerString", 30)),
                 InverterRatedPowerKw = ratedKw,
+                InverterRatedReactivePowerKvar = TopologyParamHelper.GetDouble(p, "inverterRatedReactivePowerKvar", ratedKw),
                 InverterMaxPowerKw = TopologyParamHelper.GetDouble(p, "inverterMaxPowerKw", 352),
                 InverterEfficiency = TopologyParamHelper.GetDouble(p, "inverterEfficiency", 0.99),
                 InverterAcVoltageV = TopologyParamHelper.GetDouble(p, "inverterAcVoltage", 690),
