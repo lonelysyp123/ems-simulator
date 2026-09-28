@@ -418,6 +418,8 @@ namespace EssSimulator
                 SimulatorHost.Instance.Register("ess", ess);
                 for (int i = 0; i < ess.PvUnits.Count; i++)
                     SimulatorHost.Instance.Register($"pv{i + 1}", ess.PvUnits[i]);
+                if (ess.SvgProtocol != null)
+                    SimulatorHost.Instance.Register("svg", ess.SvgProtocol);
                 return ess;
             });
             builder.Services.AddHostedService(sp => sp.GetRequiredService<EnergyStorageSystem>());

@@ -19,7 +19,8 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             ElectricalNetwork network,
             PccConfig pccCfg,
             PcsPhysicalConfig pcsCfg,
-            IReadOnlyList<Pv.PvUnitDevice>? pvUnits = null)
+            IReadOnlyList<Pv.PvUnitDevice>? pvUnits = null,
+            Svg.SvgDevice? svg = null)
         {
             Network = network;
             _pccCfg = pccCfg;
@@ -61,7 +62,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             UnitBuses690 = unitBuses;
             ExtraUnitBuses690 = extraBuses;
 
-            RegisterContributors(network, pvUnits);
+            RegisterContributors(network, pvUnits, svg);
             RegisterVoltageSources(network);
             WireCouplers(network);
             _log.Info(
@@ -152,9 +153,12 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
 
         private void RegisterContributors(
             ElectricalNetwork network,
-            IReadOnlyList<Pv.PvUnitDevice>? pvUnits)
+            IReadOnlyList<Pv.PvUnitDevice>? pvUnits,
+            Svg.SvgDevice? svg)
         {
             Bus35.RegisterContributor(new LoadBusContributor(network.Load));
+            if (svg != null)
+                Bus35.RegisterContributor(new SvgBusContributor(svg, Bus35));
             if (pvUnits != null)
             {
                 foreach (var pv in pvUnits)

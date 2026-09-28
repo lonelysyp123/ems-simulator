@@ -17,6 +17,7 @@ namespace EssSimulator.EssDeviceSimModel
     using EssSimulator.EssDeviceSimModel.Solver;
     using EssSimulator.EssDeviceSimModel.Thermal;
     using EssSimulator.EssDeviceSimModel.Pv;
+    using EssSimulator.EssDeviceSimModel.Svg;
     using System;
     using System.Collections.Generic;
 
@@ -33,6 +34,12 @@ namespace EssSimulator.EssDeviceSimModel
 
         /// <summary>光伏单元列表（组态/配置展开；纯光伏工程可无储能通道）。</summary>
         public IReadOnlyList<PvUnitDevice> PvUnits { get; }
+
+        /// <summary>站用 SVG。未启用时为空。</summary>
+        public SvgDevice? Svg { get; private set; }
+
+        /// <summary>点表根对象。未启用时为空。</summary>
+        public SvgProtocolData? SvgProtocol { get; private set; }
 
         /// <summary>各储能单元下属 PCS 台数（EMU 拓扑：每单元 = 1 个 EMU 虚拟模型聚合 N 台 PCS）。</summary>
         public IReadOnlyList<int> PcsPerUnit => _pcsPerUnit;
@@ -245,7 +252,17 @@ namespace EssSimulator.EssDeviceSimModel
                 legacyEss: this,
                 pcsPerUnit: _pcsPerUnit);
 
-            RadialGraph = new RadialNetworkGraph(_electricalNetwork, pccCfg, pcsCfg, PvUnits);
+            if (simCfg.EnableSvg)
+            {
+                Svg = new SvgDevice("svg", new SvgConfig
+                {
+                    RatedCapacityKvar = simCfg.SvgRatedCapacityKvar,
+                    NominalLineVoltageV = pccCfg.StationBusNominalLineVoltage
+                });
+                SvgProtocol = new SvgProtocolData(Svg);
+            }
+
+            RadialGraph = new RadialNetworkGraph(_electricalNetwork, pccCfg, pcsCfg, PvUnits, Svg);
             PowerSweepEngine = new RadialPowerSweepEngine(
                 RadialGraph,
                 this,

@@ -22,6 +22,9 @@ namespace EssSimulator.Display
             if (verb.Equals("setLoad", StringComparison.OrdinalIgnoreCase))
                 return ExecuteSetLoad(args);
 
+            if (verb.Equals("setSvg", StringComparison.OrdinalIgnoreCase))
+                return ExecuteSetSvg(args);
+
             if (verb.Equals("link", StringComparison.OrdinalIgnoreCase))
                 return ExecuteLink(args);
 
@@ -53,6 +56,8 @@ namespace EssSimulator.Display
                 "esscmd 子命令:",
                 "  setLoad activePower <kW>       // 手动设定负载有功（仅允许 ≤0：负=消耗，正值拒绝）",
                 "  setLoad reactivePower <kvar>   // 手动设定负载无功（可正可负）",
+                "  setSvg run on|off               // SVG 开关机（1 开机 / 0 关机）",
+                "  setSvg reactive <kvar>          // SVG 无功设定（正=容性发出，负=感性吸收）",
                 "  link pcsN on|off               // 开启/关闭第 N 路 PCS 所属 EMU 单元的 Modbus 对外服务",
                 "  link bmsN on|off               // 开启/关闭第 N 路 BMS 的 Modbus 对外服务",
                 "  link em on|off                 // 开启/关闭并网点电表 simEm 的 Modbus 对外服务",
@@ -139,6 +144,39 @@ namespace EssSimulator.Display
 
             ess.SetLoadCharacteristic(args[1], num);
             return CommandResult.Ok($"执行成功: 负载 {args[1]} = {num}");
+        }
+
+        private static CommandResult ExecuteSetSvg(string[] args)
+        {
+            if (args.Length != 3)
+                return CommandResult.Fail("用法: esscmd setSvg run on|off | reactive <kvar>");
+
+            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
+            if (ess == null)
+                return CommandResult.Fail("找不到 ess 模型，请确认仿真已启动");
+            if (ess.Svg == null)
+                return CommandResult.Fail("SVG 未启用");
+
+            if (args[1].Equals("run", StringComparison.OrdinalIgnoreCase))
+            {
+                if (args[2].Equals("on", StringComparison.OrdinalIgnoreCase))
+                    ess.Svg.RunCommand = 1;
+                else if (args[2].Equals("off", StringComparison.OrdinalIgnoreCase))
+                    ess.Svg.RunCommand = 0;
+                else
+                    return CommandResult.Fail("setSvg run 仅支持 on 或 off");
+                return CommandResult.Ok($"执行成功: SVG 开关机 = {ess.Svg.RunCommand}");
+            }
+
+            if (args[1].Equals("reactive", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(args[2], out var kvar) || !double.IsFinite(kvar))
+                    return CommandResult.Fail("请输入有效的无功数值（kvar）");
+                ess.Svg.ReactiveSetpointKvar = kvar;
+                return CommandResult.Ok($"执行成功: SVG 无功设定 = {kvar} kvar");
+            }
+
+            return CommandResult.Fail("setSvg 仅支持 run 或 reactive");
         }
 
         private static CommandResult ExecuteSetGrid(string[] args)

@@ -19,7 +19,8 @@ namespace EssSimulator.Protocol.Modbus
         PvLogger,
         PvMeter,
         Sel,
-        PvInverter
+        PvInverter,
+        Svg
     }
 
     /// <summary>单个协议设备的端口/从站号计划条目。</summary>
@@ -139,6 +140,9 @@ namespace EssSimulator.Protocol.Modbus
 
             if (p.EnableSel)
                 plan.Entries.Add(MakeEntry("simSel", ProtocolDeviceType.Sel, "sel.csv", p.SelModbusPort));
+
+            if (cfg.EnableSvg)
+                plan.Entries.Add(MakeEntry("simSvg", ProtocolDeviceType.Svg, "svg.csv", p.SvgModbusPort));
 
             return plan;
         }

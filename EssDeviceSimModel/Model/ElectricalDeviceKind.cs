@@ -8,6 +8,7 @@ namespace EssSimulator.EssDeviceSimModel.Model
         Pcs,
         Bms,
         Load,
-        Meter
+        Meter,
+        Svg
     }
 }

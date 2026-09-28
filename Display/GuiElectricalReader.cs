@@ -66,6 +66,13 @@ namespace EssSimulator.Display
         public double LoadReactivePowerKvar { get; init; }
         public double LoadActivePowerSetKw { get; init; }
         public double LoadReactivePowerSetKvar { get; init; }
+        public bool SvgPresent { get; init; }
+        public int SvgRunState { get; init; }
+        public int SvgRunCommand { get; init; }
+        public double SvgReactivePowerKvar { get; init; }
+        public double SvgReactiveSetpointKvar { get; init; }
+        public double SvgAvailableReactiveUpperKvar { get; init; }
+        public double SvgRatedCapacityKvar { get; init; }
         /// <summary>仿真电网额定线电压设定（V）。</summary>
         public double GridNominalLineVoltageV { get; init; }
         /// <summary>仿真电网额定频率设定（Hz）。</summary>
@@ -181,6 +188,13 @@ namespace EssSimulator.Display
                 LoadReactivePowerKvar = GuiSimDataAccess.SafeGetDouble("ess._loadSimulator.ReactivePower"),
                 LoadActivePowerSetKw = GuiSimDataAccess.SafeGetDouble("ess._loadSimulator.ActivePowerSetpointKw"),
                 LoadReactivePowerSetKvar = GuiSimDataAccess.SafeGetDouble("ess._loadSimulator.ReactivePowerSetpointKvar"),
+                SvgPresent = GuiSimDataAccess.TryGetObject("ess.Svg") != null,
+                SvgRunState = (int)GuiSimDataAccess.SafeGetDouble("ess.Svg.RunState"),
+                SvgRunCommand = (int)GuiSimDataAccess.SafeGetDouble("ess.Svg.RunCommand"),
+                SvgReactivePowerKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.ReactivePowerKvar"),
+                SvgReactiveSetpointKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.ReactiveSetpointKvar"),
+                SvgAvailableReactiveUpperKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.AvailableReactiveUpperKvar"),
+                SvgRatedCapacityKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.RatedCapacityKvar"),
                 GridNominalLineVoltageV = GuiSimDataAccess.SafeGetDouble(
                     "ess.ElectricalNetwork.Grid.NominalLineVoltageV", 220000),
                 GridNominalFrequencyHz = GuiSimDataAccess.SafeGetDouble(

@@ -111,6 +111,8 @@
         @bms-power-off="onBmsPowerOff"
         @bms-fault-clear="onBmsFaultClear"
         @bms-set-soc="onBmsSetSoc"
+        @svg-run="onSvgRun"
+        @svg-set-reactive="onSvgSetReactive"
       />
       <MainLineSvg
         v-else
@@ -125,6 +127,8 @@
         @bms-power-off="onBmsPowerOff"
         @bms-fault-clear="onBmsFaultClear"
         @bms-set-soc="onBmsSetSoc"
+        @svg-run="onSvgRun"
+        @svg-set-reactive="onSvgSetReactive"
       />
     </div>
 
@@ -664,6 +668,18 @@ async function onBmsSetSoc(payload = {}) {
     return
   }
   await runChannelCommand(`esscmd setbms${bmsNumber} soc ${pct}`)
+}
+
+async function onSvgRun(on) {
+  await runChannelCommand(`esscmd setSvg run ${on ? 'on' : 'off'}`)
+}
+
+async function onSvgSetReactive(kvar) {
+  if (!Number.isFinite(kvar)) {
+    ElMessage.warning('请输入有效的无功（kvar，正为容性发出）')
+    return
+  }
+  await runChannelCommand(`esscmd setSvg reactive ${kvar}`)
 }
 
 async function onSetLoadActive() {

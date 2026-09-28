@@ -55,6 +55,13 @@ namespace EssSimulator.Web
                 LoadReactivePowerKvar = snap.LoadReactivePowerKvar,
                 LoadActivePowerSetKw = snap.LoadActivePowerSetKw,
                 LoadReactivePowerSetKvar = snap.LoadReactivePowerSetKvar,
+                SvgPresent = snap.SvgPresent,
+                SvgRunState = snap.SvgRunState,
+                SvgRunCommand = snap.SvgRunCommand,
+                SvgReactivePowerKvar = snap.SvgReactivePowerKvar,
+                SvgReactiveSetpointKvar = snap.SvgReactiveSetpointKvar,
+                SvgAvailableReactiveUpperKvar = snap.SvgAvailableReactiveUpperKvar,
+                SvgRatedCapacityKvar = snap.SvgRatedCapacityKvar,
                 GridNominalLineVoltageV = snap.GridNominalLineVoltageV,
                 GridNominalFrequencyHz = snap.GridNominalFrequencyHz,
                 SystemFrequencyHz = snap.SystemFrequencyHz,
@@ -317,6 +324,13 @@ namespace EssSimulator.Web
         public double LoadReactivePowerKvar { get; set; }
         public double LoadActivePowerSetKw { get; set; }
         public double LoadReactivePowerSetKvar { get; set; }
+        public bool SvgPresent { get; set; }
+        public int SvgRunState { get; set; }
+        public int SvgRunCommand { get; set; }
+        public double SvgReactivePowerKvar { get; set; }
+        public double SvgReactiveSetpointKvar { get; set; }
+        public double SvgAvailableReactiveUpperKvar { get; set; }
+        public double SvgRatedCapacityKvar { get; set; }
         public double GridNominalLineVoltageV { get; set; }
         public double GridNominalFrequencyHz { get; set; }
         public double SystemFrequencyHz { get; set; }

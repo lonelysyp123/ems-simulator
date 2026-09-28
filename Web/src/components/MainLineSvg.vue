@@ -70,6 +70,17 @@
       <line class="bus-line bus-thick" :x1="mainX" :y1="busY" :x2="busEndX" :y2="busY" />
       <text :x="mainX + 8" :y="busY - 6" class="label-text">35kV 母线 {{ fmtVolt(snap.stationBus35LineVoltageV) }}</text>
 
+      <g v-if="snap.svgPresent" :transform="`translate(${svgCardX}, ${busY})`">
+        <line class="bus-line" x1="0" y1="0" x2="0" y2="24" />
+        <foreignObject x="-78" y="24" width="156" height="150">
+          <SvgStationCard
+            :snap="snap"
+            @svg-run="v => $emit('svg-run', v)"
+            @svg-set-reactive="v => $emit('svg-set-reactive', v)"
+          />
+        </foreignObject>
+      </g>
+
       <!-- 各储能单元 -->
       <g v-for="(u, i) in snap.units" :key="u.unitIndex ?? i" :transform="`translate(${unitCenterX(i)}, ${busY})`">
         <!-- 接入母线 -->
@@ -146,6 +157,7 @@
 
 <script setup>
 import { computed, defineComponent, h, onBeforeUnmount, reactive, ref } from 'vue'
+import SvgStationCard from './SvgStationCard.vue'
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 10
@@ -164,7 +176,9 @@ defineEmits([
   'bms-power-on',
   'bms-power-off',
   'bms-fault-clear',
-  'bms-set-soc'
+  'bms-set-soc',
+  'svg-run',
+  'svg-set-reactive'
 ])
 
 const zoom = ref(MIN_ZOOM)
@@ -183,7 +197,8 @@ const panLayerStyle = computed(() => ({
 const unitCount = computed(() => (props.snap.units || []).length)
 const svgWidth = computed(() => {
   const total = (props.snap.units || []).reduce((s, u) => s + unitWidth(u), 0)
-  return Math.max(900, MARGIN_LEFT + total + MARGIN_RIGHT)
+  const base = Math.max(900, MARGIN_LEFT + total + MARGIN_RIGHT)
+  return props.snap.svgPresent ? Math.max(base, svgCardX.value + 100) : base
 })
 const renderWidth = computed(() => Math.round(svgWidth.value * zoom.value))
 const renderHeight = computed(() => Math.round(svgHeight.value * zoom.value))
@@ -286,7 +301,17 @@ function chipStatusClass(status) {
 
 const busEndX = computed(() => {
   const units = props.snap.units || []
-  return units.length ? unitCenterX(units.length - 1) : MARGIN_LEFT
+  const unitEnd = units.length ? unitCenterX(units.length - 1) : MARGIN_LEFT
+  return props.snap.svgPresent ? Math.max(unitEnd, svgCardX.value) : unitEnd
+})
+
+const svgCardX = computed(() => {
+  const units = props.snap.units || []
+  if (!units.length) return MARGIN_LEFT + 160
+  const last = units.length - 1
+  const u = units[last]
+  const n = Math.max(1, (u.channels || []).length)
+  return unitCenterX(last) + branchX(u, n - 1) + BRANCH.boxW / 2 + 100
 })
 
 /** 单元占宽：随通道台数自适应，不低于原双通道宽 */

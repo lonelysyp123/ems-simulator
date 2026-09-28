@@ -33,7 +33,7 @@
           class="mainline-svg"
           :width="renderWidth"
           :height="renderHeight"
-          :viewBox="`0 0 ${layout.width} ${layout.height}`"
+          :viewBox="`0 0 ${viewWidth} ${viewHeight}`"
           preserveAspectRatio="xMinYMin meet"
         >
           <!-- 站侧由组态连通递归生成：电网 / 串联断路器 / 母线 / 变压器 / 电表 / 负载 -->
@@ -141,6 +141,18 @@
               <text :x="m.x" :y="m.y + 62" text-anchor="middle" class="value-text">
                 Q {{ fmtKvar(m.isPcc ? snap.meterPrimary?.reactivePowerKvar : null) }}
               </text>
+            </g>
+
+            <g v-if="svgCard" :transform="`translate(${svgCard.x}, ${svgCard.y})`">
+              <line class="bus-line bus-thick" :x1="svgCard.fromX - svgCard.x" y1="0" x2="0" y2="0" />
+              <line class="bus-line" x1="0" y1="0" x2="0" y2="24" />
+              <foreignObject x="-78" y="24" width="156" height="150">
+                <SvgStationCard
+                  :snap="snap"
+                  @svg-run="v => $emit('svg-run', v)"
+                  @svg-set-reactive="v => $emit('svg-set-reactive', v)"
+                />
+              </foreignObject>
             </g>
 
             <g v-for="(load, li) in layout.loads" :key="`load-${load.id}`">
@@ -298,6 +310,7 @@
 <script setup>
 import { computed, defineComponent, h, onBeforeUnmount, reactive, ref } from 'vue'
 import { buildTopologyMainLineLayout } from './topology/topologyMainLineLayout.js'
+import SvgStationCard from './SvgStationCard.vue'
 
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 10
@@ -333,7 +346,9 @@ defineEmits([
   'bms-power-on',
   'bms-power-off',
   'bms-fault-clear',
-  'bms-set-soc'
+  'bms-set-soc',
+  'svg-run',
+  'svg-set-reactive'
 ])
 
 const zoom = ref(DEFAULT_ZOOM)
@@ -363,8 +378,23 @@ const zoomPercent = computed(() => Math.round(zoom.value * 100))
 const panLayerStyle = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px)`
 }))
-const renderWidth = computed(() => Math.round(layout.value.width * zoom.value))
-const renderHeight = computed(() => Math.round(layout.value.height * zoom.value))
+const svgCard = computed(() => {
+  if (!props.snap.svgPresent) return null
+  const y = layout.value.yBusLv ?? 0
+  const bus = (layout.value.buses || []).find(b => Math.abs((b.y ?? 0) - y) < 0.5)
+  const fromX = bus?.x2 ?? layout.value.busRight ?? 0
+  return { x: fromX + 88, y, fromX }
+})
+const viewWidth = computed(() => {
+  const base = layout.value.width || 720
+  return svgCard.value ? Math.max(base, svgCard.value.x + 100) : base
+})
+const viewHeight = computed(() => {
+  const base = layout.value.height || 320
+  return svgCard.value ? Math.max(base, svgCard.value.y + 190) : base
+})
+const renderWidth = computed(() => Math.round(viewWidth.value * zoom.value))
+const renderHeight = computed(() => Math.round(viewHeight.value * zoom.value))
 
 function clampZoom(v) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +v.toFixed(2)))

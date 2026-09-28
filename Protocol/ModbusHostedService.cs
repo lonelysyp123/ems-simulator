@@ -108,6 +108,13 @@ namespace EssSimulator
                     store.Register("simEm", em);
                     _manager.RegisterDevice(em, ProtocolDeviceType.Em, "em.csv");
 
+                    if (_cfg.EnableSvg)
+                    {
+                        var svg = new ModbusSimServer("svg.csv", 0, "simSvg", dataExchangeOptions: _dataExchange);
+                        store.Register("simSvg", svg);
+                        _manager.RegisterDevice(svg, ProtocolDeviceType.Svg, "svg.csv");
+                    }
+
                     // 按端口计划（默认配置 + protocol-ports.json 覆盖）统一分配端口并启动
                     var result = _manager.StartAll(_cfg);
                     Log.Info($"Modbus 从站注册完成，共 {result.Devices.Count} 个设备，成功启动 {result.Devices.Count(d => d.Started)} 个");

@@ -1,39 +1,41 @@
-# 电站 EMS 策略参数热更新
+# 站用 SVG 恒无功模型
 
-> 已确认：改参立刻 `UpdateConfig`，并写回与启动加载同一份 `ems-strategy.json`。不合 tab、不改公式。
-> LC 中压方案已归档：`tasks/lc-mv-pointmap.md` / `tasks/todo-lc-mv-pointmap.md`。
+> 已确认：全站一台，并联 35 kV，只做恒无功。默认关闭。不做恒电压、恒功率因数、谐波、不平衡。主接线有一张 35 kV 卡片。
+> EMS 策略参数方案已归档：`tasks/ems-strategy-params.md` / `tasks/todo-ems-strategy-params.md`。
 
 ## 已确认
-- [x] 热更新 = 引擎立刻换参 + 落盘（运行目录，与 Load 同路径）
-- [x] PATCH 嵌套覆盖，禁止残缺 body 整表替换
-- [x] 参数变更不 Reset PI/ACTION；仅模式切换 Reset
-- [x] 快照轮询与表单草稿分离；参数按卡「应用」
+- [x] 无功为正是容性发出；可用上限 \(Q_{rated}\times U/U_{nom}\)；设定值不回写夹限
+- [x] 运行状态 0 停机 / 1 运行 / 2 闭锁；闭锁带 0.85–1.15 倍额定
+- [x] 单位：V、A、kvar、Hz；变比 1
+- [x] 一阶滞后 20 ms；运行损耗为额定容量的 0.8%
+- [x] `EnableSvg` 默认 false，额定默认 10000 kvar，端口默认 2201
 
-## Phase 1: Foundation
-- [x] Task 1: 配置落盘（可注入路径；占用失败不写盘）
-- [x] Task 2: PATCH 嵌套覆盖全部参数对象 + Patcher 单测
+## Phase 1: 点表与设备
+- [x] Task 1: 点表类型与单位（`Uint16`→`u16`，描述补单位和枚举）
+- [x] Task 2: `SvgDevice` 恒无功（可与 Task 1 并行）
 
-## Checkpoint: Foundation
-- [x] 不经 UI 也能 POST 嵌套对象热更新并写 JSON
-- [x] 改 Kp 不 Reset 积分（断言钉住）
-- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~EmsStrategy"`
-- [ ] 与人工确认后再做页面（已按开工继续做完页面）
+## Checkpoint: 设备可单测
+- [x] `svg1` 解析为 `UInt16`
+- [x] 100 ms 跟上设定，5 ms 仍在滞后；越限夹住；关机/闭锁输出为 0 且设定保留
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~SvgPointMap|FullyQualifiedName~SvgDevice"`
+- [x] `dotnet build ./EssSimulator.csproj`
 
-## Phase 2: Core Features
-- [x] Task 3: 快照/草稿分离 + 斜率 / PID / 视在参数卡
-- [x] Task 4: 一次调频 / 惯量 / 下垂明细参数卡
-- [x] Task 5: 功率分配、计划曲线、恒压与远程设定
+## Phase 2: 母线
+- [x] Task 3: `SvgBusContributor` 挂 `Bus35`（依赖 Task 2）
 
-## Checkpoint: Core Features
-- [ ] 公共算法与辅助服务均可在页面整定
-- [ ] 应用后无需重启；刷新/重启值仍在
-- [ ] 空曲线 + 曲线模式仍 WAIT
-- [ ] 第三方占用时应用失败有提示
+## Checkpoint: 功率进母线
+- [x] 关闭时不注册贡献者
+- [x] 开启发 +5000 kvar 时母线无功增加、有功减少损耗；关机后退出
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~SvgBus"`
 
-## Phase 3: Polish
-- [x] Task 6: 折叠默认、脏标记、SystemSwitch / 有功无功使能
+## Phase 3: 协议
+- [x] Task 4: `svg` 根对象 + `ModelSim`（依赖 Task 1、Task 2；可与 Task 3 并行）
+- [x] Task 5: `simSvg` 从站（依赖 Task 3、Task 4）
 
 ## Checkpoint: Complete
-- [x] 斜率、PID、视在、分配、曲线、调频/惯量/下垂均可热更新并落盘（代码已接；需浏览器点选确认）
-- [x] 未做：合 tab、改公式、参数进组态、双写仓库 JSON
-- [ ] Ready for review
+- [x] 写开关机和无功设定进 `svg` 对象，遥测读到设备输出
+- [x] 关闭时端口计划没有 `simSvg`
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~Svg"`
+- [x] `dotnet build ./EssSimulator.csproj`
+- [x] 主接线 35 kV 卡片：状态、实际无功、可用上限、开关机与无功设定
+- [x] 未做：恒电压、恒功率因数、谐波、不平衡

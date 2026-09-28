@@ -212,6 +212,9 @@ namespace EssSimulator.Configuration
 
         public bool EnableSel { get; set; }
         public int SelModbusPort { get; set; } = 2001;
+
+        /// <summary>站用 SVG Modbus TCP 端口。</summary>
+        public int SvgModbusPort { get; set; } = 2201;
     }
 
     /// <summary>IEEE 1588 从钟：二层以太网 + 对等时延，本机软件时间戳。</summary>
@@ -423,6 +426,12 @@ namespace EssSimulator.Configuration
         public ProtocolConfig Protocol { get; set; } = new();
         public List<EssUnitConfig> Devices { get; set; } = new();
         public List<PvUnitRuntimeConfig> PvUnits { get; set; } = new();
+
+        /// <summary>是否投入站用 SVG。默认关闭，不改变既有母线功率。</summary>
+        public bool EnableSvg { get; set; }
+
+        /// <summary>SVG 额定容量（kvar）。</summary>
+        public double SvgRatedCapacityKvar { get; set; } = 10000;
 
         public int EssUnitCount => Devices?.Count ?? 0;
         public int PvUnitCount => PvUnits?.Count ?? 0;

@@ -162,4 +162,27 @@ public class MainLineEnricherTests : SimulatorHostTestBase
         Assert.Equal(210, unit.UnitTransformerActivePowerKw, 3);
         Assert.Equal(15, unit.UnitTransformerReactivePowerKvar, 3);
     }
+
+    [Fact]
+    public void Build_copies_svg_card_fields()
+    {
+        var vm = MainLineEnricher.Build(new MainLineSnapshot
+        {
+            SvgPresent = true,
+            SvgRunState = 1,
+            SvgRunCommand = 1,
+            SvgReactivePowerKvar = 5000,
+            SvgReactiveSetpointKvar = 4800,
+            SvgAvailableReactiveUpperKvar = 9000,
+            SvgRatedCapacityKvar = 10000
+        }, channelCountOverride: 0);
+
+        Assert.True(vm.SvgPresent);
+        Assert.Equal(1, vm.SvgRunState);
+        Assert.Equal(1, vm.SvgRunCommand);
+        Assert.Equal(5000, vm.SvgReactivePowerKvar);
+        Assert.Equal(4800, vm.SvgReactiveSetpointKvar);
+        Assert.Equal(9000, vm.SvgAvailableReactiveUpperKvar);
+        Assert.Equal(10000, vm.SvgRatedCapacityKvar);
+    }
 }
