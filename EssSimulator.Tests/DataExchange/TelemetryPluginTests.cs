@@ -503,13 +503,13 @@ public class TelemetryPluginTests
         {
         }
 
-        public void WritePoints(IReadOnlyDictionary<string, object> values, byte slaveId = 1, bool applyScale = true)
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true)
         {
             foreach (var kv in values)
                 LastWritten[kv.Key] = kv.Value;
         }
 
-        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte slaveId = 1) => new();
-        public object? ReadParsedPoint(string paramName, byte slaveId = 1) => null;
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) => new();
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) => null;
     }
 }

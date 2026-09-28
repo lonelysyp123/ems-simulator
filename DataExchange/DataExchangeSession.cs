@@ -57,7 +57,7 @@ namespace EssSimulator.DataExchange
             _clusterCount = clusterCount;
 
             _simulation = new ReflectionSimulationAdapter();
-            _pointStore = new ProtocolPointStore(new ModbusRegisterAdapter(slave, parser));
+            _pointStore = new ProtocolPointStore(new ModbusRegisterAdapter(slave, parser, deviceInfo));
             _modbusAdapter = _pointStore;
 
             _effects = new ControlEffectRegistry();
@@ -154,10 +154,13 @@ namespace EssSimulator.DataExchange
                 return false;
 
             appliedModbusValue = ControlValueCoercion.CoerceForModbusRegister(binding, value);
-            _modbusAdapter.WritePoints(
-                new Dictionary<string, object> { { name, appliedModbusValue } },
-                applyScale: false);
-            DrainControlPipeline();
+            lock (_controlGate)
+            {
+                _modbusAdapter.WritePoints(
+                    new Dictionary<string, object> { { name, appliedModbusValue } },
+                    applyScale: false);
+                DrainControlPipeline();
+            }
             return true;
         }
 
@@ -243,7 +246,8 @@ namespace EssSimulator.DataExchange
 
         private static bool ShouldLogChanges(string? serverName) =>
             IsEmuLikeDevice(serverName)
-            || serverName?.StartsWith("simBms", StringComparison.OrdinalIgnoreCase) == true;
+            || serverName?.StartsWith("simBms", StringComparison.OrdinalIgnoreCase) == true
+            || serverName?.StartsWith("simPvInv", StringComparison.OrdinalIgnoreCase) == true;
 
         private int TelemetryIntervalForDevice =>
             IsEmuLikeDevice(_deviceInfo.name)
@@ -337,8 +341,11 @@ namespace EssSimulator.DataExchange
         /// <summary>仿真 → Modbus 反馈（不回灌控制管道，避免重复触发副作用）。</summary>
         public void PublishControlToSlave(string name, object value)
         {
-            if (!_feedbackPipeline.PublishImmediate(name, value, out _))
-                _log.Warn($"Control feedback publish failed: {_deviceInfo.name}.{name}");
+            lock (_controlGate)
+            {
+                if (!_feedbackPipeline.PublishImmediate(name, value, out _))
+                    _log.Warn($"Control feedback publish failed: {_deviceInfo.name}.{name}");
+            }
         }
 
         public void InvalidateDataShadow(string name) =>
@@ -497,7 +504,12 @@ namespace EssSimulator.DataExchange
             {
                 try
                 {
-                    _feedbackPipeline.RunOnce();
+                    // 寄存器回填和 shadow 提交必须与控制快照读取互斥。
+                    lock (_controlGate)
+                    {
+                        if (_running)
+                            _feedbackPipeline.RunOnce();
+                    }
                 }
                 catch (Exception ex)
                 {

@@ -207,7 +207,8 @@ const TYPE_LABELS = {
   2: 'EM 电表',
   3: 'LC 就地控制',
   4: '光伏 Logger',
-  5: '光伏电表'
+  5: '光伏电表',
+  7: '光伏逆变器'
 }
 
 function typeLabel(t) { return TYPE_LABELS[t] ?? String(t) }

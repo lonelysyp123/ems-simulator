@@ -22,10 +22,10 @@ namespace EssSimulator.DataExchange.Adapters
             if (defaults.Count == 0)
                 return;
 
-            WriteCore(defaults, slaveId: 1, applyScale: true, notify: false);
+            WriteCore(defaults, slaveId: null, applyScale: true, notify: false);
         }
 
-        public void WritePoints(IReadOnlyDictionary<string, object> values, byte slaveId = 1, bool applyScale = true)
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true)
         {
             if (values.Count == 0)
                 return;
@@ -33,18 +33,21 @@ namespace EssSimulator.DataExchange.Adapters
             WriteCore(values, slaveId, applyScale, notify: true);
         }
 
-        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte slaveId = 1) =>
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) =>
             _modbus.ReadAllControlRaw(paramNames, slaveId);
 
-        public object? ReadParsedPoint(string paramName, byte slaveId = 1)
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null)
         {
+            if (slaveId.HasValue)
+                return _modbus.ReadParsedPoint(paramName, slaveId);
+
             lock (_gate)
             {
                 if (_cache.TryGetValue(paramName, out var cached))
                     return cached;
             }
 
-            return _modbus.ReadParsedPoint(paramName, slaveId);
+            return _modbus.ReadParsedPoint(paramName);
         }
 
         public object? GetCachedValue(string paramName)
@@ -60,7 +63,7 @@ namespace EssSimulator.DataExchange.Adapters
 
         private void WriteCore(
             IReadOnlyDictionary<string, object> values,
-            byte slaveId,
+            byte? slaveId,
             bool applyScale,
             bool notify)
         {

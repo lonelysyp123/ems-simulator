@@ -22,14 +22,23 @@ namespace EssSimulator
         private static readonly ILog Log = LogManager.GetLogger(typeof(ModbusHostedService));
         private readonly SimulatorConfig _cfg;
         private readonly DataExchangeOptions _dataExchange;
-        private readonly ProtocolLayerManager _manager = ProtocolLayerManager.Instance;
+        private readonly ProtocolLayerManager _manager;
 
         public ModbusHostedService(
             IOptions<SimulatorConfig> opts,
             IOptions<DataExchangeOptions> dataExchangeOpts)
+            : this(opts, dataExchangeOpts, ProtocolLayerManager.Instance)
+        {
+        }
+
+        internal ModbusHostedService(
+            IOptions<SimulatorConfig> opts,
+            IOptions<DataExchangeOptions> dataExchangeOpts,
+            ProtocolLayerManager manager)
         {
             _cfg = opts.Value;
             _dataExchange = dataExchangeOpts.Value;
+            _manager = manager;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -81,6 +90,17 @@ namespace EssSimulator
                         var meter = new ModbusSimServer("pv_apm810.csv", 0, meterName, dataExchangeOptions: _dataExchange);
                         store.Register(meterName, meter);
                         _manager.RegisterDevice(meter, ProtocolDeviceType.PvMeter, "pv_apm810.csv");
+                    }
+
+                    foreach (var ep in PvInverterProtocolLayout.Enumerate(_cfg))
+                    {
+                        var inverter = new ModbusSimServer(
+                            "pv_inverter.csv", 0, ep.ServerName,
+                            dataExchangeOptions: _dataExchange,
+                            pvDeviceIdOverride: ep.UnitId,
+                            inverterIndex: ep.InverterIndex0);
+                        store.Register(ep.ServerName, inverter);
+                        _manager.RegisterDevice(inverter, ProtocolDeviceType.PvInverter, "pv_inverter.csv");
                     }
 
                     // 电表 Modbus 服务

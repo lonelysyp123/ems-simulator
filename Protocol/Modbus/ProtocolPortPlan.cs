@@ -18,7 +18,8 @@ namespace EssSimulator.Protocol.Modbus
         Lc,
         PvLogger,
         PvMeter,
-        Sel
+        Sel,
+        PvInverter
     }
 
     /// <summary>单个协议设备的端口/从站号计划条目。</summary>
@@ -32,6 +33,9 @@ namespace EssSimulator.Protocol.Modbus
 
         /// <summary>LC 点表按组展开的组数；非 LC 设备为 0。</summary>
         public int LcGroupCount { get; set; }
+
+        public int? PvUnitId { get; set; }
+        public int? InverterIndex0 { get; set; }
 
         /// <summary>配置文件计算出的默认端口。</summary>
         public int DefaultPort { get; set; }
@@ -109,6 +113,15 @@ namespace EssSimulator.Protocol.Modbus
                     p.BasePvLoggerModbusPort + i * p.PvLoggerPortStep));
                 plan.Entries.Add(MakeEntry($"simPvMeter{i + 1}", ProtocolDeviceType.PvMeter, "pv_apm810.csv",
                     p.BasePvMeterModbusPort + i * p.PvMeterPortStep));
+            }
+
+            foreach (var endpoint in PvInverterProtocolLayout.Enumerate(cfg))
+            {
+                var entry = MakeEntry(endpoint.ServerName, ProtocolDeviceType.PvInverter, "pv_inverter.csv",
+                    p.BasePvInverterModbusPort + (endpoint.SimIndex1Based - 1) * p.PvInverterPortStep);
+                entry.PvUnitId = endpoint.UnitId;
+                entry.InverterIndex0 = endpoint.InverterIndex0;
+                plan.Entries.Add(entry);
             }
 
             plan.Entries.Add(MakeEntry("simEm", ProtocolDeviceType.Em, "em.csv", p.EmModbusPort));

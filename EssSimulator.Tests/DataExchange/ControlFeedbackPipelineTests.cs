@@ -38,10 +38,10 @@ public class ControlFeedbackPipelineTests
                 _registers[pair.Key] = pair.Value;
         }
 
-        public void WritePoints(IReadOnlyDictionary<string, object> values, byte slaveId = 1, bool applyScale = true) =>
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true) =>
             WritePoints(values);
 
-        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte slaveId = 1)
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null)
         {
             var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             foreach (var name in paramNames)
@@ -53,7 +53,7 @@ public class ControlFeedbackPipelineTests
             return result;
         }
 
-        public object? ReadParsedPoint(string paramName, byte slaveId = 1) =>
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) =>
             _registers.TryGetValue(paramName, out var val) ? val : null;
     }
 

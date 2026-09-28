@@ -49,15 +49,15 @@ FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
 
         public void WriteDefaults(IReadOnlyDictionary<string, object> defaults) => WritePoints(defaults);
 
-        public void WritePoints(IReadOnlyDictionary<string, object> values, byte slaveId = 1, bool applyScale = true)
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true)
         {
             foreach (var pair in values)
                 Registers[pair.Key] = pair.Value;
         }
 
-        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte slaveId = 1) => new();
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) => new();
 
-        public object? ReadParsedPoint(string paramName, byte slaveId = 1) =>
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) =>
             Registers.TryGetValue(paramName, out var val) ? val : null;
     }
 

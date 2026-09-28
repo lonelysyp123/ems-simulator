@@ -559,7 +559,8 @@ const BreakerSymbol = defineComponent({
 
 const powerDrafts = reactive({})
 function draftKey(ch, kind) {
-  return `${kind}-${ch?.pvNumber ?? ch?.pcsNumber ?? ch?.compartmentNumber ?? ''}-${ch?.side ?? ''}`
+  const deviceType = ch?.pvNumber != null ? 'pv' : 'pcs'
+  return `${deviceType}-${kind}-${ch?.pvNumber ?? ch?.pcsNumber ?? ch?.compartmentNumber ?? ''}-${ch?.side ?? ''}`
 }
 function getDraft(ch, kind, fallback) {
   const key = draftKey(ch, kind)

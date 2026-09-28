@@ -204,6 +204,9 @@ namespace EssSimulator.Configuration
         /// <summary>光伏低压电表端口步长。</summary>
         public int PvMeterPortStep { get; set; } = 1;
 
+        public int BasePvInverterModbusPort { get; set; } = 2101;
+        public int PvInverterPortStep { get; set; } = 1;
+
         /// <summary>PCS PTP 对时（L2 + P2P，模拟器软件戳）。默认关闭，不影响既有功能。</summary>
         public PtpProtocolConfig Ptp { get; set; } = new();
 

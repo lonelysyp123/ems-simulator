@@ -6,6 +6,7 @@ using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi;
 using EssSimulator.Licensing;
 using EssSimulator.LocalControl;
+using EssSimulator.Protocol.Modbus;
 using EssSimulator.Web;
 using EssSimulator.Web.Topology;
 using log4net;
@@ -74,6 +75,12 @@ namespace EssSimulator
                 return false;
             }
 
+            foreach (var endpoint in PvInverterProtocolLayout.Enumerate(cfg))
+            {
+                if (store.Get<ModbusSimServer>(endpoint.ServerName) is not { IsDataPathReady: true, IsOnline: true })
+                    return false;
+            }
+
             if (expectLocalControl && !store.Contains("simLc1"))
                 return false;
 
@@ -113,7 +120,7 @@ namespace EssSimulator
         {
             int expectedBmsCount = cfg.UnitCount;
             int expectedEmuCount = EmuProtocolLayout.Count(cfg);
-            int expectedPvCount = cfg.PvUnitCount * 2; // Logger + 电表
+            int expectedPvCount = cfg.PvUnitCount * 2 + PvInverterProtocolLayout.Enumerate(cfg).Count;
             int expectedLcCount = 0;
             if (cfg.Protocol.EnableLocalControl && cfg.EffectiveEssUnitCount > 0)
                 expectedLcCount = cfg.EffectiveEssUnitCount;

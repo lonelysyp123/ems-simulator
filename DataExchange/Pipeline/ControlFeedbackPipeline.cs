@@ -115,6 +115,7 @@ namespace EssSimulator.DataExchange.Pipeline
         }
 
         private string FeedbackLogPrefix =>
+            _serverName.StartsWith("simPvInv", StringComparison.OrdinalIgnoreCase) ? "PV-Inverter" :
             _serverName.StartsWith("simBms", StringComparison.OrdinalIgnoreCase) ? "BMS" : "EMU";
 
         private static string FormatValue(object? value) =>

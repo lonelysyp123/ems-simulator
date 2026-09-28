@@ -6,11 +6,13 @@ namespace EssSimulator.DataExchange.Adapters
     {
         private readonly IModbusSlave _slave;
         private readonly ModbusParser _parser;
+        private readonly DeviceInfoDto _deviceInfo;
 
-        public ModbusRegisterAdapter(IModbusSlave slave, ModbusParser parser)
+        public ModbusRegisterAdapter(IModbusSlave slave, ModbusParser parser, DeviceInfoDto deviceInfo)
         {
             _slave = slave;
             _parser = parser;
+            _deviceInfo = deviceInfo;
         }
 
         public void WriteDefaults(IReadOnlyDictionary<string, object> defaults)
@@ -18,10 +20,10 @@ namespace EssSimulator.DataExchange.Adapters
             if (defaults.Count == 0)
                 return;
 
-            WriteWithSuppressedNotifications(new Dictionary<string, object>(defaults), slaveId: 1, applyScale: true);
+            WriteWithSuppressedNotifications(new Dictionary<string, object>(defaults), applyScale: true);
         }
 
-        public void WritePoints(IReadOnlyDictionary<string, object> values, byte slaveId = 1, bool applyScale = true)
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true)
         {
             if (values.Count == 0)
                 return;
@@ -31,23 +33,24 @@ namespace EssSimulator.DataExchange.Adapters
 
         private void WriteWithSuppressedNotifications(
             Dictionary<string, object> values,
-            byte slaveId = 1,
+            byte? slaveId = null,
             bool applyScale = true)
         {
+            byte targetSlaveId = slaveId ?? _deviceInfo.slaveId;
             if (_slave is ModbusSlave modbusSlave)
             {
                 using (modbusSlave.SuppressWriteNotifications())
-                    modbusSlave.Write(values, slaveId, applyScale);
+                    modbusSlave.Write(values, targetSlaveId, applyScale);
                 return;
             }
 
-            _slave.Write(values, slaveId, applyScale);
+            _slave.Write(values, targetSlaveId, applyScale);
         }
 
-        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte slaveId = 1)
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null)
         {
             var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            var allRaw = _slave.Read(slaveId);
+            var allRaw = _slave.Read(slaveId ?? _deviceInfo.slaveId);
             if (allRaw == null || allRaw.Count == 0)
                 return result;
 
@@ -60,9 +63,11 @@ namespace EssSimulator.DataExchange.Adapters
             return result;
         }
 
-        public object? ReadParsedPoint(string paramName, byte slaveId = 1)
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null)
         {
-            var raw = _slave.Read(paramName);
+            var raw = !slaveId.HasValue || slaveId.Value == _deviceInfo.slaveId
+                ? _slave.Read(paramName)
+                : _slave.Read(slaveId.Value)?.GetValueOrDefault(paramName);
             if (raw == null)
                 return null;
 

@@ -162,7 +162,7 @@ namespace EssSimulator.Web
         }
 
         /// <summary>由快照重建计划对象（保留默认值与 rack 数量，用于保存前校验）。</summary>
-        private static ProtocolPortPlan BuildPlanFromSnapshot(List<ProtocolDeviceSnapshot> snapshot)
+        internal static ProtocolPortPlan BuildPlanFromSnapshot(List<ProtocolDeviceSnapshot> snapshot)
         {
             var plan = new ProtocolPortPlan();
             foreach (var d in snapshot)
@@ -173,6 +173,8 @@ namespace EssSimulator.Web
                     Type = d.Type,
                     PointMapFile = d.PointMapFile,
                     RackCount = d.RackCount,
+                    PvUnitId = d.PvUnitId,
+                    InverterIndex0 = d.InverterIndex0,
                     DefaultPort = d.DefaultPort,
                     DefaultSlaveId = d.DefaultSlaveId,
                     Port = d.Port,

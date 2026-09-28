@@ -101,8 +101,10 @@ namespace EssSimulator
                         return;
                     if (!ShouldNotifyExternalControlWrite)
                         return;
-                    if (index.TouchesHoldingWrite(e.StartAddress, e.NumberOfPoints))
-                        NotifyExternalControlWrite(slaveId);
+                    if (!index.TouchesHoldingWrite(e.StartAddress, e.NumberOfPoints))
+                        return;
+                    CaptureExternalHoldingWrite(slaveId, e.StartAddress, e.NumberOfPoints);
+                    NotifyExternalControlWrite(slaveId);
                 };
             }
         }

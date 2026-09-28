@@ -46,11 +46,14 @@ namespace EssSimulator
             DataExchangeOptions? dataExchangeOptions = null,
             IReadOnlyList<EssUnitConfig>? essUnits = null,
             int? emuDeviceIdOverride = null,
-            int pcsIndex = 0)
+            int pcsIndex = 0,
+            int? pvDeviceIdOverride = null,
+            int? inverterIndex = null)
         {
             RackCount = clusterCount;
             _pointMap = new EssSimulator.Protocol.Modbus.ModbusPointMap(
-                mapFilePath, serverName, clusterCount, emuDeviceIdOverride, pcsIndex: pcsIndex);
+                mapFilePath, serverName, clusterCount, emuDeviceIdOverride, pcsIndex: pcsIndex,
+                pvDeviceIdOverride: pvDeviceIdOverride, inverterIndex: inverterIndex);
 
             _deviceInfo = new DeviceInfoDto
             {

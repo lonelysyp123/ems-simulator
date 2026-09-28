@@ -187,6 +187,8 @@ namespace EssSimulator.Protocol.Modbus
                         Type = entry.Type,
                         PointMapFile = entry.PointMapFile,
                         RackCount = entry.RackCount,
+                        PvUnitId = entry.PvUnitId,
+                        InverterIndex0 = entry.InverterIndex0,
                         DefaultPort = entry.DefaultPort,
                         DefaultSlaveId = entry.DefaultSlaveId,
                         Port = entry.Port,
@@ -361,7 +363,8 @@ namespace EssSimulator.Protocol.Modbus
                 {
                     loaded[entry.Name] = entry.Type == ProtocolDeviceType.Lc
                         ? ModbusPointMap.ForLocalControl(entry.Name, entry.LcGroupCount)
-                        : new ModbusPointMap(entry.PointMapFile, entry.Name, entry.RackCount);
+                        : new ModbusPointMap(entry.PointMapFile, entry.Name, entry.RackCount,
+                            pvDeviceIdOverride: entry.PvUnitId, inverterIndex: entry.InverterIndex0);
                 }
                 catch (Exception ex)
                 {
@@ -437,6 +440,8 @@ namespace EssSimulator.Protocol.Modbus
         public ProtocolDeviceType Type { get; set; }
         public string PointMapFile { get; set; } = string.Empty;
         public int RackCount { get; set; }
+        public int? PvUnitId { get; set; }
+        public int? InverterIndex0 { get; set; }
         public int DefaultPort { get; set; }
         public byte DefaultSlaveId { get; set; }
         public int Port { get; set; }
