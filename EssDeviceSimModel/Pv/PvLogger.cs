@@ -174,10 +174,11 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             TotalYieldKwh = total;
             NominalActivePowerKw = _unit.RatedPowerKw;
             NominalReactivePowerKvar = _unit.RatedReactivePowerKvar;
+            SumAdjustableLimits(out double maxP, out double maxQ);
             MinAdjustableActivePowerKw = 0;
-            MaxAdjustableActivePowerKw = _unit.RatedPowerKw;
-            MinAdjustableReactivePowerKvar = -_unit.RatedPowerKw;
-            MaxAdjustableReactivePowerKvar = _unit.RatedPowerKw;
+            MaxAdjustableActivePowerKw = maxP;
+            MinAdjustableReactivePowerKvar = -maxQ;
+            MaxAdjustableReactivePowerKvar = maxQ;
             GridConnectedDeviceCount = grid;
             OffGridDeviceCount = 0;
             FaultDeviceCount = 0;
@@ -191,6 +192,27 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             WindingTemperatureAlarm = xf.WindingAlarm;
             WindingTemperatureTrip = xf.WindingTrip;
             DigitalInputBitmap = BuildDin(xf);
+        }
+
+        /// <summary>
+        /// 可调上限按仍能并网发电的逆变器汇总：有功取 min(额定, 交流可发)，无功取这些逆变器的额定无功。
+        /// 停机、电网断开或交流可发接近 0 的逆变器不计入。
+        /// </summary>
+        private void SumAdjustableLimits(out double maxActiveKw, out double maxReactiveKvar)
+        {
+            maxActiveKw = 0;
+            maxReactiveKvar = 0;
+            foreach (var inv in _unit.Inverters)
+            {
+                if (!inv.IsExternalRunCommand || inv.GetCurrentState().Mode != OperationMode.Normal)
+                    continue;
+                if (inv.LimitReason is "电网断开" or "停机")
+                    continue;
+                double availableAc = Math.Max(0, inv.AvailableAcPowerKw);
+                maxActiveKw += Math.Min(inv.RatedPowerKw, availableAc);
+                if (availableAc > 0.5)
+                    maxReactiveKvar += inv.RatedReactivePowerKvar;
+            }
         }
 
         private static uint BuildDin(PvTransformerMonitor xf)

@@ -69,6 +69,8 @@ public class PvUnitDeviceTests
         Assert.Equal(unit.RatedPowerKw, unit.Logger.NominalActivePowerKw, 3);
         Assert.Equal(0, unit.Logger.MinAdjustableActivePowerKw, 3);
         Assert.Equal(unit.RatedPowerKw, unit.Logger.MaxAdjustableActivePowerKw, 3);
+        Assert.Equal(unit.RatedReactivePowerKvar, unit.Logger.MaxAdjustableReactivePowerKvar, 3);
+        Assert.Equal(-unit.RatedReactivePowerKvar, unit.Logger.MinAdjustableReactivePowerKvar, 3);
 
         Assert.InRange(unit.MeterLv.LineVoltageAb, 680, 700);
         Assert.InRange(unit.MeterHv.LineVoltageAb, 34000, 36000);
@@ -146,6 +148,9 @@ public class PvUnitDeviceTests
         Assert.True(unit.MaximumDischargePowerKw > bothFull * 0.4);
 
         double afterAngle = unit.MaximumDischargePowerKw;
+        double clipped = unit.Inverters.Sum(inv => Math.Min(inv.RatedPowerKw, Math.Max(0, inv.AvailableAcPowerKw)));
+        Assert.Equal(clipped, unit.Logger.MaxAdjustableActivePowerKw, 3);
+        Assert.True(unit.Logger.MaxAdjustableActivePowerKw < unit.RatedPowerKw);
         unit.ArrayA.SetAmbientTemperatureC(70);
         unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
         Assert.True(unit.MaximumDischargePowerKw < afterAngle);

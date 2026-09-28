@@ -65,6 +65,8 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public double RatedReactivePowerKvar => _config.RatedReactivePowerKvar ?? _config.RatedPowerKw;
         public PvInverterProtocolData Protocol { get; }
         public double AvailableDcPowerKw { get; private set; }
+        /// <summary>交流侧可发（kW），含效率与低温降额，未按额定封顶。</summary>
+        public double AvailableAcPowerKw { get; private set; }
         public IReadOnlyList<double> StringCurrentsA => _stringCurrents;
         public IReadOnlyList<double> MpptVoltageV => _mpptVoltage;
         public IReadOnlyList<double> MpptCurrentA => _mpptCurrent;
@@ -169,6 +171,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
                 bool canRun = _runCommand && _grid.IsAvailable && _state.Mode == OperationMode.Normal;
                 double availableAcKw = AvailableDcPowerKw * _config.Efficiency;
+                AvailableAcPowerKw = availableAcKw;
                 double pTarget = canRun ? Math.Min(_pendingActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw)) : 0;
                 double qTarget = canRun ? _pendingReactiveKvar : 0;
                 ClampApparent(ref pTarget, ref qTarget, _config.RatedPowerKw * 1.1);
