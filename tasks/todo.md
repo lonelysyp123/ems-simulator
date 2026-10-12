@@ -1,32 +1,30 @@
-# Modbus 连接改为异步收包
+# 箱变有功在两侧方阵间补缺额
 
-> 已确认：`ModbusPortHub` 自己异步收 Modbus TCP 帧，不调用 NModbus `ListenAsync`。白名单不再经环回转发。一条连接串行处理帧，事务号原样返回。未知从站回异常码 4 且不拆连接。不抬线程池最小线程数，不改一次图前端，不改 SEL 监听。
-> 非有限数计划已归档：`tasks/finite-number-json.md` / `tasks/todo-finite-number-json.md`。
+> 已确认：箱变「P设」仍按逆变器台数均分写入 `ActivePowerSettingKw`。每个仿真步按本步可发把发不够的份额补给有余量的逆变器。设定回读不变。停机或电网断开的逆变器不转出份额。无功仍均分。设定对齐逆变器交流合计，不把箱变损耗折进设定。
+> Modbus 异步收包计划已归档：`tasks/modbus-async-receive.md` / `tasks/todo-modbus-async-receive.md`。
 
 ## 已确认
-- [x] 收包放在 `ModbusPortHub`，空闲连接不占线程池工作线程
-- [x] 从站挂载、`GetNetwork`、寄存器镜像和白名单语义保留
-- [x] 不实现同一条连接上的请求流水线
-- [x] 不按轮询请求写日志
+- [x] 缺额转移，不改均分命令，不改点表回读
+- [x] 基线是各台当前设定，单机写低且发得够时不补回 Logger 原设定
+- [x] 同一仿真步内先算可发再分配
+- [x] 不改一次图，不改无功分配
 
-## Phase 1: 一帧能收能回
-- [x] Task 1: MBAP 组帧
-- [x] Task 2: 单连接异步会话（依赖 Task 1）
+## Phase 1: 分配与逆变器目标
+- [x] Task 1: 有功缺额分配函数
+- [x] Task 2: 逆变器可发预览与本步目标（可与 Task 1 并行）
 
-## Checkpoint: 一帧能收能回
-- [x] 会话测试里的主站读到预先写入的寄存器
-- [x] 非零事务号能对上响应
-- [x] 未知从站号返回异常后，同一连接的下一次合法读仍成功
-- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~ModbusTcpFrame|FullyQualifiedName~ModbusTcpSession"`
+## Checkpoint: 分配与逆变器目标
+- [x] 分配函数覆盖：单侧不够并被补满、两侧都不够、两侧都够、三台分摊、不参与者不转出
+- [x] 本步目标高于设定时实际有功上升，`ActivePowerSettingKw` 不变
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~PvActiveShareAllocator|FullyQualifiedName~PvInverterDevice"`
 - [x] `dotnet build ./EssSimulator.csproj`
 
-## Phase 2: 接入现有端口
-- [x] Task 3: `ModbusPortHub` 改用异步会话，去掉 `ListenAsync` 和环回泵（依赖 Task 2）
-- [x] Task 4: 40 条空闲连接不挡住活动读（依赖 Task 3）
+## Phase 2: 箱变仿真步
+- [x] Task 3: 箱变仿真步按可发补缺额（依赖 Task 1、Task 2）
 
 ## Checkpoint: Complete
-- [x] 共享传输、白名单、第三方 EMS 客户端测试通过
-- [x] 空闲连接存在时，活动读在 1 秒内返回
-- [x] 两个主站同时读到同一个值
-- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~ModbusPortHub|FullyQualifiedName~ModbusTcpSlaveSharedTransport|FullyQualifiedName~ThirdPartyEmsModbusClient|FullyQualifiedName~ModbusTcpFrame|FullyQualifiedName~ModbusTcpSession"`
+- [x] 一侧受限时合计接近设定；两侧都够时仍均分
+- [x] 改入射角的下一步即补缺额，无需重写「P设」
+- [x] 单机 80 kW / 200 kW 在发得够时保持不变
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~PvActiveShareAllocator|FullyQualifiedName~PvInverterDevice|FullyQualifiedName~PvUnitDevice"`
 - [x] `dotnet build ./EssSimulator.csproj`

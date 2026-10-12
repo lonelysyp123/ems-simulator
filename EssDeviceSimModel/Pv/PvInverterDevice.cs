@@ -26,6 +26,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         private bool _runCommand;
         private double _pendingActiveKw;
+        private double? _stepActiveKw;
         private double _pendingReactiveKvar;
         private double _rampedActiveKw;
         private double _rampedReactiveKvar;
@@ -100,6 +101,12 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             get { lock (_commandGate) return _runCommand; }
         }
 
+        /// <summary>运行、并网且处于 Normal 时，参与单元有功缺额转移。</summary>
+        public bool CanDeliverActivePower
+        {
+            get { lock (_commandGate) return _runCommand && _grid.IsAvailable && _state.Mode == OperationMode.Normal; }
+        }
+
         public double ActivePowerSettingKw
         {
             get { lock (_commandGate) return _pendingActiveKw; }
@@ -158,45 +165,78 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             }
         }
 
+        /// <summary>本步有功目标。不改 <see cref="ActivePowerSettingKw"/>，下一步未再设置则回到设定。</summary>
+        public void SetStepActiveTarget(double activePowerKw)
+        {
+            lock (_commandGate)
+            {
+                _stepActiveKw = double.IsFinite(activePowerKw) ? Math.Max(0, activePowerKw) : null;
+            }
+        }
+
+        /// <summary>按当前辐照和电池温度刷新交流可发，不出力。</summary>
+        public void RefreshAvailable(double gFrontWm2, double cellTempC, double gRearWm2 = 0)
+        {
+            lock (_commandGate)
+                RefreshAvailableCore(gFrontWm2, cellTempC, gRearWm2);
+        }
+
         public void Update(double gFrontWm2, double cellTempC, DateTime timeStamp, TimeSpan timeStep, double gRearWm2 = 0)
         {
             lock (_commandGate)
             {
-                if (_state.Timestamp.Date != timeStamp.Date)
-                    _state.DailyDischargeEnergy = 0;
-                _state.Timestamp = timeStamp;
-
-                EvaluateArray(gFrontWm2, cellTempC, gRearWm2);
-                AvailableDcPowerKw *= ColdTemperatureScale(cellTempC);
-
-                bool canRun = _runCommand && _grid.IsAvailable && _state.Mode == OperationMode.Normal;
-                double availableAcKw = AvailableDcPowerKw * _config.Efficiency;
-                AvailableAcPowerKw = availableAcKw;
-                double pTarget = canRun ? Math.Min(_pendingActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw)) : 0;
-                double qTarget = canRun ? _pendingReactiveKvar : 0;
-                ClampApparent(ref pTarget, ref qTarget, _config.RatedPowerKw * 1.1);
-
-                if (canRun)
-                {
-                    AdvanceRamp(pTarget, qTarget, timeStep);
-                    _rampedActiveKw = Math.Min(_rampedActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw));
-                }
-                else
-                    StopRampsAndZeroPower();
-
-                _state.ActivePower = canRun ? _rampedActiveKw : 0;
-                _state.ReactivePower = canRun ? _rampedReactiveKvar : 0;
-                if (_state.ActivePower < 0)
-                    _state.ActivePower = 0;
-
-                ApplyDcOperatingPoints(gFrontWm2, cellTempC, gRearWm2);
-                ApplyElectrical(canRun, cellTempC);
-                AccumulateEnergy(timeStep);
-                LimitReason = ClassifyLimitReason(gFrontWm2, cellTempC, availableAcKw);
+                RefreshAvailableCore(gFrontWm2, cellTempC, gRearWm2);
+                ApplyStepCore(gFrontWm2, cellTempC, timeStamp, timeStep, gRearWm2);
             }
         }
 
-        private string ClassifyLimitReason(double gFrontWm2, double cellTempC, double availableAcKw)
+        internal void ApplyStep(double gFrontWm2, double cellTempC, DateTime timeStamp, TimeSpan timeStep, double gRearWm2 = 0)
+        {
+            lock (_commandGate)
+                ApplyStepCore(gFrontWm2, cellTempC, timeStamp, timeStep, gRearWm2);
+        }
+
+        private void RefreshAvailableCore(double gFrontWm2, double cellTempC, double gRearWm2)
+        {
+            EvaluateArray(gFrontWm2, cellTempC, gRearWm2);
+            AvailableDcPowerKw *= ColdTemperatureScale(cellTempC);
+            AvailableAcPowerKw = AvailableDcPowerKw * _config.Efficiency;
+        }
+
+        private void ApplyStepCore(double gFrontWm2, double cellTempC, DateTime timeStamp, TimeSpan timeStep, double gRearWm2)
+        {
+            if (_state.Timestamp.Date != timeStamp.Date)
+                _state.DailyDischargeEnergy = 0;
+            _state.Timestamp = timeStamp;
+
+            bool canRun = _runCommand && _grid.IsAvailable && _state.Mode == OperationMode.Normal;
+            double availableAcKw = AvailableAcPowerKw;
+            double activeLimit = _stepActiveKw ?? _pendingActiveKw;
+            _stepActiveKw = null;
+            double pTarget = canRun ? Math.Min(activeLimit, Math.Min(availableAcKw, _config.RatedPowerKw)) : 0;
+            double qTarget = canRun ? _pendingReactiveKvar : 0;
+            ClampApparent(ref pTarget, ref qTarget, _config.RatedPowerKw * 1.1);
+
+            if (canRun)
+            {
+                AdvanceRamp(pTarget, qTarget, timeStep);
+                _rampedActiveKw = Math.Min(_rampedActiveKw, Math.Min(availableAcKw, _config.RatedPowerKw));
+            }
+            else
+                StopRampsAndZeroPower();
+
+            _state.ActivePower = canRun ? _rampedActiveKw : 0;
+            _state.ReactivePower = canRun ? _rampedReactiveKvar : 0;
+            if (_state.ActivePower < 0)
+                _state.ActivePower = 0;
+
+            ApplyDcOperatingPoints(gFrontWm2, cellTempC, gRearWm2);
+            ApplyElectrical(canRun, cellTempC);
+            AccumulateEnergy(timeStep);
+            LimitReason = ClassifyLimitReason(gFrontWm2, cellTempC, activeLimit, availableAcKw);
+        }
+
+        private string ClassifyLimitReason(double gFrontWm2, double cellTempC, double activeTargetKw, double availableAcKw)
         {
             if (!_runCommand || _state.Mode != OperationMode.Normal)
                 return "停机";
@@ -211,9 +251,9 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             if (ColdTemperatureScale(cellTempC) < 0.999)
                 return "低温降额";
             double rated = _config.RatedPowerKw;
-            if (_pendingActiveKw + 0.5 < Math.Min(availableAcKw, rated) && _pendingActiveKw < rated - 0.5)
+            if (activeTargetKw + 0.5 < Math.Min(availableAcKw, rated) && activeTargetKw < rated - 0.5)
                 return "有功设定";
-            if (availableAcKw > rated + 1 && _pendingActiveKw >= rated - 0.5)
+            if (availableAcKw > rated + 1 && activeTargetKw >= rated - 0.5)
                 return "已达额定";
             return "正常";
         }

@@ -529,4 +529,50 @@ public class PvInverterDeviceTests
         inv.Update(1000, -25, DateTime.UtcNow, TimeSpan.FromSeconds(5));
         Assert.Equal("低温降额", inv.LimitReason);
     }
+
+    [Fact]
+    public void RefreshAvailable_MatchesUpdate()
+    {
+        var preview = CreateRunning();
+        preview.RefreshAvailable(1000, 25);
+        var stepped = CreateRunning();
+        stepped.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1));
+        Assert.Equal(stepped.AvailableAcPowerKw, preview.AvailableAcPowerKw, 6);
+    }
+
+    [Fact]
+    public void StepActiveTarget_RaisesOutputWithoutChangingSetting()
+    {
+        var inv = CreateRunning();
+        inv.ActivePowerSettingKw = 100;
+        inv.SetStepActiveTarget(200);
+        inv.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        Assert.Equal(100, inv.ActivePowerSettingKw);
+        Assert.InRange(inv.GetCurrentState().ActivePower, 198, 202);
+    }
+
+    [Fact]
+    public void StepActiveTarget_AtRated_DoesNotReportSetpointBecauseCommandIsLower()
+    {
+        var inv = CreateRunning();
+        inv.ActivePowerSettingKw = 100;
+        inv.SetStepActiveTarget(inv.RatedPowerKw);
+        inv.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        Assert.Equal(100, inv.ActivePowerSettingKw);
+        Assert.InRange(inv.GetCurrentState().ActivePower, 318, 322);
+        Assert.Equal("已达额定", inv.LimitReason);
+    }
+
+    [Fact]
+    public void Update_WithoutStepTarget_FollowsSetting()
+    {
+        var inv = CreateRunning();
+        inv.ActivePowerSettingKw = 160;
+        inv.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        Assert.InRange(inv.GetCurrentState().ActivePower, 158, 162);
+        Assert.Equal("有功设定", inv.LimitReason);
+    }
 }

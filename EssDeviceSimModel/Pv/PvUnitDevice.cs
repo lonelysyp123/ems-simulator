@@ -167,9 +167,29 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         /// <summary>按方阵 A/B 的环境温度、入射角与反照率计算 MPPT 出力（场况，非 IEC STC）。</summary>
         public void Update(DateTime timeStamp, TimeSpan timeStep, double gRearWm2 = 0)
         {
+            int n = _inverters.Length;
+            var gFront = new double[n];
+            var gRear = new double[n];
+            var cellTemp = new double[n];
             int nA = ArrayAInverterCount;
-            UpdateArray(ArrayA, 0, nA, timeStamp, timeStep, gRearWm2);
-            UpdateArray(ArrayB, nA, _inverters.Length, timeStamp, timeStep, gRearWm2);
+            PrepareClimate(ArrayA, 0, nA, gRearWm2, gFront, gRear, cellTemp);
+            PrepareClimate(ArrayB, nA, n, gRearWm2, gFront, gRear, cellTemp);
+
+            var requests = new PvActiveShareRequest[n];
+            for (int i = 0; i < n; i++)
+            {
+                PvInverterDevice inv = _inverters[i];
+                inv.RefreshAvailable(gFront[i], cellTemp[i], gRear[i]);
+                double cap = Math.Min(inv.RatedPowerKw, Math.Max(0, inv.AvailableAcPowerKw));
+                requests[i] = new PvActiveShareRequest(inv.ActivePowerSettingKw, cap, inv.CanDeliverActivePower);
+            }
+
+            double[] targets = PvActiveShareAllocator.Allocate(requests);
+            for (int i = 0; i < n; i++)
+                _inverters[i].SetStepActiveTarget(targets[i]);
+
+            CommitArray(ArrayA, 0, nA, timeStamp, timeStep, gFront, gRear, cellTemp);
+            CommitArray(ArrayB, nA, n, timeStamp, timeStep, gFront, gRear, cellTemp);
 
             double gAvg = 0.5 * (ArrayA.PlaneOfArrayWm2 + ArrayB.PlaneOfArrayWm2);
             double tAmb = 0.5 * (ArrayA.AmbientTemperatureC + ArrayB.AmbientTemperatureC);
@@ -192,15 +212,28 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             Update(timeStamp, timeStep, gRearWm2);
         }
 
-        private void UpdateArray(
-            PvArrayClimate climate, int fromInclusive, int toExclusive,
-            DateTime timeStamp, TimeSpan timeStep, double gRearWm2)
+        private void PrepareClimate(
+            PvArrayClimate climate, int fromInclusive, int toExclusive, double gRearWm2,
+            double[] gFront, double[] gRear, double[] cellTemp)
         {
             double g = climate.PlaneOfArrayWm2;
-            double gRear = gRearWm2 > 0 ? gRearWm2 : climate.Albedo * g;
-            climate.RearWm2 = gRear;
-            double cellTempC = PvModuleSimulator.EstimateCellTempC(_module.Spec, climate.AmbientTemperatureC, g);
-            climate.CellTemperatureC = cellTempC;
+            double rear = gRearWm2 > 0 ? gRearWm2 : climate.Albedo * g;
+            climate.RearWm2 = rear;
+            double cell = PvModuleSimulator.EstimateCellTempC(_module.Spec, climate.AmbientTemperatureC, g);
+            climate.CellTemperatureC = cell;
+            for (int i = fromInclusive; i < toExclusive; i++)
+            {
+                gFront[i] = g;
+                gRear[i] = rear;
+                cellTemp[i] = cell;
+            }
+        }
+
+        private void CommitArray(
+            PvArrayClimate climate, int fromInclusive, int toExclusive,
+            DateTime timeStamp, TimeSpan timeStep,
+            double[] gFront, double[] gRear, double[] cellTemp)
+        {
             double availableAc = 0;
             double activeAc = 0;
             double vSum = 0;
@@ -209,7 +242,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             var reasons = new List<string>();
             for (int i = fromInclusive; i < toExclusive; i++)
             {
-                _inverters[i].Update(g, cellTempC, timeStamp, timeStep, gRear);
+                _inverters[i].ApplyStep(gFront[i], cellTemp[i], timeStamp, timeStep, gRear[i]);
                 availableAc += _inverters[i].AvailableDcPowerKw * _config.Inverter.Efficiency;
                 var st = _inverters[i].GetCurrentState();
                 activeAc += st.ActivePower;

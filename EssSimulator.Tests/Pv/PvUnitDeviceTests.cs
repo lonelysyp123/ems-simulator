@@ -345,6 +345,95 @@ public class PvUnitDeviceTests
         Assert.Equal(200, unit.Logger.SubarrayActivePowerKw);
     }
 
+    [Fact]
+    public void ActiveShare_BothAble_StaysEven()
+    {
+        var unit = StartPair();
+        unit.Logger.SubarrayActivePowerKw = 400;
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        Assert.InRange(unit.ArrayA.ActivePowerKw, 199, 201);
+        Assert.InRange(unit.ArrayB.ActivePowerKw, 199, 201);
+        Assert.Equal(200, unit.Inverters[0].ActivePowerSettingKw, 6);
+        Assert.Equal(200, unit.Inverters[1].ActivePowerSettingKw, 6);
+    }
+
+    [Fact]
+    public void ActiveShare_LimitedArray_OtherMakesUpSetpoint()
+    {
+        double angle = AngleForInverterCap(1, 90, 150);
+        var unit = StartPair();
+        unit.Logger.SubarrayActivePowerKw = 400;
+        unit.ArrayB.SetIncidenceAngleDeg(angle);
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        double capA = InverterCapKw(unit.Inverters[0]);
+        double capB = InverterCapKw(unit.Inverters[1]);
+        Assert.True(capA >= 320);
+        Assert.InRange(capB, 90, 150);
+        Assert.InRange(unit.ActivePowerKw, 399, 401);
+        Assert.True(unit.ArrayA.ActivePowerKw > 200);
+        Assert.True(unit.ArrayB.ActivePowerKw <= capB + 1);
+        Assert.Equal(200, unit.Inverters[0].ActivePowerSettingKw, 6);
+        Assert.Equal(200, unit.Inverters[1].ActivePowerSettingKw, 6);
+        Assert.Equal(400, unit.Logger.SubarrayActivePowerKw, 6);
+    }
+
+    [Fact]
+    public void ActiveShare_AngleChange_RebalancesOnNextStep()
+    {
+        double angle = AngleForInverterCap(1, 90, 150);
+        var unit = StartPair();
+        unit.Logger.SubarrayActivePowerKw = 400;
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        Assert.InRange(unit.ArrayA.ActivePowerKw, 199, 201);
+
+        unit.ArrayB.SetIncidenceAngleDeg(angle);
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        Assert.InRange(unit.ActivePowerKw, 399, 401);
+        Assert.True(unit.ArrayA.ActivePowerKw > 200);
+        Assert.Equal(400, unit.Logger.SubarrayActivePowerKw, 6);
+    }
+
+    [Fact]
+    public void ActiveShare_BothLimited_EqualsSumOfCaps()
+    {
+        double angle = AngleForInverterCap(0, 40, 120);
+        var unit = StartPair();
+        unit.Logger.SubarrayActivePowerKw = 400;
+        unit.ArrayA.SetIncidenceAngleDeg(angle);
+        unit.ArrayB.SetIncidenceAngleDeg(angle);
+        unit.Update(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        double capA = InverterCapKw(unit.Inverters[0]);
+        double capB = InverterCapKw(unit.Inverters[1]);
+        Assert.True(capA < 200);
+        Assert.True(capB < 200);
+        Assert.InRange(unit.ActivePowerKw, capA + capB - 1, capA + capB + 1);
+        Assert.True(unit.ActivePowerKw < 400);
+    }
+
+    private static double InverterCapKw(PvInverterDevice inv) =>
+        Math.Min(inv.RatedPowerKw, Math.Max(0, inv.AvailableAcPowerKw));
+
+    private static double AngleForInverterCap(int inverterIndex, double minCapKw, double maxCapKw)
+    {
+        var probe = StartPair();
+        var spec = TrinaPvModuleCatalog.GetOrThrow(TrinaPvModuleCatalog.Neg21c20qModel);
+        for (double angle = 8; angle <= 70; angle += 0.25)
+        {
+            double g = PvIrradianceModel.EvaluatePlaneOfArrayWm2(angle);
+            double cell = PvModuleSimulator.EstimateCellTempC(spec, PvArrayClimate.DefaultAmbientC, g);
+            probe.Inverters[inverterIndex].RefreshAvailable(g, cell);
+            double cap = InverterCapKw(probe.Inverters[inverterIndex]);
+            if (cap >= minCapKw && cap <= maxCapKw)
+                return angle;
+        }
+
+        throw new InvalidOperationException($"没有入射角使逆变器可发落在 {minCapKw}–{maxCapKw} kW");
+    }
+
     private static PvUnitDevice StartPair()
     {
         var unit = new PvUnitDevice("pv1", new PvUnitConfig { InverterCount = 2 });
