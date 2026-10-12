@@ -318,6 +318,25 @@ public class PvUnitDeviceTests
     }
 
     [Fact]
+    public void ActiveKwSetpoint_SurvivesQuantizedPercentEcho()
+    {
+        var unit = StartDefault();
+        unit.Logger.SubarrayActivePowerKw = 200;
+
+        Assert.Equal(200, unit.Logger.SubarrayActivePowerKw);
+        Assert.Equal(3.9, unit.Logger.SubarrayActivePowerPercent);
+
+        unit.Logger.SubarrayActivePowerPercent = 3.9;
+        Assert.Equal(200, unit.Logger.SubarrayActivePowerKw);
+        Assert.Equal(200d / unit.InverterCount, unit.Inverters[0].ActivePowerSettingKw, 6);
+
+        unit.Logger.SubarrayActivePowerKw = 0;
+        Assert.Equal(0, unit.Logger.SubarrayActivePowerKw);
+        Assert.Equal(0, unit.Logger.SubarrayActivePowerPercent);
+        Assert.All(unit.Inverters, inv => Assert.Equal(0, inv.ActivePowerSettingKw));
+    }
+
+    [Fact]
     public void LoggerPercentCommands_UpdateOnlyRequestedPowerChannel()
     {
         var unit = StartPair();

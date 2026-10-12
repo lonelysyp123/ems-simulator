@@ -42,14 +42,20 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public ushort OperationStatus => (ushort)PcsDisplayLabels.ToOperationStatusCode(
             _inverter.GetCurrentState(), _inverter.IsExternalRunCommand);
 
+        /// <summary>阳光电源逆变器保持寄存器 5006：207 开机。</summary>
+        public const ushort RunCommandStart = 207;
+
+        /// <summary>阳光电源逆变器保持寄存器 5006：206 关机。</summary>
+        public const ushort RunCommandStop = 206;
+
         public ushort RunCommand
         {
-            get => (ushort)(_inverter.IsExternalRunCommand ? 1 : 0);
+            get => _inverter.IsExternalRunCommand ? RunCommandStart : RunCommandStop;
             set
             {
-                if (value > 1)
-                    throw new ArgumentOutOfRangeException(nameof(value), "启停命令只接受 0 或 1");
-                _inverter.SyncExternalRunCommand(value == 1);
+                if (value != RunCommandStart && value != RunCommandStop)
+                    throw new ArgumentOutOfRangeException(nameof(value), "启停命令只接受 207（开机）或 206（关机）");
+                _inverter.SyncExternalRunCommand(value == RunCommandStart);
             }
         }
 

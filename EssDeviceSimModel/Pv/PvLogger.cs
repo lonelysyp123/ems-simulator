@@ -7,6 +7,9 @@ namespace EssSimulator.EssDeviceSimModel.Pv
     {
         public const int ForwardedDeviceCount = 25;
 
+        /// <summary>有功/无功百分比寄存器系数，分辨率 0.1%。</summary>
+        private const double PercentRegisterScale = 10;
+
         private readonly PvUnitDevice _unit;
         private readonly object _commandGate = new();
         private DateTime _stamp;
@@ -85,7 +88,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
                 lock (_commandGate)
                 {
                     _activeKwSet = Math.Clamp(value, 0, _unit.RatedPowerKw);
-                    _activePercent = _unit.RatedPowerKw > 0 ? _activeKwSet / _unit.RatedPowerKw * 100 : 0;
+                    _activePercent = QuantizePercent(_unit.RatedPowerKw > 0 ? _activeKwSet / _unit.RatedPowerKw * 100 : 0);
                     _unit.SetActivePowerCommand(_activeKwSet);
                 }
             }
@@ -97,7 +100,12 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             set
             {
                 lock (_commandGate)
-                    SubarrayActivePowerKw = _unit.RatedPowerKw * Math.Clamp(value, 0, 100) / 100.0;
+                {
+                    double pct = QuantizePercent(Math.Clamp(value, 0, 100));
+                    if (Math.Abs(pct - _activePercent) < 1e-9)
+                        return;
+                    SubarrayActivePowerKw = _unit.RatedPowerKw * pct / 100.0;
+                }
             }
         }
 
@@ -109,7 +117,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
                 lock (_commandGate)
                 {
                     _reactiveKvarSet = Math.Clamp(value, -_unit.RatedPowerKw, _unit.RatedPowerKw);
-                    _reactivePercent = _unit.RatedPowerKw > 0 ? _reactiveKvarSet / _unit.RatedPowerKw * 100 : 0;
+                    _reactivePercent = QuantizePercent(_unit.RatedPowerKw > 0 ? _reactiveKvarSet / _unit.RatedPowerKw * 100 : 0);
                     _unit.SetReactivePowerCommand(_reactiveKvarSet);
                 }
             }
@@ -121,7 +129,12 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             set
             {
                 lock (_commandGate)
-                    SubarrayReactivePowerKvar = _unit.RatedPowerKw * Math.Clamp(value, -100, 100) / 100.0;
+                {
+                    double pct = QuantizePercent(Math.Clamp(value, -100, 100));
+                    if (Math.Abs(pct - _reactivePercent) < 1e-9)
+                        return;
+                    SubarrayReactivePowerKvar = _unit.RatedPowerKw * pct / 100.0;
+                }
             }
         }
 
@@ -142,6 +155,10 @@ namespace EssSimulator.EssDeviceSimModel.Pv
                 }
             }
         }
+
+        /// <summary>百分比按寄存器系数取整，使回读与设定一致，避免控制扫描把量化结果当成新命令。</summary>
+        private static double QuantizePercent(double percent) =>
+            Math.Round(percent * PercentRegisterScale, MidpointRounding.ToEven) / PercentRegisterScale;
 
         public void Refresh(DateTime timeStamp, TimeSpan step)
         {

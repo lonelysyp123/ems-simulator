@@ -352,9 +352,9 @@ public class PvPointMapBindingTests
         Assert.Equal(123.4, ReadPoint("yt0"));
         Assert.Equal(123400d, ReadPoint("yc21"), 6);
         Assert.Equal(-23400d, ReadPoint("yc22"), 6);
-        Assert.Equal(0d, ReadPoint("yk0"));
-        WriteControl("yk0", (ushort)1);
-        Assert.Equal(1d, ReadPoint("yk0"));
+        Assert.Equal((double)PvInverterProtocolData.RunCommandStop, ReadPoint("yk0"));
+        WriteControl("yk0", PvInverterProtocolData.RunCommandStart);
+        Assert.Equal((double)PvInverterProtocolData.RunCommandStart, ReadPoint("yk0"));
 
         var selected = units[$"pv{unitId}"].Inverters[index];
         Assert.True(selected.IsExternalRunCommand);
@@ -373,9 +373,9 @@ public class PvPointMapBindingTests
             }
         }
 
-        WriteControl("yk0", (ushort)0);
+        WriteControl("yk0", PvInverterProtocolData.RunCommandStop);
         Assert.False(selected.IsExternalRunCommand);
-        Assert.Equal(0d, ReadPoint("yk0"));
+        Assert.Equal((double)PvInverterProtocolData.RunCommandStop, ReadPoint("yk0"));
         Assert.Equal(123.4, ReadPoint("yt0"));
         Assert.Equal(-23.4, ReadPoint("yt1"));
         Assert.Equal(123400d, ReadPoint("yc21"), 6);

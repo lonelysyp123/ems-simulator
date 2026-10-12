@@ -30,6 +30,6 @@ FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
 4,5120,u16,16,yc28,10,MPPT6电流(A) 系数0.1(阳光电源逆变器 FC 0x04),model=4|arg1=pvDeviceId.Inverters[inverterIndex].Protocol.MpptCurrentA[5]
 4,5194,u16,16,yc29,1,预留1(阳光电源逆变器 FC 0x04),0
 4,5195,u16,16,yc30,1,预留2(阳光电源逆变器 FC 0x04),0
-6,5006,u16,16,yk0,1,开机/关机设置点(阳光电源逆变器 保持寄存器 读0x03 写0x06/0x10),model=4|arg1=pvDeviceId.Inverters[inverterIndex].Protocol.RunCommand
+6,5006,u16,16,yk0,1,开机/关机设置点(阳光电源逆变器 保持寄存器 读0x03 写0x06/0x10 207开机 206关机),model=4|arg1=pvDeviceId.Inverters[inverterIndex].Protocol.RunCommand
 6,5039,u16,16,yt0,10,有功功率调节设置点 系数0.1(阳光电源逆变器 保持寄存器 读0x03 写0x06/0x10),model=4|arg1=pvDeviceId.Inverters[inverterIndex].Protocol.ActivePowerSettingKw
 6,5040,int16,16,yt1,10,无功功率调节设置点 系数0.1(阳光电源逆变器 保持寄存器 读0x03 写0x06/0x10),model=4|arg1=pvDeviceId.Inverters[inverterIndex].Protocol.ReactivePowerSettingKvar

@@ -29,7 +29,7 @@ public class PvInverterModbusTests : SimulatorHostTestBase
         var server = fixture.StartInverter(2, 0);
         using var connection = new Connection(server);
 
-        Assert.Equal(run ? 1 : 0, connection.Read("yk0"));
+        Assert.Equal(run ? (double)PvInverterProtocolData.RunCommandStart : PvInverterProtocolData.RunCommandStop, connection.Read("yk0"));
         Assert.Equal(87.6, connection.Read("yt0"), 6);
         Assert.Equal(-12.3, connection.Read("yt1"), 6);
         await WaitUntil(() => connection.Read("yc21") == 87600 && connection.Read("yc22") == -12300,
@@ -50,7 +50,7 @@ public class PvInverterModbusTests : SimulatorHostTestBase
         var target = fixture.Units[1].Inverters[0];
         using var connection = new Connection(fixture.Server("simPvInv3"));
         connection.Master.WriteMultipleRegisters(1, 5039, new ushort[] { 1234, unchecked((ushort)(short)-456) });
-        connection.Master.WriteSingleRegister(1, 5006, 1);
+        connection.Master.WriteSingleRegister(1, 5006, PvInverterProtocolData.RunCommandStart);
         await WaitUntil(() => fixture.Capture.Events.Count == 3, "单机启停和 P/Q 命令未全部执行");
 
         Assert.Equal(123.4, target.ActivePowerSettingKw, 6);
@@ -88,7 +88,7 @@ public class PvInverterModbusTests : SimulatorHostTestBase
         foreach (string point in new[] { "yc19", "yc29", "yc30" })
             Assert.Equal(0, connection.Read(point));
 
-        connection.Master.WriteSingleRegister(1, 5006, 0);
+        connection.Master.WriteSingleRegister(1, 5006, PvInverterProtocolData.RunCommandStop);
         await WaitUntil(() => fixture.Capture.Events.Count == 4, "单机停机命令未执行");
         fixture.Step();
         await WaitUntil(() => connection.Read("yc14") == 0 && connection.Read("yc15") == 0, "停机后输出未归零");
@@ -141,7 +141,7 @@ public class PvInverterModbusTests : SimulatorHostTestBase
             "模型整组命令没有反馈到单机保持寄存器");
         for (int i = 1; i <= 5; i++)
         {
-            connection.Master.WriteSingleRegister(1, 5006, 1);
+            connection.Master.WriteSingleRegister(1, 5006, PvInverterProtocolData.RunCommandStart);
             connection.Master.WriteMultipleRegisters(1, 5039, new ushort[] { 1000, unchecked((ushort)(short)-300) });
             unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromMilliseconds(100));
             await Task.Delay(30);
@@ -178,7 +178,7 @@ public class PvInverterModbusTests : SimulatorHostTestBase
         logger.Write("yt5", 600);
         await WaitUntil(() => first.Read("yt0") == 300 && second.Read("yt0") == 300,
             "Logger 整组有功未分发到全部单机");
-        first.Write("yk0", 0);
+        first.Write("yk0", PvInverterProtocolData.RunCommandStop);
         await WaitUntil(() => !unit.Inverters[0].IsExternalRunCommand, "单机停机未执行");
         fixture.Step();
         await Task.Delay(120);
@@ -207,7 +207,7 @@ public class PvInverterModbusTests : SimulatorHostTestBase
         using var connection = new Connection(server);
         await WaitUntil(() => connection.Read("yc21") == 66600 && connection.Read("yc22") == -7700,
             "重连后遥测仍为旧值");
-        Assert.Equal(1, connection.Read("yk0"));
+        Assert.Equal((double)PvInverterProtocolData.RunCommandStart, connection.Read("yk0"));
         Assert.Equal(66.6, connection.Read("yt0"), 6);
         Assert.Equal(-7.7, connection.Read("yt1"), 6);
         await Task.Delay(120);

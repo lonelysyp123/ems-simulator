@@ -70,14 +70,14 @@ public class PvInverterProtocolDataTests
         var inv = PvInverterDevice.Create320kW("pv1.inv1");
         inv.Protocol.ActivePowerSettingKw = 80;
         inv.Protocol.ReactivePowerSettingKvar = -25;
-        inv.Protocol.RunCommand = 1;
+        inv.Protocol.RunCommand = PvInverterProtocolData.RunCommandStart;
         inv.UpdateGridState(690, 50, true);
         inv.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1));
 
         Assert.Equal(80000, inv.Protocol.ActivePowerW, 6);
         Assert.Equal(-25000, inv.Protocol.ReactivePowerVar, 6);
-        inv.Protocol.RunCommand = 0;
-        Assert.Equal(0, inv.Protocol.RunCommand);
+        inv.Protocol.RunCommand = PvInverterProtocolData.RunCommandStop;
+        Assert.Equal(PvInverterProtocolData.RunCommandStop, inv.Protocol.RunCommand);
         Assert.Equal(1, inv.Protocol.OperationStatus);
         Assert.Equal(0, inv.Protocol.ActivePowerW);
         Assert.Equal(80000, inv.Protocol.ActivePowerSettingW);
@@ -94,13 +94,17 @@ public class PvInverterProtocolDataTests
     }
 
     [Theory]
-    [InlineData(2)]
-    [InlineData(65535)]
-    public void RunCommand_RejectsValuesOtherThanZeroAndOne(ushort value)
+    [InlineData((ushort)0)]
+    [InlineData((ushort)1)]
+    [InlineData((ushort)205)]
+    [InlineData((ushort)208)]
+    [InlineData(ushort.MaxValue)]
+    public void RunCommand_RejectsValuesOtherThanStartAndStop(ushort value)
     {
         var inv = PvInverterDevice.Create320kW("pv1.inv1");
         Assert.Throws<ArgumentOutOfRangeException>(() => inv.Protocol.RunCommand = value);
         Assert.False(inv.IsExternalRunCommand);
+        Assert.Equal(PvInverterProtocolData.RunCommandStop, inv.Protocol.RunCommand);
     }
 
     [Theory]
@@ -121,7 +125,7 @@ public class PvInverterProtocolDataTests
         {
             Assert.Equal(200, inv.Protocol.RatedActivePowerKw);
             Assert.Equal(expected, inv.Protocol.RatedReactivePowerKvar);
-            Assert.Equal(1, inv.Protocol.RunCommand);
+            Assert.Equal(PvInverterProtocolData.RunCommandStart, inv.Protocol.RunCommand);
             Assert.Equal(200, inv.Protocol.ActivePowerSettingKw);
         });
         Assert.Equal(expected * 2, unit.Logger.NominalReactivePowerKvar);
