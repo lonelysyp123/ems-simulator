@@ -1,31 +1,23 @@
 using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel.Model;
+using log4net;
 
 namespace EssSimulator.EssDeviceSimModel.Devices
 {
     public static class TransformerDeviceFactory
     {
-        public static TransformerDeviceConfig CreateConfig(TransformerConfig cfg) =>
-            CreateConfig(
-                cfg.RatedPower,
-                cfg.PrimaryVoltage,
-                cfg.SecondaryVoltage,
-                cfg.NoLoadLoss,
-                cfg.LoadLoss,
-                cfg.ImpedancePercent,
-                cfg.ReactiveVoltageInfluenceCoefficient,
-                cfg.NoLoadCurrentPercent,
-                cfg.MagnetizingInrushEnabled,
-                cfg.MagnetizingInrushDvDtThresholdPuPerSec,
-                cfg.MagnetizingInrushPeakExtraMultipleOfRatedPrimary,
-                cfg.MagnetizingInrushDecayTimeConstantSec,
-                cfg.MagnetizingInrushMaxExtraMultipleOfRatedPrimary);
+        private static readonly ILog Log = LogManager.GetLogger(typeof(TransformerDeviceFactory));
 
-        public static TransformerDeviceConfig CreateConfig(UnitTransformerConfig cfg) =>
-            CreateConfig(
+        public static TransformerDeviceConfig CreateConfig(TransformerConfig cfg)
+        {
+            double primary = NominalOr(cfg.PrimaryVoltage, 220_000);
+            double secondary = NominalOr(cfg.SecondaryVoltage, 35_000);
+            if (primary != cfg.PrimaryVoltage || secondary != cfg.SecondaryVoltage)
+                Log.Warn($"主变额定电压无效，已改用 {primary} V / {secondary} V");
+            return CreateConfig(
                 cfg.RatedPower,
-                cfg.PrimaryVoltage,
-                cfg.SecondaryVoltage,
+                primary,
+                secondary,
                 cfg.NoLoadLoss,
                 cfg.LoadLoss,
                 cfg.ImpedancePercent,
@@ -36,6 +28,33 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 cfg.MagnetizingInrushPeakExtraMultipleOfRatedPrimary,
                 cfg.MagnetizingInrushDecayTimeConstantSec,
                 cfg.MagnetizingInrushMaxExtraMultipleOfRatedPrimary);
+        }
+
+        public static TransformerDeviceConfig CreateConfig(UnitTransformerConfig cfg)
+        {
+            double primary = NominalOr(cfg.PrimaryVoltage, 35_000);
+            double secondary = NominalOr(cfg.SecondaryVoltage, 690);
+            if (primary != cfg.PrimaryVoltage || secondary != cfg.SecondaryVoltage)
+                Log.Warn($"单元变额定电压无效，已改用 {primary} V / {secondary} V");
+            return CreateConfig(
+                cfg.RatedPower,
+                primary,
+                secondary,
+                cfg.NoLoadLoss,
+                cfg.LoadLoss,
+                cfg.ImpedancePercent,
+                cfg.ReactiveVoltageInfluenceCoefficient,
+                cfg.NoLoadCurrentPercent,
+                cfg.MagnetizingInrushEnabled,
+                cfg.MagnetizingInrushDvDtThresholdPuPerSec,
+                cfg.MagnetizingInrushPeakExtraMultipleOfRatedPrimary,
+                cfg.MagnetizingInrushDecayTimeConstantSec,
+                cfg.MagnetizingInrushMaxExtraMultipleOfRatedPrimary);
+        }
+
+        /// <summary>不大于 1 V 或非有限的额定电压改用该变压器种类的默认值。</summary>
+        private static double NominalOr(double voltage, double fallback) =>
+            double.IsFinite(voltage) && voltage > 1 ? voltage : fallback;
 
         private static TransformerDeviceConfig CreateConfig(
             double ratedPowerKva,
