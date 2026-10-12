@@ -85,6 +85,79 @@ namespace EssSimulator.EssDeviceSimModel
         public PackState GetPackState() => _currentState;
         public PackConfiguration GetPackConfiguration() => _config;
 
+        /// <summary>读取指定串/并位置的电芯状态。返回的是当前对象，下一步更新后会被替换。</summary>
+        public CellState GetCellState(int seriesIndex, int parallelIndex)
+        {
+            if (seriesIndex < 0 || seriesIndex >= _cells.Count)
+                throw new ArgumentOutOfRangeException(nameof(seriesIndex));
+            var row = _cells[seriesIndex];
+            if (parallelIndex < 0 || parallelIndex >= row.Count)
+                throw new ArgumentOutOfRangeException(nameof(parallelIndex));
+            return row[parallelIndex].GetCurrentState();
+        }
+
+        /// <summary>把簇平均 SOC/温度写到代表电芯，作为等效运算的起点。</summary>
+        public void SetRepresentative(double soc, double temperature)
+        {
+            var cell = _cells[0][0];
+            cell.SetSoc(soc);
+            cell.SetCellTemperature(temperature);
+        }
+
+        /// <summary>只推进代表电芯，不扫描其余电芯，也不做包内热扩散。</summary>
+        public CellState StepRepresentativeCell(double cellCurrent, double nodeTempC, DateTime timeStamp, TimeSpan timeStep)
+        {
+            var cell = _cells[0][0];
+            cell.Update(cellCurrent, nodeTempC, timeStamp, timeStep);
+            return cell.GetCurrentState();
+        }
+
+        /// <summary>恢复逐芯运算前，把代表电芯的 SOC/温度铺到本包全部电芯。</summary>
+        public void AlignAllCells(double soc, double temperature)
+        {
+            foreach (var series in _cells)
+            {
+                foreach (var cell in series)
+                {
+                    cell.SetSoc(soc);
+                    cell.SetCellTemperature(temperature);
+                }
+            }
+        }
+
+        /// <summary>用单芯等效结果填写包汇总，不分配单体列表。</summary>
+        public void ApplyEquivalentState(
+            double cellVoltage,
+            double soc,
+            double cellTemp,
+            double soh,
+            double cellRemainingAh,
+            double packCurrent,
+            DateTime timeStamp)
+        {
+            int series = Math.Max(1, _config.SeriesCount);
+            int parallel = Math.Max(1, _config.ParallelCount);
+            _currentState = new PackState
+            {
+                TotalVoltage = cellVoltage * series,
+                TotalCurrent = packCurrent,
+                MaxCellVoltage = cellVoltage,
+                MinCellVoltage = cellVoltage,
+                AvgCellVoltage = cellVoltage,
+                MaxCellTemp = cellTemp,
+                MinCellTemp = cellTemp,
+                AvgCellTemp = cellTemp,
+                MaxSOC = soc,
+                MinSOC = soc,
+                AvgSOC = soc,
+                StateOfHealth = soh,
+                RemainingCapacity = cellRemainingAh * parallel,
+                TotalCapacity = _config.NominalCapacity * parallel * soh,
+                Timestamp = timeStamp,
+                CellStates = new List<CellState>()
+            };
+        }
+
         /// <summary>热设模组内全部电芯 SOC，并刷新模组汇总。</summary>
         public void SetSoc(double soc)
         {

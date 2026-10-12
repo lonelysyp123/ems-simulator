@@ -96,6 +96,12 @@ namespace EssSimulator.EssDeviceSimModel
         private double _totalDischargeEnergy;     // 累计放电能量(kWh)
         private bool _passiveBalanceActive;
 
+        /// <summary>
+        /// null 时跟随 <see cref="BatteryCalcMode.CellPhysicsEnabled"/>。
+        /// 测试可单独钉住，避免改全局开关。
+        /// </summary>
+        public bool? CellPhysicsEnabledOverride { get; set; }
+
         // 构造函数
         public BatteryRackSimulator(RackConfiguration config)
         {
@@ -160,12 +166,13 @@ namespace EssSimulator.EssDeviceSimModel
             double balanceDischargeSum = ApplyPassiveBalanceCurrents(clusterCurrents, rackCurrent);
 
             // 更新所有簇 (并联电压相同，电流不同)
+            bool cellPhysics = CellPhysicsEnabledOverride ?? BatteryCalcMode.CellPhysicsEnabled;
             for (int i = 0; i < _clusters.Count; i++)
             {
                 // 模拟簇间环境温度差异
                 double clusterNodeTemp = nodeTempC + (_random.NextDouble() - 0.5) * 3; // ±1.5°C差异
 
-                _clusters[i].Update(clusterCurrents[i], clusterNodeTemp, timeStamp, timeStep);
+                _clusters[i].Update(clusterCurrents[i], clusterNodeTemp, timeStamp, timeStep, cellPhysics);
             }
 
             // 更新堆状态
@@ -232,15 +239,30 @@ namespace EssSimulator.EssDeviceSimModel
         private double[] CalculateCurrentDistribution(double totalCurrent)
         {
             // 并联簇按电导比分配电流：I_i = I_total × G_i / ΣG_j。电压差异已内包含在内阻中，不需额外修正。
-            double totalConductance = _clusters.Sum(c => 1.0 / c._config.ClusterInternalResistance);
-
+            // 内阻为 0 时 1/R 是正无穷，∞/∞ 会变成 NaN，该簇不参与分配。
             double[] currents = new double[_clusters.Count];
-            if (totalConductance <= 0) return currents; // 防御性保护
+            if (!double.IsFinite(totalCurrent) || _clusters.Count == 0)
+                return currents;
+
+            double totalConductance = 0;
+            var conductance = new double[_clusters.Count];
             for (int i = 0; i < _clusters.Count; i++)
             {
-                double g = 1.0 / _clusters[i]._config.ClusterInternalResistance;
-                currents[i] = totalCurrent * g / totalConductance;
+                double resistance = _clusters[i]._config.ClusterInternalResistance;
+                if (!double.IsFinite(resistance) || resistance <= 0)
+                    continue;
+                double g = 1.0 / resistance;
+                if (!double.IsFinite(g))
+                    continue;
+                conductance[i] = g;
+                totalConductance += g;
             }
+
+            if (!double.IsFinite(totalConductance) || totalConductance <= 0)
+                return currents;
+
+            for (int i = 0; i < _clusters.Count; i++)
+                currents[i] = totalCurrent * conductance[i] / totalConductance;
             return currents;
         }
 

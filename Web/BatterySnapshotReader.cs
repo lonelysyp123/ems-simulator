@@ -1,4 +1,5 @@
 using EssSimulator.Display;
+using EssSimulator.EssDeviceSimModel;
 
 namespace EssSimulator.Web
 {
@@ -72,6 +73,13 @@ namespace EssSimulator.Web
         public int MinCellTempCellId { get; set; }
         /// <summary>当前舱（BMS 堆）热网络电池节点温度（°C），与功率降额/BMS 过温保护同一感温。</summary>
         public double BatteryNodeTempC { get; set; }
+        /// <summary>true：逐芯运算；false：簇等效，单体表为同一等效值。</summary>
+        public bool CellPhysicsEnabled { get; set; } = true;
+    }
+
+    public sealed class BatteryCalcModeRequest
+    {
+        public bool CellPhysicsEnabled { get; set; }
     }
 
     public static class BatterySnapshotReader
@@ -178,7 +186,8 @@ namespace EssSimulator.Web
                 MaxCellTemp = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MaxCellTemp"),
                 MinCellTemp = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MinCellTemp"),
                 BatteryNodeTempC = GuiSimDataAccess.SafeGetDouble(
-                    $"ess._bmsRackDevices[{unitIndex0}].BatteryNodeTemperatureCelsius", 25)
+                    $"ess._bmsRackDevices[{unitIndex0}].BatteryNodeTemperatureCelsius", 25),
+                CellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled
             };
 
             int maxIdFlat = (int)GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MaxCellVoltageId");

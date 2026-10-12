@@ -147,13 +147,6 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 // 单体电压/温度字典
                 var voltDict = clu.ClusterCellVoltages.CellVoltages;
                 var tempDict = clu.ClusterCellTemperatures.CellTemperatures;
-                for (int j = 0; j < clusterConfig.PackCount; j++)
-                    for (int k = 0; k < packSerial; k++)
-                    {
-                        int key = j * packSerial + k;
-                        voltDict[key] = (float)cs.PackStates[j].CellStates[k].Voltage;
-                        tempDict[key] = (float)cs.PackStates[j].CellStates[k].Temperature;
-                    }
 
                 // 基础簇测量值
                 var m = clu.Measurements;
@@ -163,10 +156,41 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 m.Power           = (float)cs.TotalVoltage * (float)cs.TotalCurrent;
                 m.SOH             = (float)cs.StateOfHealth;
                 m.OperationStatus = (ushort)GetOperationStatus((float)cs.TotalCurrent);
-                m.AvgCellVoltage  = (float)cs.TotalVoltage / 416;
                 m.AvgCellTemp     = (float)cs.AvgPackTemp;
                 m.MaxCellSOC      = (float)cs.MaxPackSOC;
                 m.MinCellSOC      = (float)cs.MinPackSOC;
+
+                if (cs.EquivalentCells)
+                {
+                    int count = clusterConfig.PackCount * packSerial;
+                    float v = (float)cs.EquivalentCellVoltage;
+                    float t = (float)cs.EquivalentCellTemp;
+                    voltDict.Clear();
+                    tempDict.Clear();
+                    for (int key = 0; key < count; key++)
+                    {
+                        voltDict[key] = v;
+                        tempDict[key] = t;
+                    }
+
+                    m.AvgCellVoltage = v;
+                    m.CellVoltageSum = v * count;
+                    m.MaxCellVoltage = v; m.MaxCellVoltageId = 0;
+                    m.MinCellVoltage = v; m.MinCellVoltageId = 0;
+                    m.MaxCellTemp = t; m.MaxCellTempId = 0;
+                    m.MinCellTemp = t; m.MinCellTempId = 0;
+                    continue;
+                }
+
+                for (int j = 0; j < clusterConfig.PackCount; j++)
+                    for (int k = 0; k < packSerial; k++)
+                    {
+                        int key = j * packSerial + k;
+                        voltDict[key] = (float)cs.PackStates[j].CellStates[k].Voltage;
+                        tempDict[key] = (float)cs.PackStates[j].CellStates[k].Temperature;
+                    }
+
+                m.AvgCellVoltage  = (float)cs.TotalVoltage / 416;
                 m.CellVoltageSum  = voltDict.Values.Sum();
 
                 var maxV = voltDict.Aggregate((a, b) => a.Value > b.Value ? a : b);
@@ -342,7 +366,18 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 for (int j = 0; j < cluster.PackStates.Count; j++)
                 {
                     var pack = cluster.PackStates[j];
-                    if (pack?.CellStates == null) continue;
+                    if (pack == null) continue;
+                    if (pack.CellStates == null || pack.CellStates.Count == 0)
+                    {
+                        double equiv = type is 1 or 2
+                            ? (findMax ? pack.MaxCellVoltage : pack.MinCellVoltage)
+                            : type is 3 or 4
+                                ? (findMax ? pack.MaxCellTemp : pack.MinCellTemp)
+                                : 0;
+                        if ((findMax && equiv > best) || (!findMax && equiv < best))
+                        { best = equiv; bc = i; bp = j; be = 0; }
+                        continue;
+                    }
                     for (int k = 0; k < pack.CellStates.Count; k++)
                     {
                         double v = sel(pack.CellStates[k]);
