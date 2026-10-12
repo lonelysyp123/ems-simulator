@@ -1,4 +1,4 @@
-using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+using EssSimulator.EssDeviceSimModel.Devices;
 
 namespace EssSimulator.EssDeviceSimModel.Diagnostics
 {
@@ -17,16 +17,15 @@ namespace EssSimulator.EssDeviceSimModel.Diagnostics
 
         public static void ReportProtectionChanges(
             string label,
-            BatteryManagementSystemData bmsData,
+            BmsStackProtectionSnapshot stack,
             RackState rack)
         {
-            var stack = bmsData.BatteryStacks[0];
             var cur = new Snapshot
             {
-                BmsFaultSummary = stack.BMSFaultSummary,
-                BmsAlarmSummary = stack.BMSAlarmSummary,
+                BmsFaultSummary = stack.FaultSummary,
+                BmsAlarmSummary = stack.AlarmSummary,
                 IsFault = rack.IsFault,
-                Soc = stack.SOC ?? 0f
+                Soc = stack.Soc
             };
 
             if (!LastByLabel.TryGetValue(label, out var prev))
@@ -68,7 +67,7 @@ namespace EssSimulator.EssDeviceSimModel.Diagnostics
             LastByLabel[label] = cur;
         }
 
-        private static string InferFaultSummaryReason(BatteryStack stack, ushort summary)
+        private static string InferFaultSummaryReason(BmsStackProtectionSnapshot stack, ushort summary)
         {
             if (summary == 0)
                 return "三级报警已恢复";
@@ -78,25 +77,25 @@ namespace EssSimulator.EssDeviceSimModel.Diagnostics
                 parts.Add("含充电方向三级故障");
             if (stack.IsDischargeFault)
                 parts.Add("含放电方向三级故障");
-            parts.Add($"SOC={(stack.SOC ?? 0f) * 100:F1}%");
+            parts.Add($"SOC={stack.Soc * 100:F1}%");
             return string.Join(", ", parts);
         }
 
-        private static string InferRackFaultReason(BatteryStack stack, ushort oldFault, ushort newFault)
+        private static string InferRackFaultReason(BmsStackProtectionSnapshot stack, ushort oldFault, ushort newFault)
         {
             if (newFault == 0)
                 return "Rack 故障态恢复";
 
             var parts = new List<string>();
-            if (stack.BMSFaultSummary != 0)
-                parts.Add($"BMSFaultSummary=0x{stack.BMSFaultSummary:X}");
+            if (stack.FaultSummary != 0)
+                parts.Add($"BMSFaultSummary=0x{stack.FaultSummary:X}");
 
-            if (stack.SOC >= 0.95f && (newFault == 1 || newFault == 3) && oldFault != newFault)
-                parts.Add($"SOC={(stack.SOC ?? 0f) * 100:F1}%≥95% 充电限充");
-            if (stack.SOC <= 0.05f && (newFault == 2 || newFault == 3) && oldFault != newFault)
-                parts.Add($"SOC={(stack.SOC ?? 0f) * 100:F1}%≤5% 放电限放");
-            if ((stack.SOH ?? 1f) <= 0.05f)
-                parts.Add($"SOH={(stack.SOH ?? 0f) * 100:F1}%≤5%");
+            if (stack.Soc >= 0.95f && (newFault == 1 || newFault == 3) && oldFault != newFault)
+                parts.Add($"SOC={stack.Soc * 100:F1}%≥95% 充电限充");
+            if (stack.Soc <= 0.05f && (newFault == 2 || newFault == 3) && oldFault != newFault)
+                parts.Add($"SOC={stack.Soc * 100:F1}%≤5% 放电限放");
+            if (stack.Soh <= 0.05f)
+                parts.Add($"SOH={stack.Soh * 100:F1}%≤5%");
 
             if (stack.IsChargeFault)
                 parts.Add("簇充电三级故障");

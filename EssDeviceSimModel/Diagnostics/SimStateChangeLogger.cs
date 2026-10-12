@@ -32,6 +32,33 @@ namespace EssSimulator.EssDeviceSimModel.Diagnostics
             Log.Info($"[PCS状态] {label} 故障锁存 type={faultType} | {message?.Trim()}");
         }
 
+        public static void PcsPowerSetpointChanged(
+            string label, double fromP, double toP, double fromQ, double toQ)
+        {
+            if (!ShouldLogNumericChange(fromP, toP) && !ShouldLogNumericChange(fromQ, toQ))
+                return;
+            Log.Info(
+                $"[PCS状态] {label} 功率设定 P {fromP:0.##}→{toP:0.##} kW  Q {fromQ:0.##}→{toQ:0.##} kvar");
+        }
+
+        public static void BreakerChanged(string label, bool fromClosed, bool toClosed)
+        {
+            if (fromClosed == toClosed)
+                return;
+            Log.Info($"[断路器] {label} {(fromClosed ? "合闸" : "分闸")}→{(toClosed ? "合闸" : "分闸")}");
+        }
+
+        public static void LoadSetpointChanged(string field, double from, double to)
+        {
+            if (!ShouldLogNumericChange(from, to))
+                return;
+            Log.Info($"[负载] {field}设定 {from:0.##}→{to:0.##}");
+        }
+
+        /// <summary>数值边沿：小于 epsilon 的抖动不打日志（避免爬坡/量化造成周期性刷屏）。</summary>
+        public static bool ShouldLogNumericChange(double from, double to, double epsilon = 0.05) =>
+            Math.Abs(from - to) >= epsilon;
+
         public static void BmsStateChanged(string label, string field, object from, object to, string reason)
         {
             if (Equals(from, to))

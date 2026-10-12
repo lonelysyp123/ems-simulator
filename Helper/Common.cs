@@ -45,6 +45,28 @@ namespace EssSimulator
                 {
                     result = BitConverter.ToUInt32(data, 0); // 32位无符号
                 }
+                else if (type == "System.Single")
+                {
+                    result = BitConverter.ToSingle(data, 0); // IEEE754 单精度，占 2 个寄存器
+                }
+                else if (type == "System.Int64")
+                {
+                    if (data.Length < 8)
+                        throw new ArgumentException("Data length must be at least 8 bytes for 64-bit translation.");
+                    result = BitConverter.ToInt64(data, 0);
+                }
+                else if (type == "System.UInt64")
+                {
+                    if (data.Length < 8)
+                        throw new ArgumentException("Data length must be at least 8 bytes for 64-bit translation.");
+                    result = BitConverter.ToUInt64(data, 0);
+                }
+                else if (type == "System.Double")
+                {
+                    if (data.Length < 8)
+                        throw new ArgumentException("Data length must be at least 8 bytes for 64-bit translation.");
+                    result = BitConverter.ToDouble(data, 0);
+                }
                 else
                 {
                     // 兼容旧逻辑：未知 32 位类型默认按无符号处理
@@ -171,11 +193,11 @@ namespace EssSimulator
             }
             else if (type == "System.Single")
             {
-                if (float.TryParse(data.ToString(), out float value))
+                try
                 {
-                    result = BitConverter.GetBytes(value);
+                    result = BitConverter.GetBytes(Convert.ToSingle(data));
                 }
-                else
+                catch
                 {
                     result = new byte[4];
                 }

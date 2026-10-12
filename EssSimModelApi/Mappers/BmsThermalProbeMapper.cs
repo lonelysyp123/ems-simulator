@@ -36,14 +36,16 @@ namespace EssSimulator.EssSimModelApi.Mappers
             ac.CabinetTemp = Read(ThermalProbeKind.Air, biases.CabinetAirCelsius);
             ac.DefrostTemp = Read(ThermalProbeKind.Coil, biases.CoilCelsius);
             ac.CondensationTemp = Read(ThermalProbeKind.Condenser, biases.CondenserCelsius);
-            ac.CoolingSetTemp = (float)thermal.CabinetHvacSetpointCelsius;
+            bool acOn = zone?.AirConditioningOn ?? thermal.HvacEnabled;
+            double setpoint = zone?.CoolingSetpointCelsius ?? thermal.CabinetHvacSetpointCelsius;
+            ac.CoolingSetTemp = (float)setpoint;
             bool hvacCapable = thermal.HvacEnabled;
             bool cooling = zone?.IsHvacCooling == true;
-            ac.DeviceOperationStatus = hvacCapable;
+            ac.DeviceOperationStatus = acOn;
             ac.CompressorStatus = cooling;
-            ac.IndoorFanStatus = cooling || hvacCapable;
+            ac.IndoorFanStatus = cooling || acOn;
             ac.OutdoorFanStatus = cooling;
-            ac.CabinetOverheat = ac.CabinetTemp > thermal.CabinetHvacSetpointCelsius + 8;
+            ac.CabinetOverheat = ac.CabinetTemp > setpoint + 8;
 
             var lc = bmsData.LiquidCoolingSystems[0];
             // 供液偏电池侧（偏冷），回液偏空气/电池混合（偏热）
@@ -55,10 +57,6 @@ namespace EssSimulator.EssSimModelApi.Mappers
             bmsData.TempHumiditySensors[0].Temperature = Read(ThermalProbeKind.AirTop, biases.DehumidifierTopCelsius);
             bmsData.TempHumiditySensors[1].Temperature = Read(ThermalProbeKind.Air, biases.DehumidifierMidCelsius);
             bmsData.TempHumiditySensors[2].Temperature = Read(ThermalProbeKind.AirBottom, biases.DehumidifierBottomCelsius);
-
-            // 热降额写入堆限功率（与物理侧 BmsRackDevice 因子一致）
-            if (bmsData.BatteryStacks.Count > 0 && zone != null)
-                bmsData.BatteryStacks[0].ThermalPowerDeratingFactor = (float)zone.LastPowerDeratingFactor;
         }
 
         public static void EnsureAuxiliaries(BatteryManagementSystemData bmsData)

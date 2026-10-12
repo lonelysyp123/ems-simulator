@@ -29,16 +29,16 @@
         </g>
 
         <g
-          v-for="node in nodes"
+          v-for="node in visibleNodes"
           :key="node.id"
           class="node"
           :class="{
-            selected: node.id === selectedNodeId,
-            problem: problemSet.has(node.id)
+            selected: selectedSet.has(node.id),
+            problem: problemSet.has(node.id),
+            highlight: highlightSet.has(node.id) && !selectedSet.has(node.id)
           }"
           :transform="`translate(${node.x},${node.y})`"
           @mousedown.stop="onNodeDown($event, node)"
-          @click.stop="emit('select-node', node.id)"
         >
           <rect
             v-if="node.templateId !== 'ac_bus' && node.templateId !== 'dc_bus'"
@@ -63,6 +63,24 @@
           <g v-if="node.templateId === 'transformer'" fill="none" stroke="#fff" stroke-width="2">
             <circle :cx="sizeOf(node).w / 2" cy="42" r="14" />
             <circle :cx="sizeOf(node).w / 2" cy="78" r="14" />
+          </g>
+          <g v-if="node.templateId === 'split_transformer'" fill="none" stroke="#fff" stroke-width="2">
+            <circle :cx="sizeOf(node).w / 2" cy="38" r="14" />
+            <circle :cx="sizeOf(node).w * 0.28" cy="82" r="12" />
+            <circle :cx="sizeOf(node).w * 0.72" cy="82" r="12" />
+          </g>
+          <g v-if="node.templateId === 'svg'" fill="none" stroke="#fff" stroke-width="1.8">
+            <rect :x="sizeOf(node).w * 0.28" y="26" :width="sizeOf(node).w * 0.44" height="28" rx="3" />
+            <path
+              :d="`M ${sizeOf(node).w * 0.36} 40 Q ${sizeOf(node).w * 0.44} 32 ${sizeOf(node).w * 0.5} 40 T ${sizeOf(node).w * 0.64} 40`"
+            />
+          </g>
+          <g v-if="node.templateId === 'pv_unit'" fill="none" stroke="#fff" stroke-width="1.6">
+            <rect :x="sizeOf(node).w * 0.22" y="28" :width="sizeOf(node).w * 0.56" height="36" rx="2" />
+            <line :x1="sizeOf(node).w * 0.22" y1="40" :x2="sizeOf(node).w * 0.78" y2="40" />
+            <line :x1="sizeOf(node).w * 0.22" y1="52" :x2="sizeOf(node).w * 0.78" y2="52" />
+            <line :x1="sizeOf(node).w * 0.4" y1="28" :x2="sizeOf(node).w * 0.4" y2="64" />
+            <line :x1="sizeOf(node).w * 0.6" y1="28" :x2="sizeOf(node).w * 0.6" y2="64" />
           </g>
           <g v-if="node.templateId === 'ac_breaker'" fill="none" stroke="#fff" stroke-width="2">
             <!-- 三相竖线 + 中间联动开关 -->
@@ -108,6 +126,17 @@
             class="node-sub"
             :fill="node.templateId === 'ac_bus' || node.templateId === 'dc_bus' ? '#606266' : 'rgba(255,255,255,.85)'"
           >{{ voltageHint(node) }}</text>
+          <rect
+            v-if="selectedSet.has(node.id)"
+            class="sel-frame"
+            :width="sizeOf(node).w"
+            :height="sizeOf(node).h"
+            :rx="node.templateId === 'ac_bus' ? 2 : 6"
+            fill="none"
+            stroke="#e6a23c"
+            stroke-width="2.5"
+            pointer-events="none"
+          />
 
           <g
             v-for="port in portsOf(node)"
@@ -138,27 +167,44 @@
         </g>
       </g>
     </svg>
-    <div class="hint">滚轮缩放 · 右键拖动画布 · 点拐角连线（三相/直流自动成组）· 网格吸附 · Ctrl+Z 撤销 · Delete 删除</div>
+    <div
+      v-if="marqueeStyle"
+      class="marquee"
+      :style="marqueeStyle"
+    />
+    <div class="hint">Shift/Ctrl 点选 · 拖空框选 · 滚轮缩放 · 右键拖动画布 · 点拐角连线 · Delete 删除</div>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { formatVoltage, nodeSize, portPosition, snapToGrid, templateColor } from './nodeLayout.js'
+import { nodesIntersectingRect, normalizeRect } from './batchEdit.js'
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },
   templates: { type: Array, default: () => [] },
   selectedNodeId: { type: String, default: null },
+  selectedNodeIds: { type: Array, default: () => [] },
   selectedEdgeId: { type: String, default: null },
   linking: { type: Object, default: null },
   pointerWorld: { type: Object, default: null },
   problemNodeIds: { type: Array, default: () => [] },
+  highlightNodeIds: { type: Array, default: () => [] },
   snap: { type: Boolean, default: true }
 })
 
-const emit = defineEmits(['select-node', 'select-edge', 'port-click', 'move-node', 'pointer-world'])
+const emit = defineEmits([
+  'select-node',
+  'select-nodes',
+  'select-edge',
+  'clear-selection',
+  'port-click',
+  'move-node',
+  'move-commit',
+  'pointer-world'
+])
 
 const root = ref(null)
 const width = ref(0)
@@ -173,7 +219,33 @@ const tplMap = computed(() => {
   return m
 })
 
+/** 虚拟模板（如 EMU 储能单元）不渲染到画布，仅在侧栏列表管理 */
+const visibleNodes = computed(() =>
+  props.nodes.filter(n => !(tplMap.value[n.templateId]?.isVirtual || n.templateId === 'emu'))
+)
+
 const problemSet = computed(() => new Set(props.problemNodeIds || []))
+const highlightSet = computed(() => new Set(props.highlightNodeIds || []))
+
+const selectedSet = computed(() => {
+  if (props.selectedNodeIds?.length)
+    return new Set(props.selectedNodeIds)
+  return new Set(props.selectedNodeId ? [props.selectedNodeId] : [])
+})
+
+const marquee = ref(null)
+const marqueeStyle = computed(() => {
+  if (!marquee.value || !root.value) return null
+  const r = normalizeRect(marquee.value.x0, marquee.value.y0, marquee.value.x1, marquee.value.y1)
+  if (r.w < 3 && r.h < 3) return null
+  const origin = root.value.getBoundingClientRect()
+  return {
+    left: `${r.x - origin.left}px`,
+    top: `${r.y - origin.top}px`,
+    width: `${r.w}px`,
+    height: `${r.h}px`
+  }
+})
 
 function sizeOf(node) {
   return nodeSize(node.templateId)
@@ -211,7 +283,17 @@ function voltageHint(node) {
   if (node.templateId === 'transformer') {
     return `${formatVoltage(p.primaryVoltage)}/${formatVoltage(p.secondaryVoltage)}`
   }
+  if (node.templateId === 'split_transformer') {
+    return `${formatVoltage(p.primaryVoltage)}/${formatVoltage(p.secondaryVoltage)} · 双耳`
+  }
   if (node.templateId === 'emu') return formatVoltage(p.acVoltage)
+  if (node.templateId === 'pv_unit') {
+    const n = Number(p.inverterCount || 1)
+    const kw = Number(p.inverterRatedPowerKw || 0)
+    if (kw <= 0) return formatVoltage(p.acVoltage)
+    const inv = n > 1 ? `${n.toFixed(0)}×${kw.toFixed(0)}kW` : `${kw.toFixed(0)}kW`
+    return `${formatVoltage(p.acVoltage)} · ${inv}`
+  }
   if (node.templateId === 'dc_bus') return formatVoltage(p.nominalVoltage)
   if (node.templateId === 'bms') {
     const series = Number(p.cellSeriesCount || 0) * Number(p.packCount || 0)
@@ -231,6 +313,11 @@ function voltageHint(node) {
     const pKw = Number(p.activePowerKw || 0)
     const qKvar = Number(p.reactivePowerKvar || 0)
     return `P ${pKw.toFixed(1)}kW · Q ${qKvar.toFixed(1)}kvar`
+  }
+  if (node.templateId === 'svg') {
+    const q = Number(p.ratedCapacityKvar || 0)
+    const qLabel = Math.abs(q) >= 1000 ? `${(q / 1000).toFixed(1)} Mvar` : `${q.toFixed(0)} kvar`
+    return `${formatVoltage(p.acVoltage)} · ${qLabel}`
   }
   return ''
 }
@@ -294,9 +381,16 @@ function onWheel(ev) {
 let panning = false
 let panStart = null
 let draggingNode = null
-let dragOffset = null
+let dragGroup = null
+let dragOrigin = null
+let marqueeStart = null
 let tracking = false
 let alive = true
+const MARQUEE_THRESHOLD = 4
+
+function isAdditiveEvent(ev) {
+  return !!(ev.shiftKey || ev.ctrlKey || ev.metaKey)
+}
 
 function bindWindowTracking() {
   if (!alive || tracking) return
@@ -314,19 +408,46 @@ function unbindWindowTracking() {
   window.removeEventListener('blur', onUpTrack)
 }
 
+function snapCoord(v) {
+  return props.snap ? snapToGrid(v) : Math.round(v)
+}
+
 function onBackgroundDown(ev) {
   if (ev.button === 2 || ev.button === 1 || (ev.button === 0 && ev.altKey)) {
     panning = true
     panStart = { x: ev.clientX, y: ev.clientY, panX: panX.value, panY: panY.value }
     bindWindowTracking()
+    return
   }
+  if (ev.button !== 0 || props.linking) return
+  marqueeStart = {
+    clientX: ev.clientX,
+    clientY: ev.clientY,
+    additive: isAdditiveEvent(ev)
+  }
+  marquee.value = { x0: ev.clientX, y0: ev.clientY, x1: ev.clientX, y1: ev.clientY }
+  bindWindowTracking()
 }
 
 function onNodeDown(ev, node) {
   if (ev.button !== 0) return
+  const additive = isAdditiveEvent(ev)
+  if (additive) {
+    emit('select-node', { id: node.id, additive: true })
+    return
+  }
+  const already = selectedSet.value.has(node.id)
+  if (!already)
+    emit('select-node', { id: node.id, additive: false })
+  const ids = already ? [...selectedSet.value] : [node.id]
+  const idSet = new Set(ids)
+  dragGroup = visibleNodes.value
+    .filter(n => idSet.has(n.id))
+    .map(n => ({ node: n, fromX: n.x, fromY: n.y }))
+  if (!dragGroup.length)
+    dragGroup = [{ node, fromX: node.x, fromY: node.y }]
   draggingNode = node
-  const w = clientToWorld(ev.clientX, ev.clientY)
-  dragOffset = { x: w.x - node.x, y: w.y - node.y }
+  dragOrigin = clientToWorld(ev.clientX, ev.clientY)
   bindWindowTracking()
 }
 
@@ -335,37 +456,69 @@ function onMoveTrack(ev) {
   if (panning && panStart) {
     panX.value = panStart.panX + (ev.clientX - panStart.x)
     panY.value = panStart.panY + (ev.clientY - panStart.y)
-  } else if (draggingNode && dragOffset) {
+  } else if (draggingNode && dragGroup && dragOrigin) {
     const w = clientToWorld(ev.clientX, ev.clientY)
-    let x = w.x - dragOffset.x
-    let y = w.y - dragOffset.y
-    if (props.snap) {
-      x = snapToGrid(x)
-      y = snapToGrid(y)
-    } else {
-      x = Math.round(x)
-      y = Math.round(y)
+    const dx = w.x - dragOrigin.x
+    const dy = w.y - dragOrigin.y
+    for (const item of dragGroup) {
+      item.node.x = snapCoord(item.fromX + dx)
+      item.node.y = snapCoord(item.fromY + dy)
     }
-    draggingNode.x = x
-    draggingNode.y = y
+  } else if (marqueeStart) {
+    marquee.value = {
+      x0: marqueeStart.clientX,
+      y0: marqueeStart.clientY,
+      x1: ev.clientX,
+      y1: ev.clientY
+    }
   }
   if (props.linking) {
     emit('pointer-world', clientToWorld(ev.clientX, ev.clientY))
   }
 }
 
-function onUpTrack() {
+function finishMarquee(ev) {
+  const start = marqueeStart
+  marqueeStart = null
+  marquee.value = null
+  if (!start) return
+  const dx = (ev?.clientX ?? start.clientX) - start.clientX
+  const dy = (ev?.clientY ?? start.clientY) - start.clientY
+  if (Math.hypot(dx, dy) < MARQUEE_THRESHOLD) {
+    if (!start.additive) emit('clear-selection')
+    return
+  }
+  const a = clientToWorld(start.clientX, start.clientY)
+  const b = clientToWorld(ev?.clientX ?? start.clientX, ev?.clientY ?? start.clientY)
+  const rect = normalizeRect(a.x, a.y, b.x, b.y)
+  const ids = nodesIntersectingRect(visibleNodes.value, rect, n => nodeSize(n.templateId)).map(n => n.id)
+  emit('select-nodes', { ids, additive: start.additive })
+}
+
+function onUpTrack(ev) {
   if (!alive) {
     unbindWindowTracking()
     return
   }
-  if (draggingNode) {
-    emit('move-node', { id: draggingNode.id, x: draggingNode.x, y: draggingNode.y })
+  if (draggingNode && dragGroup) {
+    const items = dragGroup.map(g => ({
+      id: g.node.id,
+      x: g.node.x,
+      y: g.node.y,
+      fromX: g.fromX,
+      fromY: g.fromY
+    }))
+    emit('move-commit', items)
+    if (items.length === 1)
+      emit('move-node', { id: items[0].id, x: items[0].x, y: items[0].y })
+  } else if (marqueeStart) {
+    finishMarquee(ev)
   }
   panning = false
   panStart = null
   draggingNode = null
-  dragOffset = null
+  dragGroup = null
+  dragOrigin = null
   // 连线预览仍需要跟踪时保持监听；否则释放
   if (!props.linking) unbindWindowTracking()
 }
@@ -400,13 +553,16 @@ onUnmounted(() => {
   panning = false
   panStart = null
   draggingNode = null
-  dragOffset = null
+  dragGroup = null
+  dragOrigin = null
+  marqueeStart = null
+  marquee.value = null
 })
 
 // 进入连线态时开始跟踪鼠标画预览线
 watch(() => props.linking, (v) => {
   if (v) bindWindowTracking()
-  else if (!panning && !draggingNode) unbindWindowTracking()
+  else if (!panning && !draggingNode && !marqueeStart) unbindWindowTracking()
 })
 
 defineExpose({ clientToWorld })
@@ -439,7 +595,16 @@ defineExpose({ clientToWorld })
 .edge.selected { stroke: #e6a23c; stroke-width: 3; }
 .edge.draft { stroke: #409eff; stroke-dasharray: 6 4; }
 .node { cursor: grab; }
+.node.highlight rect,
+.node.highlight > rect { stroke: #409eff; stroke-width: 2; }
 .node.selected rect { stroke: #e6a23c; stroke-width: 2.5; }
+.marquee {
+  position: absolute;
+  border: 1px dashed #409eff;
+  background: rgba(64, 158, 255, 0.12);
+  pointer-events: none;
+  z-index: 5;
+}
 .node.problem rect,
 .node.problem > rect { stroke: #f56c6c; stroke-width: 2.5; }
 .node-label { font-size: 12px; font-weight: 600; pointer-events: none; }

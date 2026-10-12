@@ -1,0 +1,6 @@
+{
+  "id": "svg",
+  "name": "SVG",
+  "description": "无功补偿装置（SVG）",
+  "files": [ "svg.csv" ]
+}

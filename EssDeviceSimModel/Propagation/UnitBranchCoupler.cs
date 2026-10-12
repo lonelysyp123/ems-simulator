@@ -37,26 +37,40 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         {
             bool unitClosed = _unitBreaker.SwitchState.IsClosed && !_unitBreaker.SwitchState.IsTripped;
             double bus35V = args.LineVoltageV;
+            double primaryV = unitClosed ? bus35V : 0;
 
-            var unitCurrent = _bus690.TotalLineCurrentA > 1e-6
-                || Math.Abs(_bus690.TotalActivePowerKw) > 1e-3
-                || Math.Abs(_bus690.TotalReactivePowerKvar) > 1e-3
+            var unitCurrent = primaryV > 1.0
+                && (_bus690.TotalLineCurrentA > 1e-6
+                    || Math.Abs(_bus690.TotalActivePowerKw) > 1e-3
+                    || Math.Abs(_bus690.TotalReactivePowerKvar) > 1e-3)
                 ? AcQuantityConverter.FromLineVoltageAndPower(
-                    Math.Max(_bus690.LineVoltageV, args.Sweep.PcsCfg.AcVoltageNominal * 0.01),
+                    _bus690.LineVoltageV,
                     _bus690.TotalActivePowerKw,
                     _bus690.TotalReactivePowerKvar,
                     ThreePhaseConnection.Star,
                     args.Sweep.SystemFrequencyHz)
                 : new AcInternalQuantities
                 {
-                    LineVoltageV = Math.Max(_bus690.LineVoltageV, args.Sweep.PcsCfg.AcVoltageNominal * 0.01)
+                    LineVoltageV = primaryV > 1.0 && _bus690.LineVoltageV > 1.0 ? _bus690.LineVoltageV : 0,
+                    FrequencyHz = primaryV > 1.0 && _bus690.LineVoltageV > 1.0
+                        ? args.Sweep.SystemFrequencyHz
+                        : 0
                 };
 
             PropagationPortBinding.SetAcVoltageInput(_unitBreaker.Primary, bus35V, ThreePhaseConnection.Star);
-            PropagationPortBinding.SetAcQuantitiesInput(_unitBreaker.Secondary, unitCurrent);
+            if (unitClosed)
+            {
+                PropagationPortBinding.SetAcQuantitiesInput(_unitBreaker.Secondary, _unitBreaker.ReferToRated(unitCurrent));
+            }
+            else
+            {
+                PropagationPortBinding.SetAcQuantitiesInput(
+                    _unitBreaker.Secondary,
+                    new AcInternalQuantities { Connection = ThreePhaseConnection.Star });
+            }
+
             _unitBreaker.Step(args.Sweep.DeviceContext, args.Sweep.Step);
 
-            double primaryV = unitClosed ? bus35V : 0;
             PropagationPortBinding.SetAcVoltageInput(_unitTransformer.Primary, primaryV, ThreePhaseConnection.Star);
             PropagationPortBinding.SetAcQuantitiesInput(_unitTransformer.Secondary, unitCurrent);
             _unitTransformer.Step(args.Sweep.DeviceContext, args.Sweep.Step);

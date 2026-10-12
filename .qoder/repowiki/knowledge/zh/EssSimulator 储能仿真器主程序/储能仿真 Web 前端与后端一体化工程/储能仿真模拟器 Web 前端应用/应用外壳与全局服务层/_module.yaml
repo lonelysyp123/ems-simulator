@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: web_frontend_backend/frontend_app/app_shell
+title: 应用外壳与全局服务层
+scope:
+    - Web/src/App.vue
+    - Web/src/main.js
+    - Web/src/router.js
+    - Web/src/services/
+    - Web/src/styles/
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/backend_runtime

@@ -1,3 +1,4 @@
+using EssSimulator.EssDeviceSimModel.Diagnostics;
 using EssSimulator.EssDeviceSimModel.Interface;
 using EssSimulator.EssDeviceSimModel.Model;
 
@@ -78,12 +79,16 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _scheduleStopped = true;
             if (characteristic == "activePower")
             {
-                // 规则：负载只能消耗有功（≤0），禁止向电网释放（正值钳位为 0）
-                ActivePowerSetpointKw = value > 0 ? 0 : value;
+                double next = value > 0 ? 0 : value;
+                double prev = ActivePowerSetpointKw;
+                ActivePowerSetpointKw = next;
+                SimStateChangeLogger.LoadSetpointChanged("有功", prev, next);
             }
             else if (characteristic == "reactivePower")
             {
+                double prev = ReactivePowerSetpointKvar;
                 ReactivePowerSetpointKvar = value;
+                SimStateChangeLogger.LoadSetpointChanged("无功", prev, value);
             }
 
             if (_config.Powered)
@@ -143,6 +148,12 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         {
             RefreshSchedule(context.SimulationTime);
             var bus = AcPortHelper.ReadAcInput(Port);
+            if (bus.LineVoltageV <= 1.0)
+            {
+                ActivePower = 0;
+                ReactivePower = 0;
+            }
+
             double activeKw = _config.Powered ? ActivePower : 0;
             double reactiveKvar = _config.Powered ? ReactivePower : 0;
 

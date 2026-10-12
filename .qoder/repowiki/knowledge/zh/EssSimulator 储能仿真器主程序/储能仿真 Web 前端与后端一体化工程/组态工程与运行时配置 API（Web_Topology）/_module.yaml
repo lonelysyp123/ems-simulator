@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: web_frontend_backend/backend_topology
+title: 组态工程与运行时配置 API（Web/Topology）
+scope:
+    - Web/Topology/
+source_files: []
+depends_on: []
+related_to:
+    - path: configs_pointmaps
+    - path: web_frontend_backend/frontend_app/system_management
+    - path: web_frontend_backend/frontend_app/topology_editor

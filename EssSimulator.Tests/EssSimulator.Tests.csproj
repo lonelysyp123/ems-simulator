@@ -22,6 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EssSimulator.csproj" />
+    <Reference Include="iec61850dotnet">
+      <HintPath>..\lib61850\managed\iec61850dotnet.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

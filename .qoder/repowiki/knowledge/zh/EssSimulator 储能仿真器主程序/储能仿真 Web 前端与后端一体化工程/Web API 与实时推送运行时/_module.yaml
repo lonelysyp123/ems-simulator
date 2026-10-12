@@ -1,0 +1,18 @@
+schema_version: 1
+module_path: web_frontend_backend/backend_runtime
+title: Web API 与实时推送运行时
+scope:
+    - Web/RealtimeHub.cs
+    - Web/WebCommandExecutor.cs
+    - Web/SnapshotService.cs
+    - Web/MainLineEnricher.cs
+    - Web/EndpointExtensions.cs
+    - Web/LogHubAppender.cs
+    - Web/ApiKeyAuthMiddleware.cs
+source_files: []
+depends_on: []
+related_to:
+    - path: data_exchange/effects
+    - path: display_commands
+    - path: web_frontend_backend/frontend_app/app_shell
+    - path: web_frontend_backend/frontend_app/mainline_visualization

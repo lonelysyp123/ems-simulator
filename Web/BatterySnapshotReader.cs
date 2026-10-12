@@ -1,4 +1,5 @@
 using EssSimulator.Display;
+using EssSimulator.EssDeviceSimModel;
 
 namespace EssSimulator.Web
 {
@@ -47,7 +48,7 @@ namespace EssSimulator.Web
         public int MinCellTempCellId { get; set; }
     }
 
-    /// <summary>电池单体电压快照：4 包 × 104 节。</summary>
+    /// <summary>电池单体电压/温度快照：4 包 × 104 节。</summary>
     public sealed class CellVoltageDto
     {
         public int UnitIndex { get; set; }
@@ -56,12 +57,29 @@ namespace EssSimulator.Web
         public int CellsPerPack { get; set; }
         /// <summary>按 pack 分组的单体电压（单位 V）；外层索引=包号，内层=单体在该包内的序号。</summary>
         public List<List<float>> Packs { get; set; } = new();
+        /// <summary>按 pack 分组的单体温度（单位 °C）；布局与 <see cref="Packs"/> 相同。</summary>
+        public List<List<float>> TempPacks { get; set; } = new();
         public double MinCellVoltage { get; set; }
         public double MaxCellVoltage { get; set; }
         public int MaxCellVoltagePackId { get; set; }
         public int MaxCellVoltageCellId { get; set; }
         public int MinCellVoltagePackId { get; set; }
         public int MinCellVoltageCellId { get; set; }
+        public double MinCellTemp { get; set; }
+        public double MaxCellTemp { get; set; }
+        public int MaxCellTempPackId { get; set; }
+        public int MaxCellTempCellId { get; set; }
+        public int MinCellTempPackId { get; set; }
+        public int MinCellTempCellId { get; set; }
+        /// <summary>当前舱（BMS 堆）热网络电池节点温度（°C），与功率降额/BMS 过温保护同一感温。</summary>
+        public double BatteryNodeTempC { get; set; }
+        /// <summary>true：逐芯运算；false：簇等效，单体表为同一等效值。</summary>
+        public bool CellPhysicsEnabled { get; set; } = true;
+    }
+
+    public sealed class BatteryCalcModeRequest
+    {
+        public bool CellPhysicsEnabled { get; set; }
     }
 
     public static class BatterySnapshotReader
@@ -164,7 +182,12 @@ namespace EssSimulator.Web
                 PackCount = packCount,
                 CellsPerPack = cellsPerPack,
                 MaxCellVoltage = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MaxCellVoltage"),
-                MinCellVoltage = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MinCellVoltage")
+                MinCellVoltage = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MinCellVoltage"),
+                MaxCellTemp = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MaxCellTemp"),
+                MinCellTemp = GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MinCellTemp"),
+                BatteryNodeTempC = GuiSimDataAccess.SafeGetDouble(
+                    $"ess._bmsRackDevices[{unitIndex0}].BatteryNodeTemperatureCelsius", 25),
+                CellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled
             };
 
             int maxIdFlat = (int)GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MaxCellVoltageId");
@@ -174,23 +197,40 @@ namespace EssSimulator.Web
             dto.MinCellVoltagePackId = minIdFlat / cellsPerPack;
             dto.MinCellVoltageCellId = minIdFlat % cellsPerPack;
 
+            int maxTempFlat = (int)GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MaxCellTempId");
+            int minTempFlat = (int)GuiSimDataAccess.SafeGetDouble($"{clusterPath}.Measurements.MinCellTempId");
+            dto.MaxCellTempPackId = maxTempFlat / cellsPerPack;
+            dto.MaxCellTempCellId = maxTempFlat % cellsPerPack;
+            dto.MinCellTempPackId = minTempFlat / cellsPerPack;
+            dto.MinCellTempCellId = minTempFlat % cellsPerPack;
+
             for (int pack = 0; pack < packCount; pack++)
             {
                 var packCells = new List<float>(cellsPerPack);
+                var packTemps = new List<float>(cellsPerPack);
                 for (int c = 0; c < cellsPerPack; c++)
                 {
                     int cellIdx = pack * cellsPerPack + c;
                     float v = 0;
+                    float t = 0;
                     try
                     {
                         v = (float)SimServer.GetExtIfVariableVal(
                             $"{clusterPath}.ClusterCellVoltages.CellVoltages[{cellIdx}]");
                     }
                     catch { v = 0; }
+                    try
+                    {
+                        t = (float)SimServer.GetExtIfVariableVal(
+                            $"{clusterPath}.ClusterCellTemperatures.CellTemperatures[{cellIdx}]");
+                    }
+                    catch { t = 0; }
 
                     packCells.Add(v);
+                    packTemps.Add(t);
                 }
                 dto.Packs.Add(packCells);
+                dto.TempPacks.Add(packTemps);
             }
 
             return dto;

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: display_commands
+title: 仿真器显示命令与主接线数据读取
+scope:
+    - Display/
+source_files: []
+depends_on: []
+related_to:
+    - path: device_sim_model/core_engine
+    - path: protocol_modbus
+    - path: web_frontend_backend/backend_runtime

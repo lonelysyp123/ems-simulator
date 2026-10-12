@@ -1,4 +1,5 @@
 using EssSimulator.Configuration;
+using EssSimulator.EssDeviceSimModel.Control;
 using ModelPcsDeviceConfig = EssSimulator.EssDeviceSimModel.Model.PcsDeviceConfig;
 
 namespace EssSimulator.EssDeviceSimModel.Devices
@@ -9,7 +10,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             PcsPhysicalConfig pcsCfg,
             PcsRampConfig rampCfg)
         {
-            return new ModelPcsDeviceConfig
+            var deviceCfg = new ModelPcsDeviceConfig
             {
                 RatedPowerKw = pcsCfg.RatedPower,
                 MaxPowerKw = pcsCfg.MaxPower,
@@ -33,8 +34,17 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 BlackStartFrequencyStartHz = pcsCfg.BlackStartFrequencyStartHz,
                 BlackStartFrequencyRampHzPerSec = pcsCfg.BlackStartFrequencyRampHzPerSec,
                 BlackStartReactiveVoltageGainKvarPerV = pcsCfg.BlackStartReactiveVoltageGainKvarPerV,
-                BlackStartCurrentLimitFraction = pcsCfg.BlackStartCurrentLimitFraction
+                BlackStartCurrentLimitFraction = pcsCfg.BlackStartCurrentLimitFraction,
+                TransientSubStepMs = pcsCfg.TransientSubStepMs,
+                VoltageControllerTauMs = pcsCfg.VoltageControllerTauMs,
+                InrushPeakMultiplier = pcsCfg.InrushPeakMultiplier,
+                InrushDecayTauMs = pcsCfg.InrushDecayTauMs,
+                InrushTriggerVoltageFrac = pcsCfg.InrushTriggerVoltageFrac,
+                DvDtTripThresholdVPerSec = pcsCfg.DvDtTripThresholdVPerSec,
+                DvDtRideThroughMs = pcsCfg.DvDtRideThroughMs
             };
+            PcsFormingVoltageSettings.ApplyResolved(pcsCfg, deviceCfg);
+            return deviceCfg;
         }
 
         public static PcsDevice Create(string deviceId, ModelPcsDeviceConfig config) =>

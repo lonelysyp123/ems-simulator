@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: web_frontend_backend/frontend_app
+title: 储能仿真模拟器 Web 前端应用
+scope:
+    - Web/src/
+source_files: []
+depends_on: []
+related_to: []

@@ -4,6 +4,7 @@ using EssSimulator.EssDeviceSimModel.Battery;
 using EssSimulator.EssDeviceSimModel.Devices;
 using EssSimulator.EssSimModelApi;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+using EssSimulator.EssSimModelApi.Mappers;
 
 namespace EssSimulator.Tests.Devices;
 
@@ -36,7 +37,7 @@ public class BmsRackDeviceTests
         rackState.StateOfHealth = 1.0;
         SetRackCurrent(rackState, 50);
 
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
 
         Assert.Equal((ushort)1, device.FaultCode);
         Assert.True(device.HasBlockingFault);
@@ -55,7 +56,7 @@ public class BmsRackDeviceTests
         rackState.StateOfHealth = 1.0;
         SetRackCurrent(rackState, 0);
 
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
 
         Assert.Equal((ushort)0, device.FaultCode);
         Assert.False(device.HasBlockingFault);
@@ -76,7 +77,7 @@ public class BmsRackDeviceTests
             cluster.MinPackSOC = 0.05;
         SetRackCurrent(rackState, -50);
 
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
 
         Assert.Equal((ushort)2, device.FaultCode);
         Assert.True(device.HasBlockingFault);
@@ -97,7 +98,7 @@ public class BmsRackDeviceTests
             cluster.MinPackSOC = 0.05;
         SetRackCurrent(rackState, 0);
 
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
 
         Assert.Equal((ushort)0, device.FaultCode);
         Assert.False(device.HasBlockingFault);
@@ -146,7 +147,7 @@ public class BmsRackDeviceTests
 
         var bmsData = BmsDataGenerator.GenerateSampleData(1, 1);
         device.SetPcsLinked(false);
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
 
         Assert.Equal(0f, bmsData.BatteryStacks[0].TotalVoltage);
         Assert.True((rack.GetRackState()?.TotalVoltage ?? 0) > 0);

@@ -1,6 +1,6 @@
 using EssSimulator.EssDeviceSimModel;
+using EssSimulator.EssDeviceSimModel.Bms;
 using EssSimulator.EssDeviceSimModel.Devices;
-using EssSimulator.EssSimModelApi.BatteryManagementSystem;
 
 namespace EssSimulator.Tests.Devices;
 
@@ -187,6 +187,79 @@ public class BmsRackProtectionTests
             clusterState, packCount: 1, cellsPerPack: 1, thresholds, alarms, insulationValue: 1000f);
 
         Assert.True(alarms.BatteryBoxVoltageExtremaDifferenceFault);
+    }
+
+    [Fact]
+    public void EvaluateCluster_DischargeHighTempUsesCellTemp()
+    {
+        var alarms = new ClusterAlarms();
+        var thresholds = new ClusterThresholds();
+        // 放电高温三级 65°C：电芯温度超限 → 触发放电高温故障（判据为电芯温度）
+        var clusterState = CreateClusterState(current: -50);
+        clusterState.PackStates[0].MaxCellTemp = thresholds.DischargeHighTempThreshold3!.Value + 1;
+
+        BmsRackProtection.EvaluateCluster(
+            clusterState, packCount: 1, cellsPerPack: 1, thresholds, alarms, insulationValue: 1000f);
+
+        Assert.True(alarms.CellDischargeHighTempFault);
+        Assert.False(alarms.CellDischargeHighTempProtection);
+    }
+
+    [Fact]
+    public void EvaluateCluster_ChargeHighTempUsesCellTemp()
+    {
+        var alarms = new ClusterAlarms();
+        var thresholds = new ClusterThresholds();
+        var clusterState = CreateClusterState(current: 50);
+        clusterState.PackStates[0].MaxCellTemp = thresholds.ChargeHighTempThreshold3!.Value + 1;
+
+        BmsRackProtection.EvaluateCluster(
+            clusterState, packCount: 1, cellsPerPack: 1, thresholds, alarms, insulationValue: 1000f);
+
+        Assert.True(alarms.CellChargeHighTempFault);
+    }
+
+    [Fact]
+    public void EvaluateCluster_DischargeLowTempUsesCellTemp()
+    {
+        var alarms = new ClusterAlarms();
+        var thresholds = new ClusterThresholds();
+        var clusterState = CreateClusterState(current: -50);
+        clusterState.PackStates[0].MinCellTemp = thresholds.DischargeLowTempThreshold3!.Value - 1;
+
+        BmsRackProtection.EvaluateCluster(
+            clusterState, packCount: 1, cellsPerPack: 1, thresholds, alarms, insulationValue: 1000f);
+
+        Assert.True(alarms.CellDischargeLowTempFault);
+    }
+
+    [Fact]
+    public void EvaluateCluster_ChargeLowTempUsesCellTemp()
+    {
+        var alarms = new ClusterAlarms();
+        var thresholds = new ClusterThresholds();
+        var clusterState = CreateClusterState(current: 50);
+        clusterState.PackStates[0].MinCellTemp = thresholds.ChargeLowTempThreshold3!.Value - 1;
+
+        BmsRackProtection.EvaluateCluster(
+            clusterState, packCount: 1, cellsPerPack: 1, thresholds, alarms, insulationValue: 1000f);
+
+        Assert.True(alarms.CellChargeLowTempFault);
+    }
+
+    [Fact]
+    public void EvaluateCluster_NormalCellTempDoesNotTriggerHighTemp()
+    {
+        var alarms = new ClusterAlarms();
+        var thresholds = new ClusterThresholds();
+        var clusterState = CreateClusterState(current: -50);
+
+        // 电芯温度 25°C（正常）→ 不触发高温
+        BmsRackProtection.EvaluateCluster(
+            clusterState, packCount: 1, cellsPerPack: 1, thresholds, alarms, insulationValue: 1000f);
+
+        Assert.False(alarms.CellDischargeHighTempFault);
+        Assert.False(alarms.CellDischargeHighTempAlarm);
     }
 
     private static ClusterState CreateClusterState(

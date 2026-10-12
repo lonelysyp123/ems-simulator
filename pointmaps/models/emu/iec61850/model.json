@@ -1,0 +1,6 @@
+{
+  "id": "iec61850",
+  "name": "IEC 61850 IED 映射",
+  "description": "PCS IEC 61850 ICD 与 ParamName 映射（拼装片段，不进入选型）",
+  "role": "fragment"
+}

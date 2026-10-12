@@ -1,0 +1,17 @@
+schema_version: 1
+module_path: ""
+title: EssSimulator 储能仿真器主程序
+scope:
+    - Program.cs
+    - EssSimulator.csproj
+    - EssSimulator.sln
+    - appsettings.json
+    - appsettings.validation.json
+    - log4net.config
+    - .gitignore
+    - TCPCommunicator.cs
+    - autotest.json
+    - pointmap-version.json
+source_files: []
+depends_on: []
+related_to: []

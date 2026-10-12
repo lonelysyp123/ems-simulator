@@ -48,8 +48,7 @@ namespace EssSimulator.Display
         AcPhasorSnapshot UnitTransformerPrimary,
         AcPhasorSnapshot UnitTransformerSecondary,
         BusNodeSnapshot? Bus690,
-        PcsChannelSnapshot? PcsA,
-        PcsChannelSnapshot? PcsB);
+        IReadOnlyList<PcsChannelSnapshot?> PcsChannels);
 
     public sealed class MainLineSnapshot
     {
@@ -67,6 +66,13 @@ namespace EssSimulator.Display
         public double LoadReactivePowerKvar { get; init; }
         public double LoadActivePowerSetKw { get; init; }
         public double LoadReactivePowerSetKvar { get; init; }
+        public bool SvgPresent { get; init; }
+        public int SvgRunState { get; init; }
+        public int SvgRunCommand { get; init; }
+        public double SvgReactivePowerKvar { get; init; }
+        public double SvgReactiveSetpointKvar { get; init; }
+        public double SvgAvailableReactiveUpperKvar { get; init; }
+        public double SvgRatedCapacityKvar { get; init; }
         /// <summary>仿真电网额定线电压设定（V）。</summary>
         public double GridNominalLineVoltageV { get; init; }
         /// <summary>仿真电网额定频率设定（Hz）。</summary>
@@ -138,11 +144,17 @@ namespace EssSimulator.Display
                 "ess._mainTransformer._currentState.SecondaryCurrent",
                 "ess._mainTransformer.Secondary.Output.Ac.Internal");
 
+            var layout = GuiSimDataAccess.GetPcsPerUnit();
             var units = new List<UnitBranchSnapshot>();
             for (int u = unitStart; u < unitEndExclusive; u++)
             {
-                int a = u * 2;
-                int b = u * 2 + 1;
+                // 单元内 PCS 台数由布局决定，逐槽位读取，不再限定 A/B 双通道
+                int baseIdx = EssDeviceSimModel.PcsUnitLayout.BaseIndexOfUnit(layout, u);
+                int slotCount = Math.Max(1, EssDeviceSimModel.PcsUnitLayout.CountOfUnit(layout, u));
+                var channels = new List<PcsChannelSnapshot?>(slotCount);
+                for (int s = 0; s < slotCount; s++)
+                    channels.Add(ReadPcsChannel(baseIdx + s, u, s));
+
                 units.Add(new UnitBranchSnapshot(
                     u,
                     GuiSimDataAccess.SafeGetBool($"ess.ElectricalNetwork.UnitBreakers[{u}].SwitchState.IsClosed",
@@ -157,8 +169,7 @@ namespace EssSimulator.Display
                         $"ess._unitTransformers[{u}]._currentState.SecondaryCurrent",
                         $"ess._unitTransformers[{u}].Secondary.Output.Ac.Internal"),
                     ReadBusNode($"ess.RadialGraph.UnitBuses690[{u}]"),
-                    ReadPcsChannel(a, u, 0),
-                    ReadPcsChannel(b, u, 1)));
+                    channels));
             }
 
             return new MainLineSnapshot
@@ -177,6 +188,13 @@ namespace EssSimulator.Display
                 LoadReactivePowerKvar = GuiSimDataAccess.SafeGetDouble("ess._loadSimulator.ReactivePower"),
                 LoadActivePowerSetKw = GuiSimDataAccess.SafeGetDouble("ess._loadSimulator.ActivePowerSetpointKw"),
                 LoadReactivePowerSetKvar = GuiSimDataAccess.SafeGetDouble("ess._loadSimulator.ReactivePowerSetpointKvar"),
+                SvgPresent = GuiSimDataAccess.TryGetObject("ess.Svg") != null,
+                SvgRunState = (int)GuiSimDataAccess.SafeGetDouble("ess.Svg.RunState"),
+                SvgRunCommand = (int)GuiSimDataAccess.SafeGetDouble("ess.Svg.RunCommand"),
+                SvgReactivePowerKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.ReactivePowerKvar"),
+                SvgReactiveSetpointKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.ReactiveSetpointKvar"),
+                SvgAvailableReactiveUpperKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.AvailableReactiveUpperKvar"),
+                SvgRatedCapacityKvar = GuiSimDataAccess.SafeGetDouble("ess.Svg.RatedCapacityKvar"),
                 GridNominalLineVoltageV = GuiSimDataAccess.SafeGetDouble(
                     "ess.ElectricalNetwork.Grid.NominalLineVoltageV", 220000),
                 GridNominalFrequencyHz = GuiSimDataAccess.SafeGetDouble(

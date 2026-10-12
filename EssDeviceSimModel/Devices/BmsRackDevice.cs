@@ -1,9 +1,6 @@
-using EssSimulator.EssDeviceSimModel.Diagnostics;
 using EssSimulator.EssDeviceSimModel.Interface;
 using EssSimulator.EssDeviceSimModel.Model;
 using EssSimulator.EssDeviceSimModel.Thermal;
-using EssSimulator.EssSimModelApi.BatteryManagementSystem;
-using EssSimulator.EssSimModelApi.Mappers;
 
 namespace EssSimulator.EssDeviceSimModel.Devices
 {
@@ -17,7 +14,6 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         private DeviceFaultState _fault = new();
         private double _ambientCelsius = 25.0;
         private double _lastLossWatts;
-        private double _thermalPowerDeratingFactor = 1.0;
 
         public BmsRackDevice(string deviceId, BatteryRackSimulator rack)
         {
@@ -47,15 +43,14 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             }
         }
 
+        /// <summary>热网络电池节点温度（°C），由 PCS–BMS 直流耦合边在每步写入；作为电芯热环境（散热效率受其影响）。</summary>
+        public double BatteryNodeTemperatureCelsius { get; private set; } = 25.0;
+
+        public void ApplyBatteryNodeTemperature(double celsius) => BatteryNodeTemperatureCelsius = celsius;
+
         public void ApplyAmbientTemperature(double ambientCelsius) => _ambientCelsius = ambientCelsius;
 
         public double GetElectricalLossWatts() => _lastLossWatts;
-
-        /// <summary>高温功率降额因子（0–1），映射到堆 MaxCharge/DischargePower。</summary>
-        public void ApplyThermalPowerDerating(double factor) =>
-            _thermalPowerDeratingFactor = Math.Clamp(factor, 0, 1);
-
-        public double ThermalPowerDeratingFactor => _thermalPowerDeratingFactor;
 
         public bool IsLinked
         {
@@ -85,11 +80,11 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         public void Step(DeviceStepContext context, TimeSpan step) => SyncPortFromRack();
 
-        /// <summary>ESS 主循环：推进电芯/SOC 物理并刷新 DC 端口。</summary>
+        /// <summary>ESS 主循环：推进电芯/SOC 物理并刷新 DC 端口。电芯热环境使用电池节点温度。</summary>
         public void UpdatePhysics(double rackCurrent, double ambientTemp, DateTime timeStamp, TimeSpan step)
         {
             _ambientCelsius = ambientTemp;
-            _rack.Update(rackCurrent, ambientTemp, timeStamp, step);
+            _rack.Update(rackCurrent, BatteryNodeTemperatureCelsius, timeStamp, step);
             _lastLossWatts = PlantThermalSystem.EstimateRackOhmicLossWatts(_rack, rackCurrent);
             SyncPortFromRack();
         }
@@ -115,22 +110,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             return true;
         }
 
-        /// <summary>将物理量映射到 BMS DTO，评估簇级/Rack 级保护并回写 Rack 故障态。</summary>
-        public void SyncTelemetryAndProtection(BatteryManagementSystemData bmsData)
-        {
-            var rackState = _rack.GetRackState();
-            if (rackState == null || bmsData == null)
-                return;
-
-            BmsMapper.MapRackToStack(rackState, bmsData);
-            BmsMapper.MapClusters(_rack, bmsData);
-            BmsRackProtection.EvaluateAllClusters(_rack, bmsData);
-            BmsRackProtection.ApplyRackFaultSummary(bmsData, rackState);
-            // 告警/功率限值就绪后再刷新堆级运行状态（bank yc3）
-            BmsMapper.UpdateStackOperationStatus(bmsData);
-            BmsStateTracker.ReportProtectionChanges(DisplayLabel, bmsData, rackState);
-            RefreshFaultState();
-        }
+        /// <summary>保护评估后刷新电气故障态（由 Mapper 在投影完成时调用）。</summary>
+        internal void RefreshProtectionFault() => RefreshFaultState();
 
         public void SyncPortFromRack()
         {

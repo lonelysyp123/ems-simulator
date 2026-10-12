@@ -1,3 +1,4 @@
+using EssSimulator.Display;
 using EssSimulator.EssDeviceSimModel.Model;
 
 namespace EssSimulator.Tests.Model;
@@ -152,5 +153,54 @@ public class AcQuantityConverterTests
         Assert.Equal(1.0, AcQuantityConverter.ComputeSignedPowerFactor(1000, 0), 1e-9);
         Assert.Equal(1.0, AcQuantityConverter.ComputeSignedPowerFactor(-1000, 0), 1e-9);
         Assert.Equal(1.0, AcQuantityConverter.ComputeSignedPowerFactor(0, 0), 1e-9);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 10, 0)]
+    [InlineData(1000, double.NaN, 0)]
+    [InlineData(1000, 10, double.NaN)]
+    [InlineData(double.PositiveInfinity, 10, 0)]
+    [InlineData(double.NegativeInfinity, 10, 0)]
+    public void ComputePower_NonFiniteInput_IsZero(double voltage, double current, double phaseAngleDeg)
+    {
+        Assert.Equal(0, AcQuantityConverter.ComputeActivePowerKw(voltage, current, phaseAngleDeg));
+        Assert.Equal(0, AcQuantityConverter.ComputeReactivePowerKvar(voltage, current, phaseAngleDeg));
+        Assert.Equal(1, AcQuantityConverter.ComputePowerFactor(voltage, current, phaseAngleDeg));
+    }
+
+    [Fact]
+    public void AcPhasorSnapshot_NaNVoltage_ActivePowerIsZero()
+    {
+        var snap = new AcPhasorSnapshot(double.NaN, 10, 0, 50);
+        Assert.Equal(0, snap.ActivePowerKw);
+        Assert.Equal(0, snap.ReactivePowerKvar);
+    }
+
+    [Fact]
+    public void ReferLineCurrent_690V_630A_To35kV()
+    {
+        double i35 = AcQuantityConverter.ReferLineCurrent(630, 690, 35_000);
+        Assert.Equal(630 * 690 / 35_000.0, i35, 0.05);
+        Assert.InRange(i35, 12.3, 12.5);
+    }
+
+    [Fact]
+    public void ReferLineCurrent_PreservesApparentPower_InrushPrimary()
+    {
+        const double i35 = 1247;
+        double s = Math.Sqrt(3.0) * 35_000 * i35 / 1000.0;
+        double i690 = AcQuantityConverter.ReferLineCurrent(i35, 35_000, 690);
+        Assert.InRange(i690, 63_000, 63_500);
+        Assert.Equal(i35, AcQuantityConverter.LineCurrentFromApparent(35_000, s), 0.5);
+        Assert.Equal(i690, AcQuantityConverter.LineCurrentFromApparent(690, s), 1.0);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ReferLineCurrent_NonPositiveVoltage_IsZero(double badV)
+    {
+        Assert.Equal(0, AcQuantityConverter.ReferLineCurrent(100, badV, 35_000));
+        Assert.Equal(0, AcQuantityConverter.ReferLineCurrent(100, 690, badV));
     }
 }

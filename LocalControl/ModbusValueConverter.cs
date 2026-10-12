@@ -31,13 +31,13 @@ namespace EssSimulator.LocalControl
             if (cmd == 0xAA)
             {
                 normalizedValue = 0xAA;
+                closed = true;
                 return true;
             }
 
             if (cmd == 0xEE)
             {
                 normalizedValue = 0xEE;
-                closed = true;
                 return true;
             }
 

@@ -15,34 +15,16 @@ namespace EssSimulator.EssSimModelApi.Mappers
             var meter = ess.ElectricalNetwork.PccMeter;
             var tel = meter.Telemetry;
             var primary = tel.Primary;
-            var xfSt = ess._mainTransformer.GetCurrentState();
 
-            double lineVoltage = primary.LineVoltageV > 1.0
-                ? primary.LineVoltageV
-                : Math.Max(0.0, xfSt?.PrimaryVoltage ?? ess.PccLineVoltageV);
-
+            double lineVoltage = Math.Max(0.0, primary.LineVoltageV);
             double totalP = primary.ActivePowerKw;
             double totalQ = primary.ReactivePowerKvar;
             double totalS = Math.Sqrt(totalP * totalP + totalQ * totalQ);
-            // 幅值 |P|/S；符号与无功 Q 同号（与充放电方向无关）
             double pf = AcQuantityConverter.ComputeSignedPowerFactor(totalP, totalQ);
             double I = primary.LineCurrentA;
 
-            if (!ess.IsMainBreakerClosed)
-            {
-                lineVoltage = xfSt != null
-                    ? Math.Max(0.0, xfSt.PrimaryVoltage)
-                    : (ess.PccLineVoltageV > 0 ? ess.PccLineVoltageV : 0.0);
-                totalP = 0;
-                totalQ = 0;
-                totalS = 0;
-                pf = 1.0;
-                I = 0;
-            }
-            else if (Math.Abs(I) < 1e-9 && lineVoltage > 1.0 && totalS > 1e-9)
-            {
+            if (Math.Abs(I) < 1e-9 && lineVoltage > 1.0 && totalS > 1e-9)
                 I = totalS * 1000.0 / lineVoltage / Math.Sqrt(3.0);
-            }
 
             double phaseV = lineVoltage / Math.Sqrt(3.0);
 

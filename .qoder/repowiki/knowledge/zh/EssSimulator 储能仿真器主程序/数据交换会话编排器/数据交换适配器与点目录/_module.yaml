@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: data_exchange/adapters_catalog
+title: 数据交换适配器与点目录
+scope:
+    - DataExchange/Adapters/
+    - DataExchange/Catalog/
+source_files: []
+depends_on: []
+related_to: []

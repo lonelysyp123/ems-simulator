@@ -1,0 +1,419 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: feature_pv-module-neg21c20q
+nodes_managed: true
+exported_at: "2026-08-19T05:20:28Z"
+modules:
+    "":
+        dir_name: EssSimulator 储能仿真器主程序
+        title: EssSimulator 储能仿真器主程序
+        scope:
+            - Program.cs
+            - EssSimulator.csproj
+            - EssSimulator.sln
+            - appsettings.json
+            - appsettings.validation.json
+            - log4net.config
+            - .gitignore
+            - TCPCommunicator.cs
+            - autotest.json
+            - pointmap-version.json
+        source_files: []
+        children:
+            - configs_pointmaps
+            - core_host
+            - data_exchange
+            - device_sim_model
+            - display_commands
+            - docs
+            - local_control
+            - protocol_modbus
+            - scripts
+            - tests
+            - web_frontend_backend
+        depends_on: []
+        related_to: []
+    configs_pointmaps:
+        dir_name: 仿真拓扑配置与点位表（Point Maps）
+        title: 仿真拓扑配置与点位表（Point Maps）
+        scope:
+            - configs/
+            - pointmaps/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/backend_topology
+    core_host:
+        dir_name: 仿真主机与配置模型
+        title: 仿真主机与配置模型
+        scope:
+            - Core/
+            - Configuration/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    data_exchange:
+        dir_name: 数据交换会话编排器
+        title: 数据交换会话编排器
+        scope:
+            - DataExchange/
+        source_files: []
+        children:
+            - data_exchange/adapters_catalog
+            - data_exchange/effects
+            - data_exchange/pipeline
+        depends_on: []
+        related_to:
+            - path: device_sim_model/core_engine
+            - path: protocol_modbus
+    data_exchange/adapters_catalog:
+        dir_name: 数据交换适配器与点目录
+        title: 数据交换适配器与点目录
+        scope:
+            - DataExchange/Adapters/
+            - DataExchange/Catalog/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    data_exchange/effects:
+        dir_name: 控制点变更效果处理器
+        title: 控制点变更效果处理器
+        scope:
+            - DataExchange/Effects/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device_sim_model/devices_domain
+            - path: web_frontend_backend/backend_runtime
+    data_exchange/pipeline:
+        dir_name: Modbus-仿真数据交换流水线
+        title: Modbus-仿真数据交换流水线
+        scope:
+            - DataExchange/Pipeline/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: protocol_modbus
+    device_sim_model:
+        dir_name: 储能电站设备仿真模型（EssDeviceSimModel）
+        title: 储能电站设备仿真模型（EssDeviceSimModel）
+        scope:
+            - EssDeviceSimModel/
+        source_files: []
+        children:
+            - device_sim_model/battery_domain
+            - device_sim_model/core_engine
+            - device_sim_model/devices_domain
+            - device_sim_model/interfaces_and_diagnostics
+            - device_sim_model/pv_domain
+            - device_sim_model/thermal_domain
+        depends_on: []
+        related_to: []
+    device_sim_model/battery_domain:
+        dir_name: 电池堆四层仿真模型（电芯-模组-簇-堆）
+        title: 电池堆四层仿真模型（电芯-模组-簇-堆）
+        scope:
+            - EssDeviceSimModel/Battery/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    device_sim_model/core_engine:
+        dir_name: 储能系统电气网络仿真核心引擎
+        title: 储能系统电气网络仿真核心引擎
+        scope:
+            - EssDeviceSimModel/Solver/
+            - EssDeviceSimModel/Propagation/
+            - EssDeviceSimModel/Model/
+        source_files: []
+        children:
+            - device_sim_model/core_engine/electrical_models
+            - device_sim_model/core_engine/network_solver
+            - device_sim_model/core_engine/signal_propagation
+        depends_on: []
+        related_to:
+            - path: data_exchange
+            - path: display_commands
+    device_sim_model/core_engine/electrical_models:
+        dir_name: 电气拓扑与量值模型
+        title: 电气拓扑与量值模型
+        scope:
+            - EssDeviceSimModel/Model/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    device_sim_model/core_engine/network_solver:
+        dir_name: 储能系统电气网络求解器
+        title: 储能系统电气网络求解器
+        scope:
+            - EssDeviceSimModel/Solver/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    device_sim_model/core_engine/signal_propagation:
+        dir_name: 径向电网信号传播与前推回代求解引擎
+        title: 径向电网信号传播与前推回代求解引擎
+        scope:
+            - EssDeviceSimModel/Propagation/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    device_sim_model/devices_domain:
+        dir_name: 储能设备仿真模型（PCS_BMS_负载_变压器）
+        title: 储能设备仿真模型（PCS/BMS/负载/变压器）
+        scope:
+            - EssDeviceSimModel/Devices/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: data_exchange/effects
+            - path: local_control
+    device_sim_model/interfaces_and_diagnostics:
+        dir_name: 设备接口与仿真诊断
+        title: 设备接口与仿真诊断
+        scope:
+            - EssDeviceSimModel/Interface/
+            - EssDeviceSimModel/Diagnostics/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    device_sim_model/pv_domain:
+        dir_name: 光伏组串逆变器与阵列仿真模型
+        title: 光伏组串逆变器与阵列仿真模型
+        scope:
+            - EssDeviceSimModel/Pv/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    device_sim_model/thermal_domain:
+        dir_name: BMS 柜体热网络与电站热子系统
+        title: BMS 柜体热网络与电站热子系统
+        scope:
+            - EssDeviceSimModel/Thermal/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    display_commands:
+        dir_name: 仿真器显示命令与主接线数据读取
+        title: 仿真器显示命令与主接线数据读取
+        scope:
+            - Display/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device_sim_model/core_engine
+            - path: protocol_modbus
+            - path: web_frontend_backend/backend_runtime
+    docs:
+        dir_name: 仿真模拟器（EssSimulator）项目文档
+        title: 仿真模拟器（EssSimulator）项目文档
+        scope:
+            - docs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    local_control:
+        dir_name: LocalControl Modbus 从站与仿真桥接服务
+        title: LocalControl Modbus 从站与仿真桥接服务
+        scope:
+            - LocalControl/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device_sim_model/devices_domain
+            - path: protocol_modbus
+    protocol_modbus:
+        dir_name: Modbus 协议从站与数据同步层
+        title: Modbus 协议从站与数据同步层
+        scope:
+            - Protocol/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: data_exchange
+            - path: data_exchange/pipeline
+            - path: display_commands
+            - path: local_control
+    scripts:
+        dir_name: EssSimulator 构建、发布与运维脚本集
+        title: EssSimulator 构建、发布与运维脚本集
+        scope:
+            - scripts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    tests:
+        dir_name: EssSimulator 单元测试套件
+        title: EssSimulator 单元测试套件
+        scope:
+            - EssSimulator.Tests/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    web_frontend_backend:
+        dir_name: 储能仿真 Web 前端与后端一体化工程
+        title: 储能仿真 Web 前端与后端一体化工程
+        scope:
+            - Web/
+        source_files: []
+        children:
+            - web_frontend_backend/backend_droop_slices
+            - web_frontend_backend/backend_runtime
+            - web_frontend_backend/backend_snapshot_readers
+            - web_frontend_backend/backend_topology
+            - web_frontend_backend/frontend_app
+        depends_on: []
+        related_to: []
+    web_frontend_backend/backend_droop_slices:
+        dir_name: 下垂调压白盒切片采集与存储
+        title: 下垂调压白盒切片采集与存储
+        scope:
+            - Web/DroopSlices/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    web_frontend_backend/backend_runtime:
+        dir_name: Web API 与实时推送运行时
+        title: Web API 与实时推送运行时
+        scope:
+            - Web/RealtimeHub.cs
+            - Web/WebCommandExecutor.cs
+            - Web/SnapshotService.cs
+            - Web/MainLineEnricher.cs
+            - Web/EndpointExtensions.cs
+            - Web/LogHubAppender.cs
+            - Web/ApiKeyAuthMiddleware.cs
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: data_exchange/effects
+            - path: display_commands
+            - path: web_frontend_backend/frontend_app/app_shell
+            - path: web_frontend_backend/frontend_app/mainline_visualization
+    web_frontend_backend/backend_snapshot_readers:
+        dir_name: Web 端设备快照读取器（告警_电池_连接_门限）
+        title: Web 端设备快照读取器（告警/电池/连接/门限）
+        scope:
+            - Web/AlarmSnapshotReader.cs
+            - Web/BatterySnapshotReader.cs
+            - Web/ConnectionSnapshotReader.cs
+            - Web/RackThresholdSnapshotReader.cs
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/frontend_app/battery_cells_monitoring
+    web_frontend_backend/backend_topology:
+        dir_name: 组态工程与运行时配置 API（Web_Topology）
+        title: 组态工程与运行时配置 API（Web/Topology）
+        scope:
+            - Web/Topology/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: configs_pointmaps
+            - path: web_frontend_backend/frontend_app/system_management
+            - path: web_frontend_backend/frontend_app/topology_editor
+    web_frontend_backend/frontend_app:
+        dir_name: 储能仿真模拟器 Web 前端应用
+        title: 储能仿真模拟器 Web 前端应用
+        scope:
+            - Web/src/
+        source_files: []
+        children:
+            - web_frontend_backend/frontend_app/app_shell
+            - web_frontend_backend/frontend_app/battery_cells_monitoring
+            - web_frontend_backend/frontend_app/mainline_visualization
+            - web_frontend_backend/frontend_app/system_management
+            - web_frontend_backend/frontend_app/topology_editor
+        depends_on: []
+        related_to: []
+    web_frontend_backend/frontend_app/app_shell:
+        dir_name: 应用外壳与全局服务层
+        title: 应用外壳与全局服务层
+        scope:
+            - Web/src/App.vue
+            - Web/src/main.js
+            - Web/src/router.js
+            - Web/src/services/
+            - Web/src/styles/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/backend_runtime
+    web_frontend_backend/frontend_app/battery_cells_monitoring:
+        dir_name: 电池舱监控前端视图（总览_单体_门限_告警）
+        title: 电池舱监控前端视图（总览/单体/门限/告警）
+        scope:
+            - Web/src/views/BatteryView.vue
+            - Web/src/views/CellsView.vue
+            - Web/src/views/ThresholdsView.vue
+            - Web/src/views/AlarmsView.vue
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/backend_snapshot_readers
+    web_frontend_backend/frontend_app/mainline_visualization:
+        dir_name: 电站主接线可视化（2D SVG _ 3D Three.js）
+        title: 电站主接线可视化（2D SVG / 3D Three.js）
+        scope:
+            - Web/src/views/MainLineView.vue
+            - Web/src/views/MainLine3dView.vue
+            - Web/src/components/mainline3d/
+            - Web/src/components/MainLineScene.vue
+            - Web/src/components/MainLineSvg.vue
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/backend_runtime
+    web_frontend_backend/frontend_app/system_management:
+        dir_name: 系统管理前端视图（工程_配置_命令_连接_切片）
+        title: 系统管理前端视图（工程/配置/命令/连接/切片）
+        scope:
+            - Web/src/views/ProjectManageView.vue
+            - Web/src/views/SystemConfigView.vue
+            - Web/src/views/CommandView.vue
+            - Web/src/views/DroopSlicesView.vue
+            - Web/src/views/ConnectionsView.vue
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/backend_topology
+    web_frontend_backend/frontend_app/topology_editor:
+        dir_name: 拓扑编辑器与主接线单线图视图
+        title: 拓扑编辑器与主接线单线图视图
+        scope:
+            - Web/src/views/TopologyView.vue
+            - Web/src/components/topology/
+            - Web/src/components/TopologyMainLineSvg.vue
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_frontend_backend/backend_topology

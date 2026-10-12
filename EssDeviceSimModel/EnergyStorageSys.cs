@@ -9,39 +9,21 @@ namespace EssSimulator.EssDeviceSimModel
 {
     using EssSimulator.Configuration;
     using EssSimulator.EssDeviceSimModel.Battery;
+    using EssSimulator.EssDeviceSimModel.Diagnostics;
     using EssSimulator.EssDeviceSimModel.Devices;
     using EssSimulator.EssDeviceSimModel.Model;
     using EssSimulator.EssDeviceSimModel.Plant;
     using EssSimulator.EssDeviceSimModel.Propagation;
     using EssSimulator.EssDeviceSimModel.Solver;
     using EssSimulator.EssDeviceSimModel.Thermal;
-    using EssSimulator.EssSimModelApi;
-    using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+    using EssSimulator.EssDeviceSimModel.Pv;
+    using EssSimulator.EssDeviceSimModel.Svg;
     using System;
     using System.Collections.Generic;
 
     public class EnergyStorageSystem : BackgroundService
     {
         private static readonly ILog _log = LogManager.GetLogger(typeof(EnergyStorageSystem));
-        // 储能系统参数
-        public double Capacity { get; private set; } // 储能容量 (kWh)
-        public double CurrentEnergy { get; private set; } // 当前储能 (kWh)
-        public double Efficiency { get; private set; } // 充放电效率 (0-1)
-
-        // 统计数据
-        public double TotalChargeEnergy { get; private set; } // 总充电能量 (kWh)
-        public double TotalDischargeEnergy { get; private set; } // 总放电能量 (kWh)
-        public List<double> ChargeSessions { get; private set; } // 单次充电能量记录
-        public List<double> DischargeSessions { get; private set; } // 单次放电能量记录
-        public Dictionary<DateTime, double> DailyCharge { get; private set; } // 日充电能量
-        public Dictionary<DateTime, double> DailyDischarge { get; private set; } // 日放电能量
-        public double AvailableChargeEnergy => Capacity - CurrentEnergy; // 可获得充电能量
-        public double AvailableDischargeEnergy => CurrentEnergy; // 可获得放电能量
-
-        // 当前充电/放电状态
-
-
-        /// <summary>电池堆列表，索引 i 对应第 i+1 个储能单元。通过 ess._batteryRacks[i] 或路径 ess._batteryRacks[0] 访问。</summary>
         public IReadOnlyList<BatteryRackSimulator> _batteryRacks { get; }
 
         /// <summary>新电气网络 BMS 设备（与 _batteryRacks 一一对应）。</summary>
@@ -50,21 +32,49 @@ namespace EssSimulator.EssDeviceSimModel
         /// <summary>PCS 列表，索引 i 对应第 i+1 个 PCS。与电气网络 PcsDevices 共用实例。</summary>
         public IReadOnlyList<PcsDevice> _pcsList { get; }
 
-        /// <summary>兼容旧路径：ess._batteryRack 等价于 ess._batteryRacks[0]</summary>
-        [Obsolete("请使用 _batteryRacks[0]")]
-        public BatteryRackSimulator _batteryRack => _batteryRacks.Count > 0 ? _batteryRacks[0] : null!;
+        /// <summary>光伏单元列表（组态/配置展开；纯光伏工程可无储能通道）。</summary>
+        public IReadOnlyList<PvUnitDevice> PvUnits { get; }
 
-        /// <summary>兼容旧路径：ess._batteryRack2 等价于 ess._batteryRacks[1]</summary>
-        [Obsolete("请使用 _batteryRacks[1]")]
-        public BatteryRackSimulator _batteryRack2 => _batteryRacks.Count > 1 ? _batteryRacks[1] : null!;
+        /// <summary>站用 SVG。未启用时为空。</summary>
+        public SvgDevice? Svg { get; private set; }
 
-        /// <summary>兼容旧路径：ess._pcs1 等价于 ess._pcsList[0]</summary>
-        [Obsolete("请使用 _pcsList[0]")]
-        public PcsDevice _pcs1 => _pcsList.Count > 0 ? _pcsList[0] : null!;
+        /// <summary>点表根对象。未启用时为空。</summary>
+        public SvgProtocolData? SvgProtocol { get; private set; }
 
-        /// <summary>兼容旧路径：ess._pcs2 等价于 ess._pcsList[1]</summary>
-        [Obsolete("请使用 _pcsList[1]")]
-        public PcsDevice _pcs2 => _pcsList.Count > 1 ? _pcsList[1] : null!;
+        /// <summary>各储能单元下属 PCS 台数（EMU 拓扑：每单元 = 1 个 EMU 虚拟模型聚合 N 台 PCS）。</summary>
+        public IReadOnlyList<int> PcsPerUnit => _pcsPerUnit;
+        private IReadOnlyList<int> _pcsPerUnit = Array.Empty<int>();
+
+        /// <summary>PCS 通道索引 → 所属单元索引 的映射表。</summary>
+        private IReadOnlyList<int> _unitIndexByPcs = Array.Empty<int>();
+        private IReadOnlyList<string?> _unitMeterSourceBusIds = Array.Empty<string?>();
+
+        /// <summary>PCS 通道（0 基）所属储能单元索引；越界时就近钉住边界。</summary>
+        public int UnitIndexOfPcs(int pcsSimIndex)
+        {
+            if (_unitIndexByPcs.Count == 0) return 0;
+            int idx = Math.Clamp(pcsSimIndex, 0, _unitIndexByPcs.Count - 1);
+            return _unitIndexByPcs[idx];
+        }
+
+        /// <summary>指定单元第一台 PCS 的全局通道索引（0 基）。</summary>
+        public int PcsBaseIndexOfUnit(int unit)
+        {
+            int baseIdx = 0;
+            for (int u = 0; u < unit && u < _pcsPerUnit.Count; u++)
+                baseIdx += _pcsPerUnit[u];
+            return baseIdx;
+        }
+
+        /// <summary>组态解析的单元电表抽头母线；未接线时为 null。</summary>
+        public string? GetUnitMeterSourceBusId(int unitIndex) =>
+            unitIndex >= 0 && unitIndex < _unitMeterSourceBusIds.Count
+                ? _unitMeterSourceBusIds[unitIndex]
+                : null;
+
+        /// <summary>指定单元下属 PCS 台数。</summary>
+        public int PcsCountOfUnit(int unit) =>
+            unit >= 0 && unit < _pcsPerUnit.Count ? _pcsPerUnit[unit] : 0;
 
         //public GridState _gridState;
         public Breaker _breaker { get; set; } //断路器
@@ -89,11 +99,11 @@ namespace EssSimulator.EssDeviceSimModel
         /// <summary>电气输出订阅路由（设备间互相注册）。</summary>
         public ElectricalSignalRouter SignalRouter { get; }
 
-        /// <summary>径向前推回代引擎（<see cref="Configuration.RuntimeConfig.UseElectricalPropagation"/> 为 true 时非空）。</summary>
-        public RadialPowerSweepEngine? PowerSweepEngine { get; }
+        /// <summary>径向前推回代引擎（生产路径唯一电气步进）。</summary>
+        public RadialPowerSweepEngine PowerSweepEngine { get; }
 
         /// <summary>径向网络母线图。</summary>
-        public RadialNetworkGraph? RadialGraph { get; }
+        public RadialNetworkGraph RadialGraph { get; }
 
         /// <summary>
         /// 电站物理步进门面。主循环只应调用 <see cref="PlantEngine.Step"/>；
@@ -107,14 +117,10 @@ namespace EssSimulator.EssDeviceSimModel
         /// <summary>设备耦合图（PCS–BMS 直流边等）。</summary>
         public PlantCouplingGraph CouplingGraph { get; private set; } = null!;
 
-        /// <summary>是否使用径向潮流主路径（供 <see cref="PlantEngine"/> 调度）。</summary>
-        internal bool UseElectricalPropagation => _useElectricalPropagation;
-
-        /// <summary>PCS 物理配置（供 <see cref="PlantEngine"/> 走 Solver 备用路径时使用）。</summary>
+        /// <summary>PCS 物理配置（供网络控制面与设备步进使用）。</summary>
         internal PcsPhysicalConfig PcsPhysicalConfig => _pcsCfg;
 
         private readonly ElectricalNetwork _electricalNetwork;
-        private readonly bool _useElectricalPropagation;
         private readonly int _propagationIntervalMs;
 
         public EnergyStorageSystem(
@@ -131,16 +137,29 @@ namespace EssSimulator.EssDeviceSimModel
             var pcsList = new List<PcsDevice>();
             var bmsDeviceConfigs = simCfg.GetBmsDeviceConfigs();
             var pcsDeviceConfigs = simCfg.GetPcsDeviceConfigs();
-            int channelCount = Math.Max(1, bmsDeviceConfigs.Count); // PCS/BMS 通道数（= Unit*2）
-            int unitCount = Math.Max(1, simCfg.Devices?.Count ?? 1); // 储能单元数（每单元2路PCS+2路BMS）
+            int unitCount = simCfg.EffectiveEssUnitCount;
+            // 通道总数 = 各单元 PCS 台数之和（未配置时 GetPcsCountsPerUnit 回退每单元 2 台）
+            int channelCount = Math.Max(pcsDeviceConfigs.Count, unitCount);
+
+            // 单元 → PCS 台数 / 通道 → 单元 映射（替代硬编码每单元 2 台）
+            var pcsPerUnit = simCfg.GetPcsCountsPerUnit();
+            var unitIndexByChannel = new List<int>();
+            for (int u = 0; u < pcsPerUnit.Count; u++)
+                for (int k = 0; k < pcsPerUnit[u]; k++)
+                    unitIndexByChannel.Add(u);
+            while (unitIndexByChannel.Count < channelCount)
+                unitIndexByChannel.Add(Math.Max(0, unitCount - 1));
+            _pcsPerUnit = pcsPerUnit;
+            _unitIndexByPcs = unitIndexByChannel;
+            _unitMeterSourceBusIds = simCfg.Devices.Select(d => d.UnitMeterSourceBusId).ToList();
 
             for (int i = 0; i < channelCount; i++)
             {
-                var bmsCfg = bmsDeviceConfigs[i];
+                var bmsCfg = i < bmsDeviceConfigs.Count ? bmsDeviceConfigs[i] : new BmsDeviceConfig();
                 var rack = BmsRackFactory.CreateRack(bmsCfg);
                 racks.Add(rack);
-                int u = i / 2;
-                int ch = i % 2;
+                int u = UnitIndexOfPcs(i);
+                int ch = i - PcsBaseIndexOfUnit(u);
                 var bmsDev = new BmsRackDevice($"bms_u{u}_ch{ch}", rack);
                 bmsDev.DisplayLabel = $"bms{i + 1}";
                 bmsRackDevices.Add(bmsDev);
@@ -151,8 +170,8 @@ namespace EssSimulator.EssDeviceSimModel
                 var pcsDeviceCfg = i < pcsDeviceConfigs.Count ? pcsDeviceConfigs[i] : new Configuration.PcsDeviceConfig();
                 var rampCfg = pcsDeviceCfg.PcsRamp ?? simCfg.Runtime.PcsRamp;
                 var cfg = PcsDeviceFactory.CreateConfig(pcsCfg, rampCfg);
-                int u = i / 2;
-                int ch = i % 2;
+                int u = UnitIndexOfPcs(i);
+                int ch = i - PcsBaseIndexOfUnit(u);
                 var pcs = PcsDeviceFactory.Create($"pcs_u{u}_ch{ch}", cfg);
                 pcs.DisplayLabel = $"pcs{i + 1}";
                 pcsList.Add(pcs);
@@ -161,6 +180,7 @@ namespace EssSimulator.EssDeviceSimModel
             _batteryRacks = racks;
             _bmsRackDevices = bmsRackDevices;
             _pcsList      = pcsList;
+            PvUnits = CreatePvUnits(simCfg);
 
             _breaker = new Breaker();
 
@@ -179,20 +199,34 @@ namespace EssSimulator.EssDeviceSimModel
                 TransformerDeviceFactory.CreateConfig(transCfg));
 
             var unitTransformers = new List<TransformerDevice>();
+            var dualEars = new List<IReadOnlyList<DualEarTransformerDevice>>();
             var unitTransDeviceCfg = TransformerDeviceFactory.CreateConfig(unitTransCfg);
             for (int u = 0; u < unitCount; u++)
-                unitTransformers.Add(TransformerDeviceFactory.Create($"unit_transformer_u{u}", unitTransDeviceCfg));
+            {
+                var splits = u < simCfg.Devices.Count
+                    ? simCfg.Devices[u].ResolveSplitTransformers()
+                    : Array.Empty<SplitTransformerRuntimeConfig>();
+                if (splits.Count > 0)
+                {
+                    var list = new List<DualEarTransformerDevice>();
+                    for (int t = 0; t < splits.Count; t++)
+                    {
+                        string id = t == 0 ? $"unit_transformer_u{u}" : $"unit_transformer_u{u}_t{t}";
+                        list.Add(TransformerDeviceFactory.CreateDualEar(id, splits[t]));
+                    }
+
+                    dualEars.Add(list);
+                    unitTransformers.Add(list[0].Through);
+                }
+                else
+                {
+                    dualEars.Add(Array.Empty<DualEarTransformerDevice>());
+                    unitTransformers.Add(TransformerDeviceFactory.Create($"unit_transformer_u{u}", unitTransDeviceCfg));
+                }
+            }
             _unitTransformers = unitTransformers;
 
             _loadDevice = LoadDeviceFactory.Create("load_35", loadCfg);
-
-            // 初始化统计数据
-            TotalChargeEnergy   = 0;
-            TotalDischargeEnergy = 0;
-            ChargeSessions    = new List<double>();
-            DischargeSessions = new List<double>();
-            DailyCharge    = new Dictionary<DateTime, double>();
-            DailyDischarge = new Dictionary<DateTime, double>();
 
             // 保存仿真时钟参数
             double integrationMult = simCfg.IntegrationStepMultiplier;
@@ -200,7 +234,6 @@ namespace EssSimulator.EssDeviceSimModel
             _lastCycleUtc = DateTime.UtcNow;
             _transCfg  = transCfg;
             _pcsCfg    = pcsCfg;
-            _useElectricalPropagation = simCfg.Runtime.UseElectricalPropagation;
             _propagationIntervalMs = Math.Max(10, simCfg.Runtime.PropagationIntervalMs);
             PccLineVoltageV = pccCfg.NominalLineVoltage;
             StationBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage;
@@ -214,29 +247,63 @@ namespace EssSimulator.EssDeviceSimModel
                 externalPcsDevices: pcsList,
                 externalMainTransformer: _mainTransformer,
                 externalUnitTransformers: unitTransformers,
+                externalDualEars: dualEars,
                 externalLoadDevice: _loadDevice,
-                legacyEss: this);
+                legacyEss: this,
+                pcsPerUnit: _pcsPerUnit);
 
-            if (_useElectricalPropagation)
+            if (simCfg.EnableSvg)
             {
-                RadialGraph = new RadialNetworkGraph(_electricalNetwork, pccCfg, pcsCfg);
-                PowerSweepEngine = new RadialPowerSweepEngine(
-                    RadialGraph,
-                    this,
-                    pccCfg,
-                    pcsCfg,
-                    simCfg.Runtime.PropagationQuvMaxIterations,
-                    simCfg.Runtime.PropagationVoltageTolerancePu);
-                _log.Info($"[EnergyStorageSystem] 母线前推回代已启用（{_propagationIntervalMs} ms）");
+                Svg = new SvgDevice("svg", new SvgConfig
+                {
+                    RatedCapacityKvar = simCfg.SvgRatedCapacityKvar,
+                    NominalLineVoltageV = pccCfg.StationBusNominalLineVoltage
+                });
+                SvgProtocol = new SvgProtocolData(Svg);
             }
-            else
-            {
-                _log.Info("[EnergyStorageSystem] 电气网络 Solver 主路径已启用");
-            }
+
+            RadialGraph = new RadialNetworkGraph(_electricalNetwork, pccCfg, pcsCfg, PvUnits, Svg);
+            PowerSweepEngine = new RadialPowerSweepEngine(
+                RadialGraph,
+                this,
+                pccCfg,
+                pcsCfg,
+                simCfg.Runtime.PropagationQuvMaxIterations,
+                simCfg.Runtime.PropagationVoltageTolerancePu);
+            _log.Info($"[EnergyStorageSystem] 母线前推回代已启用（{_propagationIntervalMs} ms）");
 
             PlantEngine = new PlantEngine(this);
             Thermal = new PlantThermalSystem(simCfg.Runtime.Thermal, channelCount, DateTime.UtcNow);
             CouplingGraph = PlantCouplingGraph.BuildDefault(_pcsList, _bmsRackDevices);
+        }
+
+        private static IReadOnlyList<PvUnitDevice> CreatePvUnits(SimulatorConfig simCfg)
+        {
+            var list = new List<PvUnitDevice>();
+            var configs = simCfg.PvUnits ?? new List<PvUnitRuntimeConfig>();
+            for (int i = 0; i < configs.Count; i++)
+                list.Add(PvUnitDevice.FromRuntime($"pv{i + 1}", configs[i]));
+            return list;
+        }
+
+        /// <summary>
+        /// 电气步之前更新光伏出力：方阵温度/入射角 → MPPT 最大功率 → 35 kV 母线贡献。
+        /// </summary>
+        internal void StepPvUnits(DateTime simTime, TimeSpan elapsed)
+        {
+            if (PvUnits.Count == 0)
+                return;
+
+            bool gridOk = IsMainBreakerClosed && PccLineVoltageV > 1.0;
+            double freq = _electricalNetwork.SystemFrequencyHz > 1.0
+                ? _electricalNetwork.SystemFrequencyHz
+                : 50;
+
+            foreach (var pv in PvUnits)
+            {
+                pv.UpdateGridState(pv.AcNominalLineVoltageV, freq, gridOk);
+                pv.Update(simTime, elapsed);
+            }
         }
 
         /// <summary>阶段 4 起固定为 Solver 主路径 + 网络控制面。</summary>
@@ -264,13 +331,33 @@ namespace EssSimulator.EssDeviceSimModel
             return _unitBreakers[unitIndex].IsClosed;
         }
 
+        /// <summary>单元高压断路器是否处于跳闸锁存。</summary>
+        public bool IsUnitBreakerTripped(int unitIndex)
+        {
+            if (unitIndex < 0 || unitIndex >= _electricalNetwork.UnitBreakers.Count)
+                return false;
+            return _electricalNetwork.UnitBreakers[unitIndex].SwitchState.IsTripped;
+        }
+
         /// <summary>设定主断路器合/分（写入电气网络并投影至 Legacy）。</summary>
-        public void SetMainBreakerClosed(bool closed) =>
+        public void SetMainBreakerClosed(bool closed)
+        {
+            bool was = IsMainBreakerClosed;
             NetworkControlBridge.ApplyMainBreakerClosed(_electricalNetwork, _breaker, _loadDevice, closed);
+            SimStateChangeLogger.BreakerChanged("主断", was, closed);
+        }
 
         /// <summary>设定单元高压断路器合/分（写入电气网络并投影至 Legacy）。</summary>
-        public void SetUnitBreakerClosed(int unitIndex, bool closed) =>
+        public void SetUnitBreakerClosed(int unitIndex, bool closed)
+        {
+            bool was = IsUnitBreakerClosed(unitIndex);
             NetworkControlBridge.ApplyUnitBreakerClosed(_electricalNetwork, _unitBreakers, unitIndex, closed);
+            SimStateChangeLogger.BreakerChanged($"单元{unitIndex + 1}", was, closed);
+        }
+
+        /// <summary>复位单元高压跳闸锁存（不合闸）。</summary>
+        public void ResetUnitBreakerTrip(int unitIndex) =>
+            NetworkControlBridge.ResetUnitBreakerTrip(_electricalNetwork, unitIndex);
 
         /// <summary>设定负载计划并同步至电气网络 Load 设备。</summary>
         public void SetLoadCharacteristic(string characteristic, double value) =>
@@ -327,6 +414,89 @@ namespace EssSimulator.EssDeviceSimModel
             }
 
             message = $"电网额定频率 = {frequencyHz} Hz（主断闭合后 PCS 跟网、simEm.yc19 反映此值）";
+            return true;
+        }
+
+        /// <summary>设定光伏方阵环境温度、光照入射角或地面反照率，下一步按 MPPT 重算最大放电功率。</summary>
+        public bool TrySetPvArrayClimate(int pvNumber1Based, string side, string field, double value, out string message)
+        {
+            message = string.Empty;
+            if (pvNumber1Based < 1 || pvNumber1Based > PvUnits.Count)
+            {
+                message = $"找不到 pv{pvNumber1Based}";
+                return false;
+            }
+
+            var unit = PvUnits[pvNumber1Based - 1];
+            var climate = unit.ArrayClimate(side);
+            string label = string.Equals(side, "B", StringComparison.OrdinalIgnoreCase) ? "B" : "A";
+            if (field.Equals("temperature", StringComparison.OrdinalIgnoreCase) ||
+                field.Equals("temp", StringComparison.OrdinalIgnoreCase))
+            {
+                climate.SetAmbientTemperatureC(value);
+                message = $"pv{pvNumber1Based} 方阵{label} 环境温度 = {climate.AmbientTemperatureC:0.##} ℃";
+                return true;
+            }
+
+            if (field.Equals("angle", StringComparison.OrdinalIgnoreCase) ||
+                field.Equals("incidence", StringComparison.OrdinalIgnoreCase))
+            {
+                climate.SetIncidenceAngleDeg(value);
+                message = $"pv{pvNumber1Based} 方阵{label} 入射角 = {climate.IncidenceAngleDeg:0.##} °";
+                return true;
+            }
+
+            if (field.Equals("albedo", StringComparison.OrdinalIgnoreCase) ||
+                field.Equals("rear", StringComparison.OrdinalIgnoreCase))
+            {
+                climate.SetAlbedo(value);
+                message = $"pv{pvNumber1Based} 方阵{label} 反照率 = {climate.Albedo:0.###}";
+                return true;
+            }
+
+            message = "仅支持 temperature、angle 或 albedo";
+            return false;
+        }
+
+        /// <summary>启停光伏单元（直驱设备；点表存在 logger 启停位绑定时由反馈管道自动回写）。</summary>
+        public bool TrySetPvRun(int pvNumber1Based, bool run, out string message)
+        {
+            message = string.Empty;
+            if (pvNumber1Based < 1 || pvNumber1Based > PvUnits.Count)
+            {
+                message = $"找不到 pv{pvNumber1Based}";
+                return false;
+            }
+
+            var unit = PvUnits[pvNumber1Based - 1];
+            unit.Logger.SubarrayOnOff = (ushort)(run ? 1 : 0);
+            message = $"pv{pvNumber1Based} {(run ? "启动" : "停机")}";
+            return true;
+        }
+
+        /// <summary>设定光伏单元有功/无功（kW/kvar，缺省项保留现值；setter 自带 clamp 并下发逆变器）。</summary>
+        public bool TrySetPvPower(int pvNumber1Based, double? activeKw, double? reactiveKvar, out string message)
+        {
+            message = string.Empty;
+            if (activeKw == null && reactiveKvar == null)
+            {
+                message = "有功与无功至少提供一项";
+                return false;
+            }
+
+            if (pvNumber1Based < 1 || pvNumber1Based > PvUnits.Count)
+            {
+                message = $"找不到 pv{pvNumber1Based}";
+                return false;
+            }
+
+            var logger = PvUnits[pvNumber1Based - 1].Logger;
+            if (activeKw.HasValue)
+                logger.SubarrayActivePowerKw = activeKw.Value;
+            if (reactiveKvar.HasValue)
+                logger.SubarrayReactivePowerKvar = reactiveKvar.Value;
+
+            message = $"pv{pvNumber1Based} 有功设定 {logger.SubarrayActivePowerKw:0.##} kW · 无功设定 {logger.SubarrayReactivePowerKvar:0.##} kvar";
             return true;
         }
 
@@ -406,25 +576,34 @@ namespace EssSimulator.EssDeviceSimModel
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _log.Info("[EnergyStorageSystem] 仿真主循环启动（经 PlantEngine.Step）");
-            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_propagationIntervalMs));
+            PlantControlMailbox.DeferralEnabled = true;
             try
             {
-                while (await timer.WaitForNextTickAsync(stoppingToken))
+                using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_propagationIntervalMs));
+                try
                 {
-                    var (elapsed, integrationElapsed) = AdvanceCycleClock();
-                    DateTime simTime = DateTime.UtcNow;
-                    PlantEngine.Step(simTime, elapsed, integrationElapsed);
+                    while (await timer.WaitForNextTickAsync(stoppingToken))
+                    {
+                        var (elapsed, integrationElapsed) = AdvanceCycleClock();
+                        DateTime simTime = DateTime.UtcNow;
+                        PlantEngine.Step(simTime, elapsed, integrationElapsed);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // 正常停止，不视为错误
+                    _log.Info("[EnergyStorageSystem] 仿真主循环收到停止信号，正常退出");
+                }
+                catch (Exception ex)
+                {
+                    _log.Fatal("[EnergyStorageSystem] 仿真主循环发生未处理异常，已停止", ex);
+                    throw; // 重新抛出，让 Host 感知到服务崩溃
                 }
             }
-            catch (OperationCanceledException)
+            finally
             {
-                // 正常停止，不视为错误
-                _log.Info("[EnergyStorageSystem] 仿真主循环收到停止信号，正常退出");
-            }
-            catch (Exception ex)
-            {
-                _log.Fatal("[EnergyStorageSystem] 仿真主循环发生未处理异常，已停止", ex);
-                throw; // 重新抛出，让 Host 感知到服务崩溃
+                PlantControlMailbox.DeferralEnabled = false;
+                PlantControlMailbox.Flush();
             }
         }
 
@@ -433,7 +612,7 @@ namespace EssSimulator.EssDeviceSimModel
         /// </summary>
         internal void ApplyPcsGridWhenUnitDeenergized(int pcsSimIndex, PcsDevice pcs)
         {
-            int unit = pcsSimIndex / 2;
+            int unit = UnitIndexOfPcs(pcsSimIndex);
             double busV = GetUnitAcBusVoltage(unit);
             double energizedV = _pcsCfg.AcVoltageNominal * _pcsCfg.BlackStartBusEnergizedFraction;
             if (busV >= energizedV)
@@ -454,30 +633,105 @@ namespace EssSimulator.EssDeviceSimModel
         }
 
 
-        /// <summary>同单元 690V 母线电压（单元变二次侧与各 PCS 交流电压取大）。</summary>
+        /// <summary>
+        /// 同单元 690V 母线电压：单元变二次侧、35kV 反送折算，以及正在离网建压的 PCS 输出。
+        /// 停机/跟网 PCS 的端子测量不是电源，不得回写进母线。
+        /// </summary>
         public double GetUnitAcBusVoltage(int unitIndex)
         {
             double v = 0;
-            int a = unitIndex * 2;
-            int b = a + 1;
             if (unitIndex >= 0 && unitIndex < _unitTransformers.Count)
                 v = Math.Max(v, _unitTransformers[unitIndex].GetCurrentState().SecondaryVoltage);
-            if (a >= 0 && a < _pcsList.Count)
-                v = Math.Max(v, _pcsList[a].GetCurrentState().AcVoltage);
-            if (b >= 0 && b < _pcsList.Count)
-                v = Math.Max(v, _pcsList[b].GetCurrentState().AcVoltage);
+            // 仅在主断分闸且岛内已有构网反送时，用 35kV 折算补本单元 690V；
+            // 避免额定初始化/并网残留的 StationBus35 把死母线误判成活母线。
+            if (!IsMainBreakerClosed
+                && IsUnitBreakerClosed(unitIndex)
+                && unitIndex >= 0
+                && unitIndex < _unitTransformers.Count)
+            {
+                double island35 = EssIslandBusLogic.EstimateIslandedBus35LineVoltageV(
+                    _unitTransformers,
+                    _unitBreakers,
+                    _pcsList,
+                    _pcsPerUnit);
+                if (island35 > 1.0)
+                {
+                    double turns = Math.Max(_unitTransformers[unitIndex].TurnsRatio, 1e-6);
+                    v = Math.Max(v, island35 / turns);
+                }
+            }
+            int baseIdx = PcsBaseIndexOfUnit(unitIndex);
+            int count = PcsCountOfUnit(unitIndex);
+            double formingSum = 0;
+            int forming = 0;
+            for (int k = 0; k < count; k++)
+            {
+                int i = baseIdx + k;
+                if (i < 0 || i >= _pcsList.Count)
+                    continue;
+                var st = _pcsList[i].GetCurrentState();
+                if (!EssIslandBusLogic.IsPcsIslandVoltageBuilding(st) || st.AcVoltage <= 1.0)
+                    continue;
+                formingSum += st.AcVoltage;
+                forming++;
+            }
+            if (forming > 0)
+                v = Math.Max(v, formingSum / forming);
             return v;
         }
 
         private void RefreshUnitBlackStartBusContext(int unitIndex)
         {
             double busV = GetUnitAcBusVoltage(unitIndex);
-            int a = unitIndex * 2;
-            int b = a + 1;
-            if (a >= 0 && a < _pcsList.Count)
-                _pcsList[a].RefreshBlackStartBusContext(busV);
-            if (b >= 0 && b < _pcsList.Count)
-                _pcsList[b].RefreshBlackStartBusContext(busV);
+            var (freqHz, phaseRad) = GetUnitFormingReference(unitIndex);
+            int baseIdx = PcsBaseIndexOfUnit(unitIndex);
+            int count = PcsCountOfUnit(unitIndex);
+            for (int k = 0; k < count; k++)
+            {
+                int i = baseIdx + k;
+                if (i >= 0 && i < _pcsList.Count)
+                    _pcsList[i].RefreshBlackStartBusContext(busV, freqHz, phaseRad);
+            }
+        }
+
+        /// <summary>同单元正在注入的构网源的频率与相位（算术/圆周平均；无源时为 0）。</summary>
+        public (double FrequencyHz, double PhaseRad) GetUnitFormingReference(int unitIndex)
+        {
+            var sources = new List<(double VoltageV, double FrequencyHz, double PhaseRad)>();
+            int baseIdx = PcsBaseIndexOfUnit(unitIndex);
+            int count = PcsCountOfUnit(unitIndex);
+            for (int k = 0; k < count; k++)
+            {
+                int i = baseIdx + k;
+                if (i < 0 || i >= _pcsList.Count)
+                    continue;
+                var pcs = _pcsList[i];
+                if (!pcs.TryGetIslandBusVoltageInjection(out var v, out var f) || v <= 1.0)
+                    continue;
+                sources.Add((v, f, pcs.FormingPhaseRad));
+            }
+
+            return EssIslandBusLogic.AverageFormingReference(sources);
+        }
+
+        /// <summary>同单元正在注入的构网源的孤岛电压设定算术平均（无源时为 0）。</summary>
+        public double GetUnitFormingVoltageCommandV(int unitIndex)
+        {
+            var cmds = new List<double>();
+            int baseIdx = PcsBaseIndexOfUnit(unitIndex);
+            int count = PcsCountOfUnit(unitIndex);
+            for (int k = 0; k < count; k++)
+            {
+                int i = baseIdx + k;
+                if (i < 0 || i >= _pcsList.Count)
+                    continue;
+                var pcs = _pcsList[i];
+                if (!pcs.TryGetIslandBusVoltageInjection(out var v, out _) || v <= 1.0)
+                    continue;
+                cmds.Add(pcs.GetCurrentState().IslandVoltageCommandV);
+            }
+
+            return EssIslandBusLogic.AverageFormingVoltageCommand(cmds);
         }
 
         /// <summary>PCS.Update 之后同步单元变与站用电分摊（见 <see cref="UnitTransformerIslandSync"/>）。</summary>
@@ -490,13 +744,14 @@ namespace EssSimulator.EssDeviceSimModel
                 _pcsList,
                 IsUnitBreakerClosed,
                 _pcsCfg,
+                _pcsPerUnit,
                 simTime,
                 simStep);
 
         /// <summary>刷新各单元黑启动母线上下文（供 <see cref="PlantEngine"/> 调用）。</summary>
         internal void RefreshAllUnitBlackStartBusContexts()
         {
-            int unitCount = (_pcsList.Count + 1) / 2;
+            int unitCount = _unitBreakers.Count;
             for (int u = 0; u < unitCount; u++)
                 RefreshUnitBlackStartBusContext(u);
         }

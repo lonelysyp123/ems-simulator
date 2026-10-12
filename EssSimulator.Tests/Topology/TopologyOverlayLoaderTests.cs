@@ -36,6 +36,15 @@ public class TopologyOverlayLoaderTests
     }
 
     [Fact]
+    public void IsUsable_true_when_only_pv_units()
+    {
+        Assert.True(TopologyOverlayLoader.IsUsable(new TopologyRuntimeOverlay
+        {
+            PvUnits = { new PvUnitRuntimeConfig { Name = "光伏单元-1" } }
+        }));
+    }
+
+    [Fact]
     public void TryLoad_returns_null_when_engineering_mode_off()
     {
         using var tmp = new TempTopologyRoot(engineeringMode: false, overlay: UsableOverlay());
@@ -46,7 +55,7 @@ public class TopologyOverlayLoaderTests
     public void TryLoad_returns_null_when_overlay_has_no_units()
     {
         using var tmp = new TempTopologyRoot(engineeringMode: true, overlay: new TopologyRuntimeOverlay());
-        Assert.Null(TopologyOverlayLoader.TryLoad(tmp.Root));
+        CaptureConsole(() => Assert.Null(TopologyOverlayLoader.TryLoad(tmp.Root)));
     }
 
     [Fact]
@@ -61,29 +70,134 @@ public class TopologyOverlayLoaderTests
     }
 
     [Fact]
+    public void TryLoad_mw300_uses_code_even_when_overlay_file_differs_or_is_missing()
+    {
+        using var garbage = new TempTopologyRoot(
+            engineeringMode: true,
+            overlay: new TopologyRuntimeOverlay { SourceProjectName = "被人改过" },
+            activeProjectId: Mw300EssStation.Id);
+        var fromGarbage = TopologyOverlayLoader.TryLoad(garbage.Root);
+        Assert.NotNull(fromGarbage);
+        Assert.Equal(Mw300EssStation.Id, fromGarbage!.SourceProjectId);
+        Assert.Equal(60, fromGarbage.EssUnits.Count);
+
+        using var missing = new TempTopologyRoot(
+            engineeringMode: true,
+            overlay: null,
+            activeProjectId: Mw300EssStation.Id,
+            writeOverlay: false);
+        var fromMissing = TopologyOverlayLoader.TryLoad(missing.Root);
+        Assert.NotNull(fromMissing);
+        Assert.Equal(60, fromMissing!.EssUnits.Count);
+    }
+
+    [Fact]
     public void TryLoad_returns_null_when_json_corrupt()
     {
         using var tmp = new TempTopologyRoot(engineeringMode: true, overlay: UsableOverlay());
         File.WriteAllText(tmp.OverlayPath, "{ not-json");
-        Assert.Null(TopologyOverlayLoader.TryLoad(tmp.Root));
+        var log = CaptureConsole(() => Assert.Null(TopologyOverlayLoader.TryLoad(tmp.Root)));
+        Assert.Contains(tmp.OverlayPath, log);
+        Assert.Contains("JsonException", log);
     }
 
     [Fact]
-    public void Repo_default_engineering_overlay_is_usable()
+    public void TryLoad_unusable_overlay_logs_path_and_falls_back()
     {
-        var root = FindRepoRoot();
-        var modePath = Path.Combine(root, "configs", "topology", "runtime-mode.json");
-        if (!File.Exists(modePath))
-            return;
+        using var tmp = new TempTopologyRoot(engineeringMode: true, overlay: new TopologyRuntimeOverlay());
+        var log = CaptureConsole(() => Assert.Null(TopologyOverlayLoader.TryLoad(tmp.Root)));
+        Assert.Contains(tmp.OverlayPath, log);
+        Assert.Contains("改用 appsettings", log);
+    }
 
-        var mode = JsonSerializer.Deserialize<TopologyRuntimeMode>(File.ReadAllText(modePath), JsonOpts);
-        if (mode?.EngineeringMode != true)
-            return;
+    [Fact]
+    public void IsUsable_true_when_grouped_units_have_pcs_and_bms()
+    {
+        Assert.True(TopologyOverlayLoader.IsUsable(new TopologyRuntimeOverlay
+        {
+            EssUnits =
+            {
+                new EssUnitConfig
+                {
+                    Name = "U1",
+                    Groups =
+                    {
+                        new EmuGroupConfig
+                        {
+                            Name = "A",
+                            Pcs = { new PcsDeviceConfig { Name = "PCS-A" } },
+                            Bms = { new BmsDeviceConfig { Name = "BMS-A" } }
+                        },
+                        new EmuGroupConfig
+                        {
+                            Name = "B",
+                            Pcs = { new PcsDeviceConfig { Name = "PCS-B" } },
+                            Bms = { new BmsDeviceConfig { Name = "BMS-B" } }
+                        }
+                    }
+                }
+            }
+        }));
+    }
 
-        var overlay = TopologyOverlayLoader.TryLoad(root);
-        Assert.NotNull(overlay);
-        Assert.True(TopologyOverlayLoader.IsUsable(overlay));
-        Assert.True(overlay!.EssUnits.Count >= 1);
+    [Fact]
+    public void IsUsable_false_when_a_group_is_missing_pcs()
+    {
+        Assert.False(TopologyOverlayLoader.IsUsable(new TopologyRuntimeOverlay
+        {
+            EssUnits =
+            {
+                new EssUnitConfig
+                {
+                    Name = "U1",
+                    Groups =
+                    {
+                        new EmuGroupConfig
+                        {
+                            Name = "空组",
+                            Bms = { new BmsDeviceConfig { Name = "BMS-A" } }
+                        }
+                    }
+                }
+            }
+        }));
+    }
+
+    [Fact]
+    public void TryLoad_returns_overlay_when_only_pv_units()
+    {
+        var expected = new TopologyRuntimeOverlay
+        {
+            SourceProjectName = "pv-only",
+            PvUnits = { new PvUnitRuntimeConfig { Name = "光伏单元-1", InverterCount = 16 } }
+        };
+        using var tmp = new TempTopologyRoot(engineeringMode: true, overlay: expected);
+        var loaded = TopologyOverlayLoader.TryLoad(tmp.Root);
+        Assert.NotNull(loaded);
+        Assert.Equal("pv-only", loaded!.SourceProjectName);
+        Assert.Single(loaded.PvUnits);
+        Assert.Empty(loaded.EssUnits);
+    }
+
+    private static readonly object ConsoleGate = new();
+
+    private static string CaptureConsole(Action act)
+    {
+        lock (ConsoleGate)
+        {
+            var original = Console.Out;
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            try
+            {
+                act();
+                return sw.ToString();
+            }
+            finally
+            {
+                Console.SetOut(original);
+            }
+        }
     }
 
     private static TopologyRuntimeOverlay UsableOverlay() => new()
@@ -100,25 +214,16 @@ public class TopologyOverlayLoaderTests
         }
     };
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "EssSimulator.csproj")))
-                return dir.FullName;
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("未找到仓库根目录");
-    }
-
     private sealed class TempTopologyRoot : IDisposable
     {
         public string Root { get; }
         public string OverlayPath { get; }
 
-        public TempTopologyRoot(bool engineeringMode, TopologyRuntimeOverlay overlay)
+        public TempTopologyRoot(
+            bool engineeringMode,
+            TopologyRuntimeOverlay? overlay,
+            string? activeProjectId = null,
+            bool writeOverlay = true)
         {
             Root = Path.Combine(Path.GetTempPath(), "ess-overlay-" + Guid.NewGuid().ToString("N"));
             var generated = Path.Combine(Root, "configs", "topology", "generated");
@@ -126,8 +231,13 @@ public class TopologyOverlayLoaderTests
             OverlayPath = Path.Combine(generated, "runtime-overlay.json");
             File.WriteAllText(
                 Path.Combine(Root, "configs", "topology", "runtime-mode.json"),
-                JsonSerializer.Serialize(new TopologyRuntimeMode { EngineeringMode = engineeringMode }, JsonOpts));
-            File.WriteAllText(OverlayPath, JsonSerializer.Serialize(overlay, JsonOpts));
+                JsonSerializer.Serialize(new TopologyRuntimeMode
+                {
+                    EngineeringMode = engineeringMode,
+                    ActiveProjectId = activeProjectId
+                }, JsonOpts));
+            if (writeOverlay && overlay != null)
+                File.WriteAllText(OverlayPath, JsonSerializer.Serialize(overlay, JsonOpts));
         }
 
         public void Dispose()

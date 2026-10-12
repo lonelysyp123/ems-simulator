@@ -8,6 +8,12 @@ public class AirConditionerData
     {
         public int UnitId { get; set; } // 机组编号
 
+        // 控制命令（由 EMS/BMS 点表写入）
+        /// <summary>空调开机命令：true=开机（制冷），false=停机。</summary>
+        public bool? OnCommand { get; set; }
+        /// <summary>空调制冷设定温度命令（°C），如 20。</summary>
+        public float? CoolingSetpointCommand { get; set; }
+
         // 状态信息
         public bool? DeviceOperationStatus { get; set; } // 设备运行状态
         public bool? IndoorFanStatus { get; set; } // 室内风机状态

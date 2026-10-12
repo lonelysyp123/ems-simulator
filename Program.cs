@@ -6,6 +6,7 @@ using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi;
 using EssSimulator.Licensing;
 using EssSimulator.LocalControl;
+using EssSimulator.Protocol.Modbus;
 using EssSimulator.Web;
 using EssSimulator.Web.Topology;
 using log4net;
@@ -49,18 +50,35 @@ namespace EssSimulator
             return ms;
         }
 
-        private static bool IsSimulatorReady(int expectedServerCount, bool expectLocalControl)
+        private static bool IsSimulatorReady(int expectedServerCount, bool expectLocalControl, SimulatorConfig cfg)
         {
             var store = SimulatorHost.Instance;
             if (!store.Contains("ess") ||
                 !store.Contains("em") ||
-                !store.Contains("bms1") ||
-                !store.Contains("emu1") ||
-                !store.Contains("simEm") ||
-                !store.Contains("simBms1") ||
-                !store.Contains("simEmu1"))
+                !store.Contains("simEm"))
             {
                 return false;
+            }
+
+            if (cfg.EffectiveEssUnitCount > 0 &&
+                (!store.Contains("bms1") ||
+                 !store.Contains("emu1") ||
+                 !store.Contains("simBms1") ||
+                 !store.Contains("simEmu1")))
+            {
+                return false;
+            }
+
+            if (cfg.PvUnitCount > 0 &&
+                (!store.Contains("pv1") || !store.Contains("simPv1")))
+            {
+                return false;
+            }
+
+            foreach (var endpoint in PvInverterProtocolLayout.Enumerate(cfg))
+            {
+                if (store.Get<ModbusSimServer>(endpoint.ServerName) is not { IsDataPathReady: true, IsOnline: true })
+                    return false;
             }
 
             if (expectLocalControl && !store.Contains("simLc1"))
@@ -71,10 +89,26 @@ namespace EssSimulator
 
             try
             {
-                var soc = SimServer.GetExtIfVariableVal("bms1.BatteryStacks[0].SOC");
                 var totalActivePower = SimServer.GetExtIfVariableVal("em.TotalActivePower");
-                var pcsList = SimServer.GetExtIfVariableVal("ess._pcsList") as System.Collections.ICollection;
-                return soc != null && totalActivePower != null && pcsList != null && pcsList.Count > 0;
+                if (totalActivePower == null)
+                    return false;
+
+                if (cfg.EffectiveEssUnitCount > 0)
+                {
+                    var soc = SimServer.GetExtIfVariableVal("bms1.BatteryStacks[0].SOC");
+                    var pcsList = SimServer.GetExtIfVariableVal("ess._pcsList") as System.Collections.ICollection;
+                    if (soc == null || pcsList == null || pcsList.Count == 0)
+                        return false;
+                }
+
+                if (cfg.PvUnitCount > 0)
+                {
+                    var pvPower = SimServer.GetExtIfVariableVal("pv1.ActivePowerKw");
+                    if (pvPower == null)
+                        return false;
+                }
+
+                return true;
             }
             catch
             {
@@ -84,21 +118,19 @@ namespace EssSimulator
 
         private static async Task WaitForSimulatorReadyAsync(SimulatorConfig cfg, CancellationToken cancellationToken)
         {
-            int expectedBmsCount = Math.Max(1, cfg.UnitCount);
-            int expectedEmuCount = Math.Max(1, cfg.Devices?.Count ?? 1);
+            int expectedBmsCount = cfg.UnitCount;
+            int expectedEmuCount = EmuProtocolLayout.Count(cfg);
+            int expectedPvCount = cfg.PvUnitCount * 2 + PvInverterProtocolLayout.Enumerate(cfg).Count;
             int expectedLcCount = 0;
-            if (cfg.Protocol.EnableLocalControl)
-            {
-                int emuPerGroup = Math.Max(1, cfg.Protocol.LocalControlEmuPerGroup);
-                expectedLcCount = (int)Math.Ceiling(expectedEmuCount / (double)emuPerGroup);
-            }
-            int expectedServerCount = expectedBmsCount + expectedEmuCount + expectedLcCount + 1;
+            if (cfg.Protocol.EnableLocalControl && cfg.EffectiveEssUnitCount > 0)
+                expectedLcCount = cfg.EffectiveEssUnitCount;
+            int expectedServerCount = expectedBmsCount + expectedEmuCount + expectedPvCount + expectedLcCount + 1;
             var timeout = TimeSpan.FromSeconds(60);
             var start = DateTime.UtcNow;
 
             while ((DateTime.UtcNow - start) < timeout)
             {
-                if (IsSimulatorReady(expectedServerCount, cfg.Protocol.EnableLocalControl))
+                if (IsSimulatorReady(expectedServerCount, cfg.Protocol.EnableLocalControl, cfg))
                 {
                     LogManager.GetLogger(typeof(Program)).Info("[Program] 仿真器已就绪");
                     return;
@@ -153,27 +185,29 @@ namespace EssSimulator
         {
             var log = LogManager.GetLogger(typeof(Program));
             log.Info("==== 协议模拟器创建 ====");
-            log.Info($"电表   simEm  : Modbus TCP 端口 {cfg.Protocol.EmModbusPort}");
-            int unitCount = Math.Max(1, cfg.Devices?.Count ?? 1);
-            for (int i = 0; i < unitCount; i++)
+            // 端口计划：appsettings 默认值 + protocol-ports.json 手动覆盖
+            var plan = EssSimulator.Protocol.Modbus.ProtocolPortPlan.Load(cfg, out var overridesError);
+            if (overridesError != null)
+                log.Warn(overridesError);
+            foreach (var entry in plan.Entries)
             {
-                int emuPort = cfg.Protocol.BaseEmuModbusPort + i * cfg.Protocol.EmuPortStep;
-                log.Info($"EMU 单元{i + 1} simEmu{i + 1}: Modbus TCP 端口 {emuPort}（承载 emu{i + 1}.PcsList[0..1]）");
+                string overrideMark = entry.IsDefault ? string.Empty : "（手动覆盖）";
+                string rackMark = entry.RackCount > 0 ? $"，簇从站号 {entry.SlaveId + 1}-{entry.SlaveId + entry.RackCount}" : string.Empty;
+                log.Info($"{entry.Name,-12}: Modbus TCP 端口 {entry.Port}，从站号 {entry.SlaveId}{rackMark}{overrideMark}");
             }
-            if (cfg.Protocol.EnableLocalControl)
+
+            var bindings = EssSimulator.Protocol.Iec61850.ProtocolBindings.Load();
+            var emuEndpoints = EmuProtocolLayout.Enumerate(cfg);
+            for (int i = 0; i < emuEndpoints.Count; i++)
             {
-                int emuPerGroup = Math.Max(1, cfg.Protocol.LocalControlEmuPerGroup);
-                int lcCount = (int)Math.Ceiling(unitCount / (double)emuPerGroup);
-                for (int i = 0; i < lcCount; i++)
-                {
-                    int lcPort = cfg.Protocol.BaseLocalControlModbusPort + i * cfg.Protocol.LocalControlPortStep;
-                    log.Info($"LC 聚合{i + 1} simLc{i + 1}: Modbus TCP 端口 {lcPort}（聚合 {emuPerGroup} 个 EMU / {emuPerGroup * 2} 台 PCS）");
-                }
-            }
-            for (int i = 0; i < Math.Max(1, cfg.UnitCount); i++)
-            {
-                int port = cfg.Protocol.BaseBmsModbusPort + i * cfg.Protocol.BmsPortStep;
-                log.Info($"BMS 路{i + 1} simBms{i + 1}: Modbus TCP 端口 {port}");
+                var ep = emuEndpoints[i];
+                if (!bindings.Allows(ep.ServerName, EssSimulator.Protocol.Iec61850.Iec61850Protocols.Iec61850))
+                    continue;
+                int port = bindings.PortOverride(ep.ServerName)
+                           ?? EssSimulator.Protocol.Iec61850.ProtocolBindings.DefaultIec61850Port(
+                               ep.SimIndex1Based, cfg.Protocol.BaseEmuIec61850Port, cfg.Protocol.EmuIec61850PortStep);
+                string ied = EssSimulator.Protocol.Iec61850.Iec61850Mapping.IedNameFor(ep.ServerName);
+                log.Info($"{ep.ServerName,-12}: IEC 61850 MMS {ied} 端口 {port}");
             }
             log.Info("=======================");
         }
@@ -242,7 +276,7 @@ namespace EssSimulator
             var editionEarly = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
                 ?? new EditionConfig();
             editionEarly.ApplyPresets();
-            if (topologyOverlay != null && !editionEarly.AllowTopologyEditor)
+            if (topologyOverlay != null && !Mw300EssStation.PassesEditorGate(topologyOverlay, editionEarly))
             {
                 Console.WriteLine("[Topology] 当前档位未开放组态编辑，已忽略工程 overlay，改用 appsettings");
                 topologyOverlay = null;
@@ -250,7 +284,7 @@ namespace EssSimulator
             if (topologyOverlay != null)
             {
                 Console.WriteLine(
-                    $"[Topology] 工程模式已启用：{topologyOverlay.SourceProjectName}（{topologyOverlay.EssUnits.Count} 单元）");
+                    $"[Topology] 工程模式已启用：{topologyOverlay.SourceProjectName}（储能 {topologyOverlay.EssUnits.Count} / 光伏 {topologyOverlay.PvUnits.Count}）");
             }
 
             // 绑定配置节
@@ -274,21 +308,39 @@ namespace EssSimulator
                 var units = builder.Configuration.GetSection(EssUnitsConfig.Section).Get<List<EssUnitConfig>>();
                 if (units is { Count: > 0 }) opt.Devices = units;
 
-                if (topologyOverlay?.EssUnits is { Count: > 0 })
-                    opt.Devices = topologyOverlay.EssUnits;
+                if (topologyOverlay != null)
+                {
+                    if (topologyOverlay.EssUnits is { Count: > 0 })
+                        opt.Devices = topologyOverlay.EssUnits;
+                    else if (topologyOverlay.PvUnits is { Count: > 0 })
+                        opt.Devices = new List<EssUnitConfig>();
+
+                    if (topologyOverlay.PvUnits != null)
+                        opt.PvUnits = topologyOverlay.PvUnits;
+
+                    opt.EnableSvg = topologyOverlay.EnableSvg;
+                    if (topologyOverlay.EnableSvg && topologyOverlay.SvgRatedCapacityKvar > 0)
+                        opt.SvgRatedCapacityKvar = topologyOverlay.SvgRatedCapacityKvar;
+                    if (Mw300EssStation.IsThis(topologyOverlay.SourceProjectId))
+                        opt.StationProfileId = Mw300EssStation.Id;
+                }
 
                 var edition = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
                     ?? new EditionConfig();
                 edition.ApplyPresets();
-                // 仅社区版（LockTopology）裁剪单元；商业版不改拓扑，只靠 API 功能开关区分高级能力
-                if (edition.LockTopology && edition.MaxEssUnits > 0 && opt.Devices is { Count: > 0 }
-                    && opt.Devices.Count > edition.MaxEssUnits)
+                // 仅社区版（LockTopology）裁剪单元；300MW 测试工程和商业版不裁剪
+                if (opt.Devices is { Count: > 0 })
                 {
                     int before = opt.Devices.Count;
-                    opt.Devices = opt.Devices.Take(edition.MaxEssUnits).ToList();
-                    Console.WriteLine(
-                        $"[Edition] {edition.Name}: EssUnits 已从 {before} 裁剪为 {opt.Devices.Count}（MaxEssUnits={edition.MaxEssUnits}）");
+                    opt.Devices = Mw300EssStation.ApplyUnitCap(opt.Devices, opt.StationProfileId, edition);
+                    if (opt.Devices.Count != before)
+                    {
+                        Console.WriteLine(
+                            $"[Edition] {edition.Name}: EssUnits 已从 {before} 裁剪为 {opt.Devices.Count}（MaxEssUnits={edition.MaxEssUnits}）");
+                    }
                 }
+
+                Mw300EssStation.ApplyRuntimePolicy(opt.StationProfileId);
             });
             builder.Services.PostConfigure<WebConfig>(web =>
             {
@@ -312,6 +364,8 @@ namespace EssSimulator
             {
                 if (topologyOverlay.Pcs != null)
                     builder.Services.PostConfigure<PcsPhysicalConfig>(pcs => CopyPcs(topologyOverlay.Pcs, pcs));
+                if (Mw300EssStation.IsThis(topologyOverlay.SourceProjectId) && topologyOverlay.Pcs != null)
+                    builder.Services.PostConfigure<PcsPhysicalConfig>(pcs => pcs.MaxCurrent = topologyOverlay.Pcs.MaxCurrent);
                 if (topologyOverlay.Transformer != null)
                     builder.Services.PostConfigure<TransformerConfig>(t => CopyTransformer(topologyOverlay.Transformer, t));
                 if (topologyOverlay.UnitTransformer != null)
@@ -352,14 +406,16 @@ namespace EssSimulator
                  .AllowCredentials();
             }));
 
-            // SignalR
-            builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 64 * 1024);
+            // SignalR。PayloadSerializerOptions 与 HTTP JsonOptions 是两份，都要收非有限数。
+            builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 64 * 1024)
+                .AddJsonProtocol(o => FiniteNumberJson.Apply(o.PayloadSerializerOptions));
 
             // JSON 序列化：保留枚举名/数值，camelCase 由 System.Text.Json 默认处理
             builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(o =>
             {
                 o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
                 o.SerializerOptions.IncludeFields = true;
+                FiniteNumberJson.Apply(o.SerializerOptions);
             });
 
             // 核心仿真模型（单例 + 托管服务）
@@ -374,6 +430,10 @@ namespace EssSimulator
                 var meterCfg = sp.GetRequiredService<IOptions<EssSimulator.EssDeviceSimModel.Model.MeterConfig>>().Value;
                 var ess = new EnergyStorageSystem(simCfg, pcsCfg, transCfg, unitTransCfg, loadCfg, pccCfg, meterCfg);
                 SimulatorHost.Instance.Register("ess", ess);
+                for (int i = 0; i < ess.PvUnits.Count; i++)
+                    SimulatorHost.Instance.Register($"pv{i + 1}", ess.PvUnits[i]);
+                if (ess.SvgProtocol != null)
+                    SimulatorHost.Instance.Register("svg", ess.SvgProtocol);
                 return ess;
             });
             builder.Services.AddHostedService(sp => sp.GetRequiredService<EnergyStorageSystem>());
@@ -383,15 +443,14 @@ namespace EssSimulator
                 var cfg = sp.GetRequiredService<IOptions<SimulatorConfig>>().Value;
                 return new BmsDataService(cfg);
             });
-            builder.Services.AddHostedService(sp => sp.GetRequiredService<BmsDataService>());
 
             builder.Services.AddHostedService<BmsLinkService>();
 
             builder.Services.AddSingleton<PcsDataServer>();
-            builder.Services.AddHostedService(sp => sp.GetRequiredService<PcsDataServer>());
-
             builder.Services.AddSingleton<EmDataService>();
-            builder.Services.AddHostedService(sp => sp.GetRequiredService<EmDataService>());
+            builder.Services.AddSingleton<ProtocolProjectionService>();
+            builder.Services.AddSingleton<EssSimulator.EmsStrategy.Adapter.EmsStrategyRuntime>();
+            builder.Services.AddSingleton<EssSimulator.EmsStrategy.Adapter.EmsStrategyPlantAdapter>();
 
             bool enableLocalControl = builder.Configuration.GetSection(SimulatorConfig.Section)
                 .GetSection(nameof(SimulatorConfig.Protocol))
@@ -402,9 +461,15 @@ namespace EssSimulator
             }
 
             builder.Services.AddHostedService<ModbusHostedService>();
+            builder.Services.AddHostedService<EssSimulator.Protocol.Iec61850.Iec61850HostedService>();
+            builder.Services.AddHostedService<EssSimulator.Protocol.Ptp.PtpHostedService>();
+            if (builder.Configuration.GetSection(SimulatorConfig.Section)
+                .GetSection(nameof(SimulatorConfig.Protocol)).GetValue<bool>(nameof(ProtocolConfig.EnableSel)))
+                builder.Services.AddHostedService<EssSimulator.SiteControl.SelHostedService>();
 
             // Web 层服务
             builder.Services.AddSingleton<WebCommandExecutor>();
+            builder.Services.AddSingleton<EssSimulator.Web.ThirdPartyEms.ThirdPartyEmsSession>();
             builder.Services.AddSingleton<EssSimulator.Web.DroopSlices.DroopSliceStore>();
             builder.Services.AddSingleton<EssSimulator.Web.Topology.TopologyStore>();
             builder.Services.AddHostedService<SnapshotService>();
@@ -414,6 +479,10 @@ namespace EssSimulator
 
             // 确保切片 Store 在控制管道写入前完成静态挂载
             _ = app.Services.GetRequiredService<EssSimulator.Web.DroopSlices.DroopSliceStore>();
+            // 协议镜像投影挂到 PlantEngine.Step 末尾（不再各自 100ms 循环）
+            var proto = app.Services.GetRequiredService<ProtocolProjectionService>();
+            var emsAdapter = app.Services.GetRequiredService<EssSimulator.EmsStrategy.Adapter.EmsStrategyPlantAdapter>();
+            AfterPlantStep.Current = new CompositeAfterPlantStep(emsAdapter, proto);
 
             var simCfg = app.Services.GetRequiredService<IOptions<SimulatorConfig>>().Value;
             BlackStartSafety.Register(app.Services.GetRequiredService<IHostApplicationLifetime>());
@@ -433,6 +502,59 @@ namespace EssSimulator
                     });
                 }
                 catch { /* 推送失败忽略 */ }
+            };
+
+            EssSimulator.Protocol.Iec61850.Iec61850TrafficLog.MessageAppended += msg =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await hub.Clients.Group(RealtimeChannels.Iec61850)
+                            .SendAsync(RealtimeMethods.ReceiveIec61850Message, new
+                            {
+                                msg.Id,
+                                utc = msg.Utc.ToString("o"),
+                                localTime = msg.Utc.ToLocalTime().ToString("HH:mm:ss.fff"),
+                                msg.Direction,
+                                msg.Protocol,
+                                service = msg.Service,
+                                server = msg.ServerName,
+                                iedName = msg.IedName,
+                                clientPeer = msg.ClientPeer,
+                                paramName = msg.ParamName,
+                                objectRef = msg.ObjectRef,
+                                orCat = msg.OrCat,
+                                ctlNum = msg.CtlNum,
+                                appId = msg.AppId,
+                                goCbRef = msg.GoCbRef,
+                                goId = msg.GoId,
+                                datSet = msg.DatSet,
+                                stNum = msg.StNum,
+                                sqNum = msg.SqNum,
+                                isTest = msg.IsTest,
+                                simulation = msg.IsTest,
+                                ndsCom = msg.NeedsCommission,
+                                confRev = msg.ConfRev,
+                                timeAllowedToLive = msg.TimeAllowedToLive,
+                                t = msg.GooseTimestampUtc,
+                                numDatSetEntries = msg.NumDatSetEntries,
+                                msg.Result,
+                                msg.Summary,
+                                writes = msg.Writes,
+                                values = msg.Values,
+                                allData = msg.AllData?.Select(e => new
+                                {
+                                    e.Index,
+                                    paramName = e.ParamName,
+                                    type = e.Type,
+                                    value = e.Value,
+                                    description = e.Description
+                                })
+                            });
+                    }
+                    catch { /* ignore */ }
+                });
             };
 
             // 中间件
@@ -489,6 +611,7 @@ namespace EssSimulator
 
         private static void CopyTransformer(TransformerConfig src, TransformerConfig dst)
         {
+            dst.Present = src.Present;
             dst.RatedPower = src.RatedPower;
             dst.PrimaryVoltage = src.PrimaryVoltage;
             dst.SecondaryVoltage = src.SecondaryVoltage;

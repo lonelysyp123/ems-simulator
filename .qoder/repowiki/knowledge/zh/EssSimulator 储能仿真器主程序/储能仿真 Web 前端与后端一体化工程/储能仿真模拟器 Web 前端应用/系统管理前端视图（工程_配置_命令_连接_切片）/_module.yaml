@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: web_frontend_backend/frontend_app/system_management
+title: 系统管理前端视图（工程/配置/命令/连接/切片）
+scope:
+    - Web/src/views/ProjectManageView.vue
+    - Web/src/views/SystemConfigView.vue
+    - Web/src/views/CommandView.vue
+    - Web/src/views/DroopSlicesView.vue
+    - Web/src/views/ConnectionsView.vue
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/backend_topology

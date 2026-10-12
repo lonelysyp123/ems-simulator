@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: device_sim_model/devices_domain
+title: 储能设备仿真模型（PCS/BMS/负载/变压器）
+scope:
+    - EssDeviceSimModel/Devices/
+source_files: []
+depends_on: []
+related_to:
+    - path: data_exchange/effects
+    - path: local_control

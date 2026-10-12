@@ -1,6 +1,7 @@
 import * as THREE from 'three'
-import { Z, Y, channelX } from './layout.js'
+import { Y } from './layout.js'
 import { createPowerCable } from './powerFlow.js'
+import { pvArrayFieldSize, pvArrayRowXs, PV_PANEL_W, PV_PANEL_D, PV_PANEL_GAP_X, PV_ROW_PITCH } from './pvArrayLayout.js'
 
 /**
  * 材质库：参考公共数字孪生/工业可视化中储能站设备配色
@@ -38,7 +39,10 @@ const MAT = {
   glass: () => new THREE.MeshStandardMaterial({
     color: 0x88aacc, metalness: 0.1, roughness: 0.15, transparent: true, opacity: 0.45
   }),
-  blackRubber: () => new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.1, roughness: 0.85 })
+  blackRubber: () => new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.1, roughness: 0.85 }),
+  pvFrame: () => new THREE.MeshStandardMaterial({ color: 0x4a5560, metalness: 0.55, roughness: 0.4 }),
+  pvPost: () => new THREE.MeshStandardMaterial({ color: 0x6b7280, metalness: 0.45, roughness: 0.5 }),
+  pvInvBody: () => new THREE.MeshStandardMaterial({ color: 0xe8edf2, metalness: 0.22, roughness: 0.52 })
 }
 
 function box(w, h, d, mat, y = h / 2) {
@@ -71,10 +75,9 @@ function createInsulatorString(height = 1.4, scale = 1, brown = false) {
   return g
 }
 
-/** 220kV 门型进线构架 + 三相绝缘子串 */
-export function createGridGantry(x) {
+/** 220kV 门型进线构架 + 三相绝缘子串（位置由组态布局指定） */
+export function createGridGantry(_x = 0) {
   const g = new THREE.Group()
-  g.position.set(x, 0, Z.grid)
 
   // 双柱门架
   for (const sx of [-2.8, 2.8]) {
@@ -477,8 +480,269 @@ function tagPanelPick(group, panelKey) {
   if (!panelKey) return
   group.userData.panelKey = panelKey
   group.traverse(o => {
-    if (o.isMesh) o.userData.panelKey = panelKey
+    if (o.isMesh || o.isInstancedMesh) o.userData.panelKey = panelKey
   })
+}
+
+/**
+ * 组串逆变器排：柜数取组态 inverterCount（多台时分行排布，不写死 4/16）
+ */
+export function createPvInverterRow(panelKey, { count = 0 } = {}) {
+  const g = new THREE.Group()
+  const n = Math.max(0, Math.round(Number(count) || 0))
+  if (n <= 0) {
+    g.userData.kind = 'pv-inverter'
+    tagPanelPick(g, panelKey)
+    return g
+  }
+  const cols = Math.min(n, 8)
+  const rows = Math.ceil(n / cols)
+  const pitch = n > 8 ? 0.48 : 0.72
+  const rowPitch = 0.7
+  for (let i = 0; i < n; i++) {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const cab = box(0.55, 1.45, 0.38, MAT.pvInvBody(), 0.88)
+    cab.position.x = (col - (cols - 1) / 2) * pitch
+    cab.position.z = (row - (rows - 1) / 2) * rowPitch
+    g.add(cab)
+    const door = box(0.42, 1.05, 0.04, MAT.pcsDoor(), 0.9)
+    door.position.set(cab.position.x, 0, cab.position.z + 0.22)
+    g.add(door)
+  }
+  const pad = box(cols * pitch + 0.4, 0.12, rows * rowPitch + 0.5, MAT.concrete(), 0.06)
+  g.add(pad)
+  g.userData.kind = 'pv-inverter'
+  tagPanelPick(g, panelKey)
+  return g
+}
+
+/**
+ * 光伏方阵：组件行列由 stringCount / modulesPerString 决定（有上限以免面数爆炸）
+ */
+export function createPvArray(panelKey, { stringCount = 0, modulesPerString = 0 } = {}) {
+  const g = new THREE.Group()
+  g.userData.kind = 'pv-array'
+  tagPanelPick(g, panelKey)
+  const { rows: visRows, cols: visCols, fieldW, fieldD } = pvArrayFieldSize(stringCount, modulesPerString)
+  if (visRows <= 0 || visCols <= 0) {
+    g.add(box(1.6, 0.1, 1.2, MAT.concrete(), 0.05))
+    return g
+  }
+  const tilt = (28 * Math.PI) / 180
+  const panelW = PV_PANEL_W
+  const panelH = 0.025
+  const panelD = PV_PANEL_D
+  const gapX = PV_PANEL_GAP_X
+  const rowPitch = PV_ROW_PITCH
+
+  const pad = box(fieldW, 0.1, fieldD, MAT.concrete(), 0.05)
+  g.add(pad)
+
+  const panelMat = new THREE.MeshStandardMaterial({
+    color: 0x17365a,
+    metalness: 0.38,
+    roughness: 0.26,
+    emissive: 0x0c2748,
+    emissiveIntensity: 0.18
+  })
+  g.userData.panelMat = panelMat
+  // 每行（串）组件 x 中心：供组串出线（createPvStringLeads）定位串首
+  g.userData.rowXs = pvArrayRowXs(visCols, fieldW)
+
+  const geo = new THREE.BoxGeometry(panelW, panelH, panelD)
+  const count = visRows * visCols
+  const mesh = new THREE.InstancedMesh(geo, panelMat, count)
+  mesh.castShadow = true
+  mesh.receiveShadow = true
+  const dummy = new THREE.Object3D()
+  const originX = -((visCols - 1) * (panelW + gapX)) / 2
+  const originZ = -((visRows - 1) * rowPitch) / 2
+  let idx = 0
+  for (let r = 0; r < visRows; r++) {
+    for (let c = 0; c < visCols; c++) {
+      dummy.position.set(originX + c * (panelW + gapX), 0.92, originZ + r * rowPitch)
+      dummy.rotation.x = -tilt
+      dummy.updateMatrix()
+      mesh.setMatrixAt(idx++, dummy.matrix)
+    }
+  }
+  mesh.instanceMatrix.needsUpdate = true
+  g.add(mesh)
+
+  const frameMat = MAT.pvFrame()
+  const postMat = MAT.pvPost()
+  for (let r = 0; r < visRows; r++) {
+    const z = originZ + r * rowPitch
+    const rail = box(fieldW - 0.4, 0.05, 0.06, frameMat, 0.72)
+    rail.position.z = z
+    rail.rotation.x = -tilt
+    g.add(rail)
+    for (const sx of [-fieldW * 0.32, fieldW * 0.32]) {
+      const post = box(0.08, 0.85, 0.08, postMat, 0.42)
+      post.position.set(sx, 0, z + 0.28)
+      g.add(post)
+    }
+  }
+
+  g.userData.kind = 'pv-array'
+  tagPanelPick(g, panelKey)
+  return g
+}
+
+/**
+ * 组串出线：每串一根单独出线（30 块串联为一行），正交走线——
+ * 段1 南北（行首 → 方阵前缘母线带）、段2 东西（→ 前缘汇流竖排，各串 y 分层避免重合）。
+ * 16 串并联后由主 dc 电缆接入逆变器。无能量流光。
+ * 坐标相对方阵中心，调用方通过 group.position 平移到方阵位置。
+ * @param {{ rows: number, cols: number, fieldW: number, fieldD: number }} opts
+ */
+export function createPvStringLeads({ rows = 0, cols = 0, fieldW = 1.6, fieldD = 1.2 } = {}) {
+  const g = new THREE.Group()
+  if (rows <= 0 || cols <= 0) return g
+
+  const rowXs = pvArrayRowXs(cols, fieldW)
+  const frontZ = -fieldD / 2
+  const busZ = frontZ - 0.3
+  const yBase = 1.05
+  // 各串东西段按不同高度分层，同平面线段即使 x 区间重叠也不重合（允许交叉/并行）
+  const ySpan = Math.max(0.15, rows * 0.03)
+  // —— 串线（正交）：段1 南北（x 不变），段2 东西（z 不变）——
+  const positions = []
+  for (let r = 0; r < rows; r++) {
+    const sx = r % 2 ? rowXs[cols - 1] : rowXs[0]
+    const rz = (r - (rows - 1) / 2) * PV_ROW_PITCH
+    const y = yBase + (r / Math.max(1, rows - 1)) * ySpan
+    // 段1：行首 → 方阵前缘母线带（南北走向）
+    positions.push(sx, y, rz, sx, y, busZ)
+    // 段2：前缘母线带 → 汇流竖排（东西走向，z 不变）
+    positions.push(sx, y, busZ, 0, y, busZ)
+  }
+  if (positions.length) {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x9aa3ad, transparent: true, opacity: 0.85 }))
+    line.renderOrder = 3
+    line.userData.isPvStringLead = true
+    g.add(line)
+  }
+
+  // —— 前缘汇流竖排：16 根串线按不同 y 层接入；下端下探贴地，接主 dc 电缆 ——
+  const busBottom = 0.3
+  const busTop = yBase + ySpan + 0.15
+  const bus = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, busTop - busBottom, 8),
+    new THREE.MeshStandardMaterial({ color: 0x7d8a9a, metalness: 0.5, roughness: 0.4 })
+  )
+  bus.position.set(0, (busTop + busBottom) / 2, busZ)
+  bus.renderOrder = 3
+  bus.userData.isPvBusBar = true
+  g.add(bus)
+  return g
+}
+
+/**
+ * 静态直流电缆：贴地正交走线（竖直→南北→东西→竖直），纯直角无斜线，
+ * 每段为轴对齐圆柱，避免 TubeGeometry 在尖角处扭曲/斜切。无能量流光。
+ */
+export function createStaticCable({ ax, ay, az, bx, by, bz, radius = 0.05, color = 0x2c3e50, midY = 0.35 } = {}) {
+  const pts = groundRoute(ax, ay, az, bx, by, bz, { midY })
+  const g = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.45,
+    roughness: 0.45,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2
+  })
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]
+    const b = pts[i + 1]
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const dz = b.z - a.z
+    const len = Math.hypot(dx, dy, dz)
+    if (len < 1e-4) continue
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 8), mat)
+    seg.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2)
+    // 轴对齐：沿 X / Y / Z 之一（严格正交）
+    if (Math.abs(dx) > 1e-4) seg.rotation.z = Math.PI / 2
+    else if (Math.abs(dz) > 1e-4) seg.rotation.x = Math.PI / 2
+    seg.renderOrder = 2
+    seg.castShadow = false
+    seg.receiveShadow = false
+    g.add(seg)
+  }
+  g.userData.isStaticCable = true
+  return g
+}
+
+export function setPvArrayVisual(group, { irradianceWm2, running } = {}) {
+  const mat = group?.userData?.panelMat
+  if (!mat) return
+  const k = Math.max(0, Math.min(1, (Number(irradianceWm2) || 0) / 1000))
+  const live = !!running && k > 0.02
+  mat.emissiveIntensity = live ? 0.15 + 0.75 * k : 0.06
+  mat.color.setHex(k > 0.08 ? 0x1c4d82 : 0x1a2838)
+}
+
+/** 三相电表柜 */
+export function createAcMeter() {
+  const g = new THREE.Group()
+  g.add(box(1.1, 1.6, 0.7, MAT.pcsBody(), 0.95))
+  g.add(box(0.85, 0.55, 0.08, MAT.glass(), 1.35))
+  const pad = box(1.3, 0.12, 0.9, MAT.concrete(), 0.06)
+  g.add(pad)
+  g.userData.kind = 'meter'
+  return g
+}
+
+/** 站用负荷 */
+export function createLoadBank() {
+  const g = new THREE.Group()
+  g.add(box(1.6, 1.4, 1.1, MAT.darkSteel(), 0.85))
+  for (let i = 0; i < 4; i++) {
+    const fin = box(1.4, 0.06, 0.9, MAT.steel(), 0.5 + i * 0.22)
+    g.add(fin)
+  }
+  g.add(box(1.8, 0.12, 1.3, MAT.concrete(), 0.06))
+  g.userData.kind = 'load'
+  return g
+}
+
+/** 站用 SVG 柜 */
+export function createSvgCabinet() {
+  const g = new THREE.Group()
+  const body = new THREE.MeshStandardMaterial({ color: 0x3d9a6a, metalness: 0.15, roughness: 0.5 })
+  g.add(box(1.4, 1.8, 0.9, body, 1.05))
+  g.add(box(1.6, 0.12, 1.1, MAT.concrete(), 0.06))
+  g.userData.kind = 'svg'
+  return g
+}
+
+/** 母线横管（单挂省略时由布局不生成此项） */
+export function createBusBar(item) {
+  const g = new THREE.Group()
+  const x1 = item.x1 ?? item.x
+  const x2 = item.x2 ?? item.x
+  const len = Math.max(0.6, Math.abs(x2 - x1))
+  const tube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, len, 10),
+    new THREE.MeshStandardMaterial({ color: 0xc45c26, metalness: 0.55, roughness: 0.35 })
+  )
+  tube.rotation.z = Math.PI / 2
+  tube.position.y = item.y ?? Y.cable
+  g.add(tube)
+  const node = createBusNode(0, item.y ?? Y.cable, 0, {
+    radius: item.radius ?? 0.22,
+    label: item.node?.label || '',
+    voltage: item.voltage ?? item.node?.parameters?.nominalVoltage
+  })
+  g.add(node)
+  g.userData.kind = 'bus-bar'
+  g.userData.core = node.children?.[0]
+  return g
 }
 
 /**
@@ -511,19 +775,26 @@ function groundRoute(x0, y0, z0, x1, y1, z1, opts = {}) {
 }
 
 /**
- * 母线汇流点（星型接线节点）
- * 各支路电缆汇合于此，不再画长条母线管
+ * 母线汇流点（星型接线节点，统一规则：所有母线在 3D 中绘制为一个点）
+ * 各支路电缆汇合于此，不再画长条母线管。
+ * radius 随母线规模（挂接设备数/长度）自适应，并按电压等级配色。
  */
-export function createBusNode(x, y, z, { radius = 0.28, label = '' } = {}) {
+export function createBusNode(x, y, z, { radius = 0.28, label = '', voltage = 0 } = {}) {
   const g = new THREE.Group()
   g.position.set(x, y, z)
   g.userData.kind = 'bus-node'
   g.userData.label = label
+  g.userData.voltage = voltage
+
+  // 主色：高压(≥35kV)铜色、中压琥珀、低压(≤1kV)橙，弱化色阶干扰时统一铜色
+  const v = Number(voltage) || 0
+  const bodyColor = v >= 35000 ? 0xc45c26 : v >= 1000 ? 0xd4a017 : 0xe07a3a
+  const ringColor = v >= 35000 ? 0xd4a017 : 0xf2c94c
 
   const core = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 16, 12),
+    new THREE.SphereGeometry(radius, 20, 14),
     new THREE.MeshStandardMaterial({
-      color: 0xc45c26,
+      color: bodyColor,
       metalness: 0.55,
       roughness: 0.35,
       emissive: 0x3a1808,
@@ -534,16 +805,35 @@ export function createBusNode(x, y, z, { radius = 0.28, label = '' } = {}) {
   core.receiveShadow = true
   g.add(core)
 
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(radius * 1.15, 0.035, 8, 20),
+  // 双层指示环（醒目，便于在远处识别汇流点）
+  for (const [r, tube] of [[1.15, 0.045], [1.42, 0.028]]) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * r, tube, 8, 24),
+      new THREE.MeshStandardMaterial({
+        color: ringColor,
+        metalness: 0.7,
+        roughness: 0.3,
+        emissive: 0x2a1a05,
+        emissiveIntensity: 0.35
+      })
+    )
+    ring.rotation.x = Math.PI / 2
+    g.add(ring)
+  }
+
+  // 顶部亮芯（通电指示）
+  const lightCore = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.45, 10, 8),
     new THREE.MeshStandardMaterial({
-      color: 0xd4a017,
-      metalness: 0.7,
-      roughness: 0.3
+      color: 0xffe6a8,
+      emissive: 0xffcc66,
+      emissiveIntensity: 0.9,
+      metalness: 0.1,
+      roughness: 0.35
     })
   )
-  ring.rotation.x = Math.PI / 2
-  g.add(ring)
+  lightCore.position.y = radius * 0.75
+  g.add(lightCore)
 
   // 矮底座，强调贴地节点
   const pedestal = new THREE.Mesh(
@@ -558,204 +848,165 @@ export function createBusNode(x, y, z, { radius = 0.28, label = '' } = {}) {
 }
 
 /**
- * 根据 layout 与 snap 单元数构建整站场景内容
+ * 每个组态模板对应独立 3D 模型；数量/电压/容量由 layout item 传入。
+ */
+const TEMPLATE_MODELS = {
+  grid: (item) => createGridGantry(),
+  ac_breaker: (item) => createBreakerMesh(item.pickId || item.key, item.unitIndex ?? null),
+  transformer: (item) => {
+    const g = createTransformer(item.scale ?? 1, { boxType: !!item.boxType })
+    if (item.panelKey) tagPanelPick(g, item.panelKey)
+    return g
+  },
+  split_transformer: (item) => {
+    const g = createTransformer(item.scale ?? 1, { boxType: !!item.boxType })
+    if (item.panelKey) tagPanelPick(g, item.panelKey)
+    return g
+  },
+  ac_bus: (item) => (item.kind === 'bus-bar' ? createBusBar(item) : createBusNode(0, item.y ?? Y.cable, 0, {
+    radius: item.radius ?? 0.24,
+    label: item.node?.label || '',
+    voltage: item.voltage ?? item.node?.parameters?.nominalVoltage
+  })),
+  // 直流母线：有横向跨度（并联多设备）时画横管母线，PCS/BMS 竖段落接在横管上；
+  // 无跨度退化为汇流点节点
+  dc_bus: (item) => {
+    const span = Math.abs((item.x2 ?? item.x) - (item.x1 ?? item.x))
+    if (span > 0.5) return createBusBar(item)
+    return createBusNode(0, item.y ?? Y.cable, 0, {
+      radius: item.radius ?? 0.24,
+      label: item.node?.label || '',
+      voltage: item.voltage ?? item.node?.parameters?.nominalVoltage
+    })
+  },
+  ac_meter: () => createAcMeter(),
+  load: () => createLoadBank(),
+  svg: () => createSvgCabinet(),
+  bms: (item) => createBmsContainer(item.panelKey),
+  emu: () => null,
+  pv_unit: () => null,
+  pcs: (item) => createPcsCabinet(item.panelKey),
+  pv_inverter: (item) => createPvInverterRow(item.panelKey, { count: item.inverterCount }),
+  pv_array: (item) => createPvArray(item.panelKey, {
+    stringCount: item.stringCount,
+    modulesPerString: item.modulesPerString
+  }),
+  label: () => null
+}
+
+/**
+ * 按组态 3D 布局实例化场景。layout 由 buildStation3dLayout 生成。
  * @returns {{ root: THREE.Group, refs: object }}
  */
-export function buildStation(layout, units) {
+export function buildStation(layout) {
   const root = new THREE.Group()
   const refs = {
     mainBreaker: null,
     unitBreakers: [],
+    pvBreakers: [],
+    tieBreakers: [],
+    pvArrays: [],
     cables: [],
     busNodes: [],
     panelAnchors: [],
-    labelAnchors: []
+    labelAnchors: [],
+    items: layout?.items || []
   }
 
-  const { mainX, unitXs } = layout
+  // 布局附加对象（组串出线等非工厂网格）
+  for (const extra of layout?.extras || []) {
+    if (extra) root.add(extra)
+  }
 
-  root.add(createGridGantry(mainX))
-  refs.labelAnchors.push({
-    key: 'grid',
-    kind: 'grid',
-    position: new THREE.Vector3(mainX + 3.8, Y.label + 0.5, Z.grid)
-  })
+  for (const item of layout?.items || []) {
+    const factory = TEMPLATE_MODELS[item.templateId]
+    const mesh = factory ? factory(item) : null
+    if (mesh) {
+      mesh.position.set(item.x, 0, item.z)
+      mesh.userData.layoutItem = item
+      if (item.busRole) mesh.userData.busRole = item.busRole
+      if (item.unitIndex != null) mesh.userData.unitIndex = item.unitIndex
+      if (item.pvIndex != null) mesh.userData.pvIndex = item.pvIndex
+      if (item.side) mesh.userData.side = item.side
+      root.add(mesh)
 
-  const mainBr = createBreakerMesh('main')
-  mainBr.position.set(mainX, 0, Z.mainBreaker)
-  root.add(mainBr)
-  refs.mainBreaker = mainBr
-  refs.labelAnchors.push({
-    key: 'main-breaker',
-    kind: 'breaker-label',
-    position: new THREE.Vector3(mainX + 2.4, 3.6, Z.mainBreaker)
-  })
+      if (item.kind === 'main-breaker') refs.mainBreaker = mesh
+      if (item.kind === 'unit-breaker' && item.unitIndex != null) refs.unitBreakers[item.unitIndex] = mesh
+      if (item.kind === 'pv-breaker' && item.pvIndex != null) refs.pvBreakers[item.pvIndex] = mesh
+      if (item.kind === 'tie-breaker' || item.kind === 'branch-breaker') refs.tieBreakers.push(mesh)
+      if (item.templateId === 'pv_array') {
+        refs.pvArrays.push(mesh)
+        // 组串出线：每串（行）一根单独出线 → 方阵前缘汇流点（30 块串联成串，16 串并联）
+        if (item.stringCount > 0 && item.modulesPerString > 0) {
+          const leads = createPvStringLeads({
+            rows: item.stringCount,
+            cols: item.modulesPerString,
+            fieldW: item.footprint?.w,
+            fieldD: item.footprint?.d
+          })
+          if (leads) {
+            leads.position.set(item.x, 0, item.z)
+            root.add(leads)
+          }
+        }
+      }
+      if (item.templateId === 'ac_bus' || item.templateId === 'dc_bus') refs.busNodes.push(mesh)
 
-  const mainXf = createTransformer(1.2, { boxType: false })
-  mainXf.position.set(mainX, 0, Z.mainXf)
-  root.add(mainXf)
-  refs.labelAnchors.push({
-    key: 'main-xf',
-    kind: 'main-xf',
-    position: new THREE.Vector3(mainX + 3.6, 5.0, Z.mainXf)
-  })
+      if (item.panelKey && !refs.panelAnchors.some(a => a.key === item.panelKey)) {
+        const off = item.labelOffset || { x: 0, y: 4.2, z: 0.3 }
+        refs.panelAnchors.push({
+          key: item.panelKey,
+          type: item.panelType,
+          unitIndex: item.unitIndex,
+          pvIndex: item.pvIndex,
+          side: item.side,
+          position: new THREE.Vector3(item.x + (off.x || 0), off.y || 4.2, item.z + (off.z || 0))
+        })
+      }
+    }
 
-  const c1 = createPowerCable(
-    groundRoute(mainX, 9.5, Z.grid + 0.5, mainX, 3.5, Z.mainBreaker),
-    { radius: 0.1 }
-  )
-  c1.userData.cableRole = 'grid-main'
-  root.add(c1)
-  refs.cables.push(c1)
-
-  const c2 = createPowerCable(
-    groundRoute(mainX, 3.5, Z.mainBreaker, mainX, 4.4, Z.mainXf),
-    { radius: 0.1 }
-  )
-  c2.userData.cableRole = 'main-xf'
-  root.add(c2)
-  refs.cables.push(c2)
-
-  // 35kV 母线汇流点：与主变压器同一列（mainX）
-  const bus35X = mainX
-  const bus35Node = createBusNode(bus35X, Y.cable, Z.bus35, { radius: 0.32, label: '35kV' })
-  bus35Node.userData.busRole = 'bus35'
-  root.add(bus35Node)
-  refs.busNodes.push(bus35Node)
-  refs.labelAnchors.push({
-    key: 'bus35',
-    kind: 'bus35',
-    position: new THREE.Vector3(bus35X + 1.2, Y.cable + 1.1, Z.bus35 - 0.8)
-  })
-
-  const c3 = createPowerCable(
-    groundRoute(mainX, 3.6, Z.mainXf + 1.4, bus35X, Y.cable, Z.bus35),
-    { radius: 0.12 }
-  )
-  c3.userData.cableRole = 'xf-bus35'
-  root.add(c3)
-  refs.cables.push(c3)
-
-  ;(units || []).forEach((u, i) => {
-    const ux = unitXs[i] ?? i * 22
-    const unitIndex = u.unitIndex ?? i
-
-    refs.labelAnchors.push({
-      key: `unit-${unitIndex}`,
-      kind: 'unit-title',
-      unitIndex,
-      position: new THREE.Vector3(ux - 3, 5.5, Z.bus35 + 0.5)
-    })
-
-    // 从 35kV 汇流点贴地接到单元断路器
-    const drop = createPowerCable(
-      groundRoute(bus35X, Y.cable, Z.bus35, ux, 3.4, Z.unitBreaker),
-      { radius: 0.09 }
-    )
-    drop.userData.cableRole = 'unit-drop'
-    drop.userData.unitIndex = unitIndex
-    root.add(drop)
-    refs.cables.push(drop)
-
-    const ub = createBreakerMesh(`unit-${unitIndex}`, unitIndex)
-    ub.position.set(ux, 0, Z.unitBreaker)
-    root.add(ub)
-    refs.unitBreakers[unitIndex] = ub
-    refs.labelAnchors.push({
-      key: `unit-br-${unitIndex}`,
-      kind: 'unit-breaker-label',
-      unitIndex,
-      position: new THREE.Vector3(ux + 2.4, 3.4, Z.unitBreaker)
-    })
-
-    const uxf = createTransformer(0.9, { boxType: true })
-    uxf.position.set(ux, 0, Z.unitXf)
-    root.add(uxf)
-    refs.labelAnchors.push({
-      key: `unit-xf-${unitIndex}`,
-      kind: 'unit-xf',
-      unitIndex,
-      position: new THREE.Vector3(ux + 2.8, 3.8, Z.unitXf)
-    })
-
-    const toXf = createPowerCable(
-      groundRoute(ux, 3.4, Z.unitBreaker, ux, 3.0, Z.unitXf),
-      { radius: 0.08 }
-    )
-    toXf.userData.cableRole = 'unit-xf'
-    toXf.userData.unitIndex = unitIndex
-    root.add(toXf)
-    refs.cables.push(toXf)
-
-    // 690V 母线：单元内汇流点
-    const bus690Node = createBusNode(ux, Y.cable, Z.bus690, { radius: 0.22, label: '690V' })
-    bus690Node.userData.busRole = 'unit-690-bus'
-    bus690Node.userData.unitIndex = unitIndex
-    root.add(bus690Node)
-    refs.busNodes.push(bus690Node)
-
-    const to690 = createPowerCable(
-      groundRoute(ux, 2.6, Z.unitXf + 1.1, ux, Y.cable, Z.bus690),
-      { radius: 0.07 }
-    )
-    to690.userData.cableRole = 'unit-690'
-    to690.userData.unitIndex = unitIndex
-    root.add(to690)
-    refs.cables.push(to690)
-
-    for (const side of ['A', 'B']) {
-      const ch = side === 'A' ? u.channelA : u.channelB
-      if (!ch) continue
-      const cx = channelX(ux, side)
-
-      // 从 690V 汇流点接到 PCS
-      const feed = createPowerCable(
-        groundRoute(ux, Y.cable, Z.bus690, cx, 2.2, Z.pcs),
-        { radius: 0.06 }
-      )
-      feed.userData.cableRole = 'pcs-feed'
-      feed.userData.unitIndex = unitIndex
-      feed.userData.side = side
-      root.add(feed)
-      refs.cables.push(feed)
-
-      const pcsKey = `pcs-${unitIndex}-${side}`
-      const bmsKey = `bms-${unitIndex}-${side}`
-
-      const pcs = createPcsCabinet(pcsKey)
-      pcs.position.set(cx, 0, Z.pcs)
-      root.add(pcs)
-
-      const dc = createPowerCable(
-        groundRoute(cx, 1.5, Z.pcs + 1.1, cx, 1.5, Z.bms - 1.2),
-        { radius: 0.05 }
-      )
-      dc.userData.cableRole = 'dc-link'
-      dc.userData.unitIndex = unitIndex
-      dc.userData.side = side
-      root.add(dc)
-      refs.cables.push(dc)
-
-      const bms = createBmsContainer(bmsKey)
-      bms.position.set(cx, 0, Z.bms)
-      root.add(bms)
-
-      refs.panelAnchors.push({
-        key: pcsKey,
-        type: 'pcs',
-        unitIndex,
-        side,
-        position: new THREE.Vector3(cx, 4.4, Z.pcs + 0.3)
-      })
-      refs.panelAnchors.push({
-        key: bmsKey,
-        type: 'bms',
-        unitIndex,
-        side,
-        position: new THREE.Vector3(cx, 3.6, Z.bms + 0.3)
+    const labelKinds = new Set([
+      'grid', 'main-breaker', 'stem-breaker', 'tie-breaker', 'branch-breaker', 'station-xf', 'bus-bar', 'bus-node', 'dc-bus',
+      'meter', 'load', 'svg', 'unit-title', 'unit-breaker', 'unit-xf',
+      'pv-title', 'pv-breaker', 'pv-xf', 'pv-array'
+    ])
+    if (labelKinds.has(item.kind) || item.templateId === 'label') {
+      const off = item.labelOffset || { x: 1.6, y: 3.2, z: 0 }
+      refs.labelAnchors.push({
+        key: item.key,
+        kind: item.kind,
+        unitIndex: item.unitIndex,
+        pvIndex: item.pvIndex,
+        side: item.side,
+        item,
+        position: new THREE.Vector3(
+          item.x + (off.x || 0),
+          item.y != null && item.templateId === 'label' ? item.y : (off.y || 3.2),
+          item.z + (off.z || 0)
+        )
       })
     }
-  })
+  }
+
+  for (const c of layout?.cables || []) {
+    // 静态电缆（光伏连接线）：无能量流光，不参与潮流动画；radius 区分主干/分支粗细
+    const cable = c.static
+      ? createStaticCable({
+        ax: c.ax, ay: c.ay, az: c.az, bx: c.bx, by: c.by, bz: c.bz,
+        radius: c.radius ?? 0.05,
+        midY: c.midY ?? 0.35
+      })
+      : createPowerCable(
+        groundRoute(c.ax, c.ay, c.az, c.bx, c.by, c.bz),
+        { radius: 0.08 }
+      )
+    cable.userData.cableRole = c.role
+    cable.userData.unitIndex = c.unitIndex
+    cable.userData.pvIndex = c.pvIndex
+    cable.userData.side = c.side
+    root.add(cable)
+    if (!c.static) refs.cables.push(cable)
+  }
 
   return { root, refs }
 }

@@ -9,18 +9,36 @@ namespace EssSimulator.Web
     {
         public static MainLineViewModel Build(TopologyStore? topologyStore = null)
         {
-            int channelCount = Math.Max(1, GuiSimDataAccess.GetEssUnitCount());
-            int unitCount = Math.Max(1, (int)Math.Ceiling(channelCount / 2.0));
+            int channelCount = ResolveEssChannelCount(
+                GuiSimDataAccess.GetEssUnitCount(),
+                GuiSimDataAccess.GetPvUnitCount());
+            int unitCount = channelCount <= 0 ? 0 : GuiSimDataAccess.GetPhysicalUnitCount();
             var snap = GuiElectricalReader.ReadMainLine(0, unitCount);
             return Build(snap, channelCount, topologyStore);
         }
+
+        /// <summary>
+        /// 主接线储能支路数：纯光伏为 0（不伪造 PCS/BMS）；
+        /// 全空配置回退 1，兼容旧 appsettings。
+        /// </summary>
+        public static int ResolveEssChannelCount(int pcsCount, int pvCount)
+        {
+            if (pcsCount > 0) return pcsCount;
+            if (pvCount > 0) return 0;
+            return 1;
+        }
+
+        public static int ResolveEssUnitCount(int channelCount) =>
+            channelCount <= 0 ? 0 : Math.Max(1, (int)Math.Ceiling(channelCount / 2.0));
 
         public static MainLineViewModel Build(
             MainLineSnapshot snap,
             int? channelCountOverride = null,
             TopologyStore? topologyStore = null)
         {
-            int channelCount = channelCountOverride ?? Math.Max(1, GuiSimDataAccess.GetEssUnitCount());
+            int channelCount = channelCountOverride ?? ResolveEssChannelCount(
+                GuiSimDataAccess.GetEssUnitCount(),
+                GuiSimDataAccess.GetPvUnitCount());
             var vm = new MainLineViewModel
             {
                 PropagationEnabled = snap.PropagationEnabled,
@@ -37,13 +55,21 @@ namespace EssSimulator.Web
                 LoadReactivePowerKvar = snap.LoadReactivePowerKvar,
                 LoadActivePowerSetKw = snap.LoadActivePowerSetKw,
                 LoadReactivePowerSetKvar = snap.LoadReactivePowerSetKvar,
+                SvgPresent = snap.SvgPresent,
+                SvgRunState = snap.SvgRunState,
+                SvgRunCommand = snap.SvgRunCommand,
+                SvgReactivePowerKvar = snap.SvgReactivePowerKvar,
+                SvgReactiveSetpointKvar = snap.SvgReactiveSetpointKvar,
+                SvgAvailableReactiveUpperKvar = snap.SvgAvailableReactiveUpperKvar,
+                SvgRatedCapacityKvar = snap.SvgRatedCapacityKvar,
                 GridNominalLineVoltageV = snap.GridNominalLineVoltageV,
                 GridNominalFrequencyHz = snap.GridNominalFrequencyHz,
                 SystemFrequencyHz = snap.SystemFrequencyHz,
                 MeterThreePhase = snap.MeterThreePhase,
                 BlackStartSummary = GuiStatusFormatters.BuildBlackStartSwitchSummary(0, channelCount),
                 MainBreakerLabel = FormatBreaker(snap.MainBreakerClosed, snap.MainBreakerTripped),
-                Units = snap.Units.Select(u => EnrichUnit(u, channelCount)).ToList()
+                Units = snap.Units.Select(u => EnrichUnit(u, channelCount)).ToList(),
+                PvUnits = ReadPvUnits()
             };
 
             AttachTopology(vm, topologyStore);
@@ -87,9 +113,17 @@ namespace EssSimulator.Web
 
         private static MainLineUnitViewModel EnrichUnit(UnitBranchSnapshot u, int channelCount)
         {
-            int a = u.UnitIndex * 2;
-            int b = a + 1;
-            return new MainLineUnitViewModel
+            var layout = GuiSimDataAccess.GetPcsPerUnit();
+            int baseIdx = EssDeviceSimModel.PcsUnitLayout.BaseIndexOfUnit(layout, u.UnitIndex);
+            // 逐槽位构造运行时通道；越界全局通道号截断，避免实时数据 / 控制命令错位
+            var channels = new List<MainLineChannelViewModel>();
+            for (int s = 0; s < u.PcsChannels.Count; s++)
+            {
+                int idx = baseIdx + s;
+                if (idx >= channelCount) break;
+                channels.Add(BuildChannel(idx, u.UnitIndex, s, u.PcsChannels[s]));
+            }
+            var vm = new MainLineUnitViewModel
             {
                 UnitIndex = u.UnitIndex,
                 UnitNumber = u.UnitIndex + 1,
@@ -100,11 +134,34 @@ namespace EssSimulator.Web
                 UnitTransformerSecondary = u.UnitTransformerSecondary,
                 UnitTransformerLine = GuiStatusFormatters.FormatAcPhasorViPhi(u.UnitTransformerSecondary),
                 Bus690 = u.Bus690,
-                PcsA = u.PcsA,
-                PcsB = u.PcsB,
-                ChannelA = a < channelCount ? BuildChannel(a, u.UnitIndex, 0, u.PcsA) : null,
-                ChannelB = b < channelCount ? BuildChannel(b, u.UnitIndex, 1, u.PcsB) : null
+                PcsChannels = u.PcsChannels,
+                Channels = channels
             };
+            FillUnitAuxiliaries(vm, u.UnitIndex);
+            return vm;
+        }
+
+        private static void FillUnitAuxiliaries(MainLineUnitViewModel vm, int unitIndex0)
+        {
+            string emu = $"emu{unitIndex0 + 1}";
+            vm.UnitMeterThreePhase = new MeterThreePhaseSnapshot(
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.LineVoltageAB"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.LineVoltageBC"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.LineVoltageCA"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PhaseACurrent"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PhaseBCurrent"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PhaseCCurrent"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PhaseAVoltage"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PhaseBVoltage"),
+                GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PhaseCVoltage"));
+            vm.UnitMeterActivePowerKw = GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.TotalActivePower");
+            vm.UnitMeterReactivePowerKvar = GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.TotalReactivePower");
+            vm.UnitMeterPowerFactor = GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.PowerFactor");
+            vm.UnitMeterFrequencyHz = GuiSimDataAccess.SafeGetDouble($"{emu}.ElectricityMeter.Frequency");
+            vm.UnitTransformerLoadFraction = GuiSimDataAccess.SafeGetDouble($"{emu}.Transformers[0].LoadFraction");
+            vm.UnitTransformerOilTemperatureC = GuiSimDataAccess.SafeGetDouble($"{emu}.Transformers[0].OilTemperatureC");
+            vm.UnitTransformerActivePowerKw = GuiSimDataAccess.SafeGetDouble($"{emu}.Transformers[0].ActivePowerKw");
+            vm.UnitTransformerReactivePowerKvar = GuiSimDataAccess.SafeGetDouble($"{emu}.Transformers[0].ReactivePowerKvar");
         }
 
         private static MainLineChannelViewModel BuildChannel(
@@ -140,6 +197,7 @@ namespace EssSimulator.Web
                     $"ess._batteryRacks[{channelIndex0}]._currentState.TotalDischargeEnergy"),
                 BmsEnergy = BuildBmsEnergy(channelIndex0),
                 BmsRunStatus = BuildBmsRunStatus(channelIndex0),
+                BmsAirConditioner = GuiStatusFormatters.FormatBmsMainLineAirConditioner(channelIndex0),
                 PcsDeviceState = GuiStatusFormatters.FormatPcsMainLineDeviceState(unitIndex0, slotInUnit0, channelIndex0),
                 PcsStartStop = GuiStatusFormatters.FormatPcsMainLineStartStop(unitIndex0, slotInUnit0),
                 PcsTargetP = GuiStatusFormatters.FormatPcsMainLineTargetPower(unitIndex0, slotInUnit0),
@@ -161,9 +219,58 @@ namespace EssSimulator.Web
                 ActualReactivePowerKvar = pcs?.ReactivePowerKw
                     ?? GuiSimDataAccess.SafeGetDouble(
                         $"ess._pcsList[{channelIndex0}]._currentState.ReactivePower"),
-                EmuUnitNumber = unitIndex0 + 1,
-                ActivePowerYtPoint = slotInUnit0 == 0 ? "yt0" : "yt4",
-                ReactivePowerYtPoint = slotInUnit0 == 0 ? "yt1" : "yt5"
+                EmuUnitNumber = channelIndex0 + 1,
+                ActivePowerYtPoint = "yt0",
+                ReactivePowerYtPoint = "yt1"
+            };
+        }
+
+        private static List<MainLinePvUnitViewModel> ReadPvUnits()
+        {
+            int n = GuiSimDataAccess.GetPvUnitCount();
+            var list = new List<MainLinePvUnitViewModel>(n);
+            for (int i = 0; i < n; i++)
+            {
+                string id = $"pv{i + 1}";
+                double onOff = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.SubarrayOnOff");
+                double runState = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.RunState");
+                list.Add(new MainLinePvUnitViewModel
+                {
+                    PvIndex = i,
+                    PvNumber = i + 1,
+                    DeviceId = id,
+                    ActivePowerKw = GuiSimDataAccess.SafeGetDouble($"{id}.ActivePowerKw"),
+                    ReactivePowerKvar = GuiSimDataAccess.SafeGetDouble($"{id}.ReactivePowerKvar"),
+                    TargetActivePowerKw = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.SubarrayActivePowerKw"),
+                    TargetReactivePowerKvar = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.SubarrayReactivePowerKvar"),
+                    OnOff = onOff,
+                    Running = onOff > 0.5 && runState > 0.5,
+                    GridConnectedDeviceCount = (int)GuiSimDataAccess.SafeGetDouble($"{id}.Logger.GridConnectedDeviceCount"),
+                    MaximumDischargePowerKw = GuiSimDataAccess.SafeGetDouble($"{id}.MaximumDischargePowerKw"),
+                    ArrayA = ReadPvArray(id, "A"),
+                    ArrayB = ReadPvArray(id, "B")
+                });
+            }
+            return list;
+        }
+
+        private static MainLinePvArrayViewModel ReadPvArray(string deviceId, string side)
+        {
+            string prefix = $"{deviceId}.Array{side}";
+            return new MainLinePvArrayViewModel
+            {
+                Side = side,
+                AmbientTemperatureC = GuiSimDataAccess.SafeGetDouble($"{prefix}.AmbientTemperatureC"),
+                IncidenceAngleDeg = GuiSimDataAccess.SafeGetDouble($"{prefix}.IncidenceAngleDeg"),
+                PlaneOfArrayWm2 = GuiSimDataAccess.SafeGetDouble($"{prefix}.PlaneOfArrayWm2"),
+                RearWm2 = GuiSimDataAccess.SafeGetDouble($"{prefix}.RearWm2"),
+                Albedo = GuiSimDataAccess.SafeGetDouble($"{prefix}.Albedo"),
+                CellTemperatureC = GuiSimDataAccess.SafeGetDouble($"{prefix}.CellTemperatureC"),
+                AvailableAcPowerKw = GuiSimDataAccess.SafeGetDouble($"{prefix}.AvailableAcPowerKw"),
+                ActivePowerKw = GuiSimDataAccess.SafeGetDouble($"{prefix}.ActivePowerKw"),
+                DcVoltageV = GuiSimDataAccess.SafeGetDouble($"{prefix}.DcVoltageV"),
+                DcCurrentA = GuiSimDataAccess.SafeGetDouble($"{prefix}.DcCurrentA"),
+                LimitReason = GuiSimDataAccess.SafeGetString($"{prefix}.LimitReason")
             };
         }
 
@@ -217,12 +324,20 @@ namespace EssSimulator.Web
         public double LoadReactivePowerKvar { get; set; }
         public double LoadActivePowerSetKw { get; set; }
         public double LoadReactivePowerSetKvar { get; set; }
+        public bool SvgPresent { get; set; }
+        public int SvgRunState { get; set; }
+        public int SvgRunCommand { get; set; }
+        public double SvgReactivePowerKvar { get; set; }
+        public double SvgReactiveSetpointKvar { get; set; }
+        public double SvgAvailableReactiveUpperKvar { get; set; }
+        public double SvgRatedCapacityKvar { get; set; }
         public double GridNominalLineVoltageV { get; set; }
         public double GridNominalFrequencyHz { get; set; }
         public double SystemFrequencyHz { get; set; }
         public MeterThreePhaseSnapshot MeterThreePhase { get; set; }
         public string BlackStartSummary { get; set; } = "";
         public List<MainLineUnitViewModel> Units { get; set; } = new();
+        public List<MainLinePvUnitViewModel> PvUnits { get; set; } = new();
 
         /// <summary>工程模式开启且存在激活组态时为 true，前端按组态拓扑绘制主接线。</summary>
         public bool EngineeringMode { get; set; }
@@ -244,10 +359,19 @@ namespace EssSimulator.Web
         public AcPhasorSnapshot UnitTransformerSecondary { get; set; }
         public string UnitTransformerLine { get; set; } = "";
         public BusNodeSnapshot? Bus690 { get; set; }
-        public PcsChannelSnapshot? PcsA { get; set; }
-        public PcsChannelSnapshot? PcsB { get; set; }
-        public MainLineChannelViewModel? ChannelA { get; set; }
-        public MainLineChannelViewModel? ChannelB { get; set; }
+        /// <summary>单元内各槽位 PCS 电气快照（可含 null，与布局台数对齐）。</summary>
+        public IReadOnlyList<PcsChannelSnapshot?> PcsChannels { get; set; } = Array.Empty<PcsChannelSnapshot?>();
+        /// <summary>单元内各槽位运行时通道（实时数据 + 控制），按槽位顺序。</summary>
+        public List<MainLineChannelViewModel> Channels { get; set; } = new();
+        public MeterThreePhaseSnapshot UnitMeterThreePhase { get; set; }
+        public double UnitMeterActivePowerKw { get; set; }
+        public double UnitMeterReactivePowerKvar { get; set; }
+        public double UnitMeterPowerFactor { get; set; }
+        public double UnitMeterFrequencyHz { get; set; }
+        public double UnitTransformerLoadFraction { get; set; }
+        public double UnitTransformerOilTemperatureC { get; set; }
+        public double UnitTransformerActivePowerKw { get; set; }
+        public double UnitTransformerReactivePowerKvar { get; set; }
     }
 
     public sealed class MainLineChannelViewModel
@@ -268,6 +392,8 @@ namespace EssSimulator.Web
         public double CumulativeDischargeEnergyKwh { get; set; }
         public string BmsEnergy { get; set; } = "";
         public string BmsRunStatus { get; set; } = "";
+                /// <summary>BMS 舱空调状态与柜内温度（如「空调:制冷 25.3℃ 设20.0℃」）。</summary>
+                public string BmsAirConditioner { get; set; } = "";
         public string PcsDeviceState { get; set; } = "";
         public string PcsStartStop { get; set; } = "";
         public string PcsTargetP { get; set; } = "";
@@ -282,8 +408,42 @@ namespace EssSimulator.Web
         /// <summary>PCS 实时有功 kW：&gt;0 放电，&lt;0 充电。</summary>
         public double ActualActivePowerKw { get; set; }
         public double ActualReactivePowerKvar { get; set; }
+        /// <summary>对应 simEmu 编号（与全局 PCS 编号 1:1）。</summary>
         public int EmuUnitNumber { get; set; }
         public string ActivePowerYtPoint { get; set; } = "yt0";
         public string ReactivePowerYtPoint { get; set; } = "yt1";
+    }
+
+    public sealed class MainLinePvUnitViewModel
+    {
+        public int PvIndex { get; set; }
+        public int PvNumber { get; set; }
+        public string DeviceId { get; set; } = "";
+        public double ActivePowerKw { get; set; }
+        public double ReactivePowerKvar { get; set; }
+        public double TargetActivePowerKw { get; set; }
+        public double TargetReactivePowerKvar { get; set; }
+        public double OnOff { get; set; }
+        public bool Running { get; set; }
+        public int GridConnectedDeviceCount { get; set; }
+        public double MaximumDischargePowerKw { get; set; }
+        public MainLinePvArrayViewModel ArrayA { get; set; } = new();
+        public MainLinePvArrayViewModel ArrayB { get; set; } = new();
+    }
+
+    public sealed class MainLinePvArrayViewModel
+    {
+        public string Side { get; set; } = "A";
+        public double AmbientTemperatureC { get; set; } = 25;
+        public double IncidenceAngleDeg { get; set; } = 90;
+        public double PlaneOfArrayWm2 { get; set; }
+        public double RearWm2 { get; set; }
+        public double Albedo { get; set; }
+        public double CellTemperatureC { get; set; } = 25;
+        public double AvailableAcPowerKw { get; set; }
+        public double ActivePowerKw { get; set; }
+        public double DcVoltageV { get; set; }
+        public double DcCurrentA { get; set; }
+        public string LimitReason { get; set; } = "";
     }
 }

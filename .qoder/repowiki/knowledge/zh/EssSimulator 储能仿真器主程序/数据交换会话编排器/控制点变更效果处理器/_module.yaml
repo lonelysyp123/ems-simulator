@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: data_exchange/effects
+title: 控制点变更效果处理器
+scope:
+    - DataExchange/Effects/
+source_files: []
+depends_on: []
+related_to:
+    - path: device_sim_model/devices_domain
+    - path: web_frontend_backend/backend_runtime

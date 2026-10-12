@@ -32,9 +32,18 @@ namespace EssSimulator.EssDeviceSimModel.Thermal
             _network.AddEdge(new ThermalEdge(OutdoorId, ShellId, _cfg.OutdoorToShellResistanceKPerW));
             _network.AddEdge(new ThermalEdge(ShellId, AirId, _cfg.ShellToAirResistanceKPerW));
             _network.AddEdge(new ThermalEdge(BatteryId, AirId, _cfg.BatteryToAirResistanceKPerW));
+
+            AirConditioningOn = _cfg.HvacEnabled;
+            CoolingSetpointCelsius = _cfg.HvacSetpointCelsius;
         }
 
         public string ZoneId { get; }
+
+        /// <summary>空调开机状态（外部可控，默认取配置 HvacEnabled）。true 时按回差控制制冷，把柜内空气稳定在设定温度附近。</summary>
+        public bool AirConditioningOn { get; set; }
+
+        /// <summary>本柜制冷设定温度（°C），默认取配置 HvacSetpointCelsius；可经 BMS 空调控制点调整。</summary>
+        public double CoolingSetpointCelsius { get; set; }
 
         public double CabinetAirCelsius => _network.GetNode(AirId).TemperatureCelsius;
         public double ShellCelsius => _network.GetNode(ShellId).TemperatureCelsius;
@@ -50,9 +59,6 @@ namespace EssSimulator.EssDeviceSimModel.Thermal
         /// <summary>空调压缩机是否处于制冷状态。</summary>
         public bool IsHvacCooling => _hvacCoolingActive && LastHvacCoolingWatts > 1e-3;
 
-        /// <summary>上一步计算的功率降额因子（由耦合边写入）。</summary>
-        public double LastPowerDeratingFactor { get; set; } = 1.0;
-
         public void Step(TimeSpan dt, double outdoorCelsius)
         {
             _network.GetNode(OutdoorId).TemperatureCelsius = outdoorCelsius;
@@ -66,14 +72,14 @@ namespace EssSimulator.EssDeviceSimModel.Thermal
 
         private double ApplyHvacCooling()
         {
-            if (!_cfg.HvacEnabled || _cfg.HvacCoolingPowerW <= 0)
+            if (!AirConditioningOn || _cfg.HvacCoolingPowerW <= 0)
             {
                 _hvacCoolingActive = false;
                 return 0;
             }
 
             double airT = _network.GetNode(AirId).TemperatureCelsius;
-            double set = _cfg.HvacSetpointCelsius;
+            double set = CoolingSetpointCelsius;
             double hyst = Math.Max(0, _cfg.HvacHysteresisCelsius);
 
             // 回差：过热开启，冷却到设定关闭

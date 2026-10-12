@@ -1,0 +1,174 @@
+{
+  "entries": [
+    {
+      "name": "simEmu1",
+      "protocols": [
+        "modbus",
+        "iec61850"
+      ],
+      "iec61850Port": 8102
+    },
+    {
+      "name": "simEmu10",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8111
+    },
+    {
+      "name": "simEmu11",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8112
+    },
+    {
+      "name": "simEmu12",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8113
+    },
+    {
+      "name": "simEmu13",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8114
+    },
+    {
+      "name": "simEmu14",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8115
+    },
+    {
+      "name": "simEmu15",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8116
+    },
+    {
+      "name": "simEmu16",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8117
+    },
+    {
+      "name": "simEmu17",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8102
+    },
+    {
+      "name": "simEmu18",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8102
+    },
+    {
+      "name": "simEmu19",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8120
+    },
+    {
+      "name": "simEmu2",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8103
+    },
+    {
+      "name": "simEmu20",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8121
+    },
+    {
+      "name": "simEmu21",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8122
+    },
+    {
+      "name": "simEmu22",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8102
+    },
+    {
+      "name": "simEmu23",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8102
+    },
+    {
+      "name": "simEmu24",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8102
+    },
+    {
+      "name": "simEmu3",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8104
+    },
+    {
+      "name": "simEmu4",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8105
+    },
+    {
+      "name": "simEmu5",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8106
+    },
+    {
+      "name": "simEmu6",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8107
+    },
+    {
+      "name": "simEmu7",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8108
+    },
+    {
+      "name": "simEmu8",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8109
+    },
+    {
+      "name": "simEmu9",
+      "protocols": [
+        "modbus"
+      ],
+      "iec61850Port": 8110
+    }
+  ],
+  "updatedAtUtc": "2026-09-08T05:28:01.257808Z"
+}

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: web_frontend_backend/frontend_app/battery_cells_monitoring
+title: 电池舱监控前端视图（总览/单体/门限/告警）
+scope:
+    - Web/src/views/BatteryView.vue
+    - Web/src/views/CellsView.vue
+    - Web/src/views/ThresholdsView.vue
+    - Web/src/views/AlarmsView.vue
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/backend_snapshot_readers

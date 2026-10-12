@@ -7,6 +7,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
     {
         private double _forwardKwh;
         private double _reverseKwh;
+        private double _forwardKvarh;
+        private double _reverseKvarh;
 
         public MeterSimulator(string deviceId, MeterInstanceConfig config)
         {
@@ -31,6 +33,11 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             else
                 _reverseKwh -= primaryQuantities.ActivePowerKw * hours;
 
+            if (primaryQuantities.ReactivePowerKvar >= 0)
+                _forwardKvarh += primaryQuantities.ReactivePowerKvar * hours;
+            else
+                _reverseKvarh -= primaryQuantities.ReactivePowerKvar * hours;
+
             Telemetry = MeterQuantityConverter.CreateTelemetry(
                 primaryQuantities,
                 Config.Pt,
@@ -43,7 +50,9 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 Secondary = Telemetry.Secondary,
                 ReportedTerminal = Telemetry.ReportedTerminal,
                 ForwardActiveEnergyKwh = _forwardKwh,
-                ReverseActiveEnergyKwh = _reverseKwh
+                ReverseActiveEnergyKwh = _reverseKwh,
+                ForwardReactiveEnergyKvarh = _forwardKvarh,
+                ReverseReactiveEnergyKvarh = _reverseKvarh
             };
 
             AcPortHelper.WriteAcOutput(Port, primaryQuantities);

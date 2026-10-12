@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using EssSimulator.Core;
 using EssSimulator.Display;
+using EssSimulator.EssDeviceSimModel.Bms;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
 
 namespace EssSimulator.Web
@@ -229,8 +230,8 @@ namespace EssSimulator.Web
             {
                 if (!SimulatorHost.Instance.Contains($"emu{u}"))
                     continue;
-                // 常见拓扑：每 EMU 承载 1～2 台 PCS
-                for (int p = 0; p < 2; p++)
+                int pcsCount = ResolvePcsCount(u);
+                for (int p = 0; p < pcsCount; p++)
                 {
                     var pcs = ReadPcs(u, p);
                     if (pcs != null)
@@ -432,6 +433,18 @@ namespace EssSimulator.Web
             "protection" => 2,
             _ => 3
         };
+
+        private static int ResolvePcsCount(int unitNumber)
+        {
+            try
+            {
+                var list = SimServer.GetExtIfVariableVal($"emu{unitNumber}.PcsList");
+                if (list is System.Collections.ICollection c)
+                    return Math.Max(0, c.Count);
+            }
+            catch { /* fall through */ }
+            return 2;
+        }
 
         private static int ResolveClusterCount(int unitNumber)
         {

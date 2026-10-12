@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model/core_engine/electrical_models
+title: 电气拓扑与量值模型
+scope:
+    - EssDeviceSimModel/Model/
+source_files: []
+depends_on: []
+related_to: []

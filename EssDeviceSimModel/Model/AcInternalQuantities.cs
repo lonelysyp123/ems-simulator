@@ -9,7 +9,10 @@ namespace EssSimulator.EssDeviceSimModel.Model
         public ThreePhaseConnection Connection { get; init; } = ThreePhaseConnection.Star;
         public double LineVoltageV { get; init; }
         public double LineCurrentA { get; init; }
-        /// <summary>电流相对电压的滞后角（度），φ&gt;0 表示感性无功。</summary>
+        /// <summary>
+        /// 电流相对电压的相角（度）。由 atan2(Q, P) 得到，与无功同号：
+        /// φ&gt;0 表示 Q&gt;0（容性升压），不是教科书「感性电流滞后」。
+        /// </summary>
         public double PhaseAngleDeg { get; init; }
         public double FrequencyHz { get; init; } = 50.0;
 

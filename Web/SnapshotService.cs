@@ -1,4 +1,5 @@
 using EssSimulator.Configuration;
+using EssSimulator.Core;
 using EssSimulator.Display;
 using EssSimulator.Web.Topology;
 using Microsoft.AspNetCore.SignalR;
@@ -7,10 +8,8 @@ using Microsoft.Extensions.Options;
 namespace EssSimulator.Web
 {
     /// <summary>周期采样仿真状态并通过 SignalR 推送（主接线/BMS/连接）。</summary>
-    public sealed class SnapshotService : BackgroundService
+    public sealed class SnapshotService : BackgroundService, IUiSnapshotNotifier
     {
-        private static SnapshotService? _current;
-
         private readonly IHubContext<RealtimeHub> _hub;
         private readonly SimulatorConfig _simCfg;
         private readonly WebConfig _webCfg;
@@ -29,13 +28,10 @@ namespace EssSimulator.Web
             _simCfg = simCfg.Value;
             _webCfg = webCfg.Value;
             _topologyStore = topologyStore;
-            _current = this;
+            UiSnapshotNotifier.Current = this;
         }
 
-        /// <summary>
-        /// 控制侧变更后请求立即推一帧（如 PCS 启停），无需等周期到期。
-        /// </summary>
-        public static void RequestImmediatePush() => _current?.Kick();
+        public void RequestImmediatePush() => Kick();
 
         private void Kick()
         {
@@ -71,8 +67,8 @@ namespace EssSimulator.Web
             }
             finally
             {
-                if (ReferenceEquals(_current, this))
-                    _current = null;
+                if (ReferenceEquals(UiSnapshotNotifier.Current, this))
+                    UiSnapshotNotifier.Reset();
             }
         }
 
@@ -96,7 +92,8 @@ namespace EssSimulator.Web
         private bool IsSimulatorReady()
         {
             var store = EssSimulator.Core.SimulatorHost.Instance;
-            return store.Contains("ess") && store.Contains("simEm") && store.Contains("simBms1");
+            return store.Contains("ess") && store.Contains("simEm")
+                && (store.Contains("simBms1") || store.Contains("simPv1"));
         }
 
         private async Task PushAll(CancellationToken ct)

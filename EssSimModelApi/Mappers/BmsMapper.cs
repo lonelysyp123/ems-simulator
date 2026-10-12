@@ -1,12 +1,13 @@
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssDeviceSimModel.Devices;
+using EssSimulator.EssDeviceSimModel.Diagnostics;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
 
 namespace EssSimulator.EssSimModelApi.Mappers
 {
     /// <summary>
-    /// 将 ESS 物理模型数据映射到 BMS 接口数据对象（物理 → DTO，无副作用）。
-    /// 保护评估与 Rack 故障回写由 <see cref="BmsRackProtection"/> 负责。
+    /// 将 ESS 物理模型数据映射到 BMS 接口数据对象，并在投影后评估保护。
+    /// 保护状态机本身见 <see cref="BmsRackProtection"/>（只消费模型结构）。
     /// </summary>
     public static class BmsMapper
     {
@@ -146,13 +147,6 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 // 单体电压/温度字典
                 var voltDict = clu.ClusterCellVoltages.CellVoltages;
                 var tempDict = clu.ClusterCellTemperatures.CellTemperatures;
-                for (int j = 0; j < clusterConfig.PackCount; j++)
-                    for (int k = 0; k < packSerial; k++)
-                    {
-                        int key = j * packSerial + k;
-                        voltDict[key] = (float)cs.PackStates[j].CellStates[k].Voltage;
-                        tempDict[key] = (float)cs.PackStates[j].CellStates[k].Temperature;
-                    }
 
                 // 基础簇测量值
                 var m = clu.Measurements;
@@ -162,10 +156,41 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 m.Power           = (float)cs.TotalVoltage * (float)cs.TotalCurrent;
                 m.SOH             = (float)cs.StateOfHealth;
                 m.OperationStatus = (ushort)GetOperationStatus((float)cs.TotalCurrent);
-                m.AvgCellVoltage  = (float)cs.TotalVoltage / 416;
                 m.AvgCellTemp     = (float)cs.AvgPackTemp;
                 m.MaxCellSOC      = (float)cs.MaxPackSOC;
                 m.MinCellSOC      = (float)cs.MinPackSOC;
+
+                if (cs.EquivalentCells)
+                {
+                    int count = clusterConfig.PackCount * packSerial;
+                    float v = (float)cs.EquivalentCellVoltage;
+                    float t = (float)cs.EquivalentCellTemp;
+                    voltDict.Clear();
+                    tempDict.Clear();
+                    for (int key = 0; key < count; key++)
+                    {
+                        voltDict[key] = v;
+                        tempDict[key] = t;
+                    }
+
+                    m.AvgCellVoltage = v;
+                    m.CellVoltageSum = v * count;
+                    m.MaxCellVoltage = v; m.MaxCellVoltageId = 0;
+                    m.MinCellVoltage = v; m.MinCellVoltageId = 0;
+                    m.MaxCellTemp = t; m.MaxCellTempId = 0;
+                    m.MinCellTemp = t; m.MinCellTempId = 0;
+                    continue;
+                }
+
+                for (int j = 0; j < clusterConfig.PackCount; j++)
+                    for (int k = 0; k < packSerial; k++)
+                    {
+                        int key = j * packSerial + k;
+                        voltDict[key] = (float)cs.PackStates[j].CellStates[k].Voltage;
+                        tempDict[key] = (float)cs.PackStates[j].CellStates[k].Temperature;
+                    }
+
+                m.AvgCellVoltage  = (float)cs.TotalVoltage / 416;
                 m.CellVoltageSum  = voltDict.Values.Sum();
 
                 var maxV = voltDict.Aggregate((a, b) => a.Value > b.Value ? a : b);
@@ -178,6 +203,131 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 m.MaxCellTemp     = maxT.Value; m.MaxCellTempId = maxT.Key;
                 m.MinCellTemp     = minT.Value; m.MinCellTempId = minT.Key;
             }
+        }
+
+        /// <summary>将物理量映射到 BMS DTO，评估簇级/Rack 级保护并回写 Rack 故障态。</summary>
+        public static void SyncTelemetryAndProtection(BmsRackDevice device, BatteryManagementSystemData bmsData)
+        {
+            var rackState = device.Rack.GetRackState();
+            if (rackState == null || bmsData == null)
+                return;
+
+            MapRackToStack(rackState, bmsData);
+            MapClusters(device.Rack, bmsData);
+            EvaluateClusters(device.Rack, bmsData);
+            var snapshot = ToProtectionSnapshot(bmsData.BatteryStacks[0]);
+            BmsRackProtection.ApplyRackFaultSummary(snapshot, rackState);
+            UpdateStackOperationStatus(bmsData);
+            BmsStateTracker.ReportProtectionChanges(device.DisplayLabel, snapshot, rackState);
+            device.RefreshProtectionFault();
+        }
+
+        /// <summary>
+        /// 待机时清除充放电方向故障并刷新 Rack 故障态（一次性复位，不抑制后续再触发）。
+        /// </summary>
+        public static bool TryClearChargeDischargeFaults(
+            BatteryManagementSystemData bmsData,
+            BmsRackDevice device,
+            out string message)
+        {
+            message = string.Empty;
+            var rackState = device.Rack.GetRackState();
+            if (rackState == null || bmsData?.BatteryStacks == null || bmsData.BatteryStacks.Count == 0)
+            {
+                message = "BMS 数据或 Rack 状态不可用";
+                return false;
+            }
+
+            if (BmsRackProtection.IsCharging(rackState.TotalCurrent) ||
+                BmsRackProtection.IsDischarging(rackState.TotalCurrent))
+            {
+                message = "当前仍在充/放电，请先待机后再清除故障";
+                return false;
+            }
+
+            var stack = bmsData.BatteryStacks[0];
+            foreach (var cluster in stack.Cluseter)
+                cluster.Alarms.ClearChargeDischargeAlarms();
+
+            stack.IsPcsLinked = device.IsLinked;
+            if (stack.GridConnectStatus == 3)
+                stack.GridConnectStatus = 0;
+
+            SyncTelemetryAndProtection(device, bmsData);
+            message = stack.BMSFaultSummary == 0 && rackState.IsFault == 0
+                ? "充放电方向故障已清除（一次性）；再次充/放电若仍超限将重新触发"
+                : "充放电方向故障已清除；部分非方向故障仍在，可重新并网后观察";
+            return true;
+        }
+
+        private static void EvaluateClusters(BatteryRackSimulator rackSim, BatteryManagementSystemData bmsData)
+        {
+            var clusterStates = rackSim.GetRackState().ClusterStates;
+            var clusterConfig = rackSim.GetRackConfig().ClusterConfig;
+            int packSerial = rackSim._clusters[0]._packs[0].GetPackConfiguration().SeriesCount;
+            var stack = bmsData.BatteryStacks[0];
+
+            for (int i = 0; i < clusterStates.Count; i++)
+            {
+                var cs = clusterStates[i];
+                var clu = stack.Cluseter[i];
+                BmsRackProtection.EvaluateCluster(
+                    cs,
+                    clusterConfig.PackCount,
+                    packSerial,
+                    clu.Thresholds,
+                    clu.Alarms,
+                    clu.Measurements.Insulation ?? 0f,
+                    ResolveBusbarTempC(clu.Measurements),
+                    ResolvePoleTempC(clu));
+            }
+        }
+
+        private static BmsStackProtectionSnapshot ToProtectionSnapshot(BatteryStack stack) => new()
+        {
+            FaultSummary = stack.BMSFaultSummary,
+            AlarmSummary = stack.BMSAlarmSummary,
+            ProtectionSummary = stack.BMSProtectionSummary,
+            IsChargeFault = stack.IsChargeFault,
+            IsDischargeFault = stack.IsDischargeFault,
+            Soc = stack.SOC ?? 0f,
+            Soh = stack.SOH ?? 1f
+        };
+
+        private static float ResolveBusbarTempC(ClusterBasicMeasurements m)
+        {
+            if (m == null)
+                return 26f;
+            float? t1 = m.HVB1Temp;
+            float? t2 = m.HVB2Temp;
+            if (t1.HasValue && t2.HasValue)
+                return Math.Max(t1.Value, t2.Value);
+            return t1 ?? t2 ?? 26f;
+        }
+
+        private static float ResolvePoleTempC(BatteryCluster clu)
+        {
+            var temps = clu?.ClusterCellTemperatures;
+            if (temps == null)
+                return 26f;
+
+            float max = float.NegativeInfinity;
+            bool any = false;
+            void consider(Dictionary<int, float?>? dict)
+            {
+                if (dict == null) return;
+                foreach (var kv in dict)
+                {
+                    if (!kv.Value.HasValue) continue;
+                    any = true;
+                    if (kv.Value.Value > max)
+                        max = kv.Value.Value;
+                }
+            }
+
+            consider(temps.PositivePoleTemperatures);
+            consider(temps.NegativePoleTemperatures);
+            return any ? max : 26f;
         }
 
         /// <summary>向后兼容：委托至 <see cref="BmsRackProtection.UpdateUnder"/>。</summary>
@@ -216,7 +366,18 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 for (int j = 0; j < cluster.PackStates.Count; j++)
                 {
                     var pack = cluster.PackStates[j];
-                    if (pack?.CellStates == null) continue;
+                    if (pack == null) continue;
+                    if (pack.CellStates == null || pack.CellStates.Count == 0)
+                    {
+                        double equiv = type is 1 or 2
+                            ? (findMax ? pack.MaxCellVoltage : pack.MinCellVoltage)
+                            : type is 3 or 4
+                                ? (findMax ? pack.MaxCellTemp : pack.MinCellTemp)
+                                : 0;
+                        if ((findMax && equiv > best) || (!findMax && equiv < best))
+                        { best = equiv; bc = i; bp = j; be = 0; }
+                        continue;
+                    }
                     for (int k = 0; k < pack.CellStates.Count; k++)
                     {
                         double v = sel(pack.CellStates[k]);

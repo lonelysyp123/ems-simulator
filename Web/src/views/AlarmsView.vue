@@ -5,9 +5,9 @@
       <p class="hint">未触发为绿色，已触发为红色。数据来自仿真模型告警属性（BMS 簇/堆 SystemAlarms、PCS）。</p>
       <el-space wrap :size="12">
         <el-radio-group v-model="deviceFilter" size="small">
-          <el-radio-button label="all">全部设备</el-radio-button>
-          <el-radio-button label="bms">BMS</el-radio-button>
-          <el-radio-button label="pcs">PCS</el-radio-button>
+          <el-radio-button value="all">全部设备</el-radio-button>
+          <el-radio-button value="bms">BMS</el-radio-button>
+          <el-radio-button value="pcs">PCS</el-radio-button>
         </el-radio-group>
         <el-select v-model="unitFilter" style="width:120px" clearable placeholder="全部舱">
           <el-option v-for="i in unitCount" :key="i" :label="`舱 ${i}`" :value="i" />
@@ -30,7 +30,7 @@
     </div>
 
     <div v-if="!visibleDevices.length" class="card empty">
-      暂无匹配设备（仿真未就绪或筛选过严）
+      {{ emptyHint }}
     </div>
 
     <div v-for="dev in visibleDevices" :key="dev.deviceId" class="card device-card">
@@ -92,13 +92,20 @@ const visibleDevices = computed(() => {
   }
   if (collapseOk.value) {
     list = list.filter(d => d.activeCount > 0 || visibleFlags(d).some(f => f.active))
-    // 无触发时仍至少展示堆级卡片，避免整页空白难排查
-    if (!list.length && (snap.value?.devices || []).length) {
+    // 无触发时：全部/BMS 仍展示堆级卡片，避免整页空白；指定 PCS 时保持空列表，不盖掉筛选
+    if (!list.length && deviceFilter.value !== 'pcs' && (snap.value?.devices || []).length) {
       list = (snap.value.devices || []).filter(d => d.deviceType === 'bms-stack')
       if (unitFilter.value) list = list.filter(d => d.unitNumber === unitFilter.value)
     }
   }
   return list
+})
+
+const emptyHint = computed(() => {
+  if (!(snap.value?.devices || []).length) return '暂无匹配设备（仿真未就绪或筛选过严）'
+  if (deviceFilter.value === 'pcs' && collapseOk.value)
+    return '当前无已触发的 PCS，可取消「折叠无告警设备」查看全部 PCS'
+  return '暂无匹配设备（仿真未就绪或筛选过严）'
 })
 
 function visibleFlags(dev) {

@@ -26,6 +26,14 @@ try {
 
     & bash "$Root/scripts/commercial/sync-runtime.sh" $Edition $Rid
 
+    $native = Join-Path $Root "lib61850\native\win-x64\iec61850.dll"
+    if (Test-Path $native) {
+        Copy-Item $native (Join-Path $Out "iec61850.dll") -Force
+        $ridNative = Join-Path $Out "runtimes\win-x64\native"
+        New-Item -ItemType Directory -Force -Path $ridNative | Out-Null
+        Copy-Item $native (Join-Path $ridNative "iec61850.dll") -Force
+    }
+
     if (Test-Path $Zip) { Remove-Item $Zip -Force }
     Compress-Archive -Path (Join-Path $Out "*") -DestinationPath $Zip -Force
 

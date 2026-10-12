@@ -70,6 +70,17 @@
       <line class="bus-line bus-thick" :x1="mainX" :y1="busY" :x2="busEndX" :y2="busY" />
       <text :x="mainX + 8" :y="busY - 6" class="label-text">35kV 母线 {{ fmtVolt(snap.stationBus35LineVoltageV) }}</text>
 
+      <g v-if="snap.svgPresent" :transform="`translate(${svgCardX}, ${busY})`">
+        <line class="bus-line" x1="0" y1="0" x2="0" y2="24" />
+        <foreignObject x="-84" y="24" width="168" height="112">
+          <SvgStationCard
+            :snap="snap"
+            @svg-run="v => $emit('svg-run', v)"
+            @svg-set-reactive="v => $emit('svg-set-reactive', v)"
+          />
+        </foreignObject>
+      </g>
+
       <!-- 各储能单元 -->
       <g v-for="(u, i) in snap.units" :key="u.unitIndex ?? i" :transform="`translate(${unitCenterX(i)}, ${busY})`">
         <!-- 接入母线 -->
@@ -101,31 +112,16 @@
         <line class="bus-line" x1="0" y1="82" x2="0" y2="96" />
 
         <!-- 690V 母线 -->
-        <line class="bus-line" :x1="-BRANCH.channelX" y1="96" :x2="BRANCH.channelX" y2="96" />
-        <text :x="-BRANCH.channelX + 3" y="110" class="label-text">690V {{ fmtVolt(u.bus690?.lineVoltageV ?? u.unitTransformerSecondary?.lineVoltageV) }}</text>
+        <line class="bus-line" :x1="branchX(u, 0)" y1="96" :x2="branchX(u, Math.max(0, (u.channels || []).length - 1))" y2="96" />
+        <text :x="branchX(u, 0) + 3" y="110" class="label-text">690V {{ fmtVolt(u.bus690?.lineVoltageV ?? u.unitTransformerSecondary?.lineVoltageV) }}</text>
 
-        <!-- PCS-A / 舱-A -->
+        <!-- PCS / 舱：逐槽位支路（对称排布，兼容任意台数） -->
         <ChannelBranch
-          v-if="u.channelA"
-          :channel="u.channelA"
-          side="A"
-          :x="-BRANCH.channelX"
-          :bus-y="96"
-          @pcs-start="n => $emit('pcs-start', n)"
-          @pcs-stop="n => $emit('pcs-stop', n)"
-          @pcs-set-power="p => $emit('pcs-set-power', p)"
-          @pcs-set-reactive="p => $emit('pcs-set-reactive', p)"
-          @bms-power-on="n => $emit('bms-power-on', n)"
-          @bms-power-off="n => $emit('bms-power-off', n)"
-          @bms-fault-clear="n => $emit('bms-fault-clear', n)"
-          @bms-set-soc="p => $emit('bms-set-soc', p)"
-        />
-        <!-- PCS-B / 舱-B -->
-        <ChannelBranch
-          v-if="u.channelB"
-          :channel="u.channelB"
-          side="B"
-          :x="BRANCH.channelX"
+          v-for="(ch, si) in (u.channels || [])"
+          :key="`ch-${u.unitIndex}-${si}`"
+          :channel="ch"
+          :side="String.fromCharCode(65 + si)"
+          :x="branchX(u, si)"
           :bus-y="96"
           @pcs-start="n => $emit('pcs-start', n)"
           @pcs-stop="n => $emit('pcs-stop', n)"
@@ -161,6 +157,7 @@
 
 <script setup>
 import { computed, defineComponent, h, onBeforeUnmount, reactive, ref } from 'vue'
+import SvgStationCard from './SvgStationCard.vue'
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 10
@@ -179,7 +176,9 @@ defineEmits([
   'bms-power-on',
   'bms-power-off',
   'bms-fault-clear',
-  'bms-set-soc'
+  'bms-set-soc',
+  'svg-run',
+  'svg-set-reactive'
 ])
 
 const zoom = ref(MIN_ZOOM)
@@ -196,9 +195,11 @@ const panLayerStyle = computed(() => ({
 }))
 
 const unitCount = computed(() => (props.snap.units || []).length)
-const svgWidth = computed(() =>
-  Math.max(900, MARGIN_LEFT + unitCount.value * UNIT_WIDTH + MARGIN_RIGHT)
-)
+const svgWidth = computed(() => {
+  const total = (props.snap.units || []).reduce((s, u) => s + unitWidth(u), 0)
+  const base = Math.max(900, MARGIN_LEFT + total + MARGIN_RIGHT)
+  return props.snap.svgPresent ? Math.max(base, svgCardX.value + 100) : base
+})
 const renderWidth = computed(() => Math.round(svgWidth.value * zoom.value))
 const renderHeight = computed(() => Math.round(svgHeight.value * zoom.value))
 
@@ -262,15 +263,21 @@ const BOTTOM_PAD = 12
 /** PCS / BMS 支路布局 */
 const BRANCH = {
   boxW: 132,
-  /** A/B 支路中心距单元中心的水平偏移；须满足 2*channelX > boxW + 间距 */
+  /** 相邻支路中心距的一半；须满足 2*channelX > boxW + 间距 */
   channelX: 92,
   pcsTop: 24,
   pcsH: 228,
   gap: 28,
-  bmsH: 198,
+  bmsH: 214,
   get bmsTop() { return this.pcsTop + this.pcsH + this.gap },
   get linkMid() { return this.pcsTop + this.pcsH + this.gap / 2 },
   get bottomY() { return 96 + this.bmsTop + this.bmsH }
+}
+
+/** 单元第 i 条支路中心相对单元中心的水平偏移（对称排布） */
+function branchX(u, i) {
+  const n = Math.max(1, (u.channels || []).length)
+  return (i - (n - 1) / 2) * 2 * BRANCH.channelX
 }
 
 const mainX = MAIN_X
@@ -292,10 +299,32 @@ function chipStatusClass(status) {
   return 'bs-partial'
 }
 
-const busEndX = computed(() => MARGIN_LEFT + Math.max(0, unitCount.value - 1) * UNIT_WIDTH + UNIT_WIDTH / 2)
+const busEndX = computed(() => {
+  const units = props.snap.units || []
+  const unitEnd = units.length ? unitCenterX(units.length - 1) : MARGIN_LEFT
+  return props.snap.svgPresent ? Math.max(unitEnd, svgCardX.value) : unitEnd
+})
+
+const svgCardX = computed(() => {
+  const units = props.snap.units || []
+  if (!units.length) return MARGIN_LEFT + 160
+  const last = units.length - 1
+  const u = units[last]
+  const n = Math.max(1, (u.channels || []).length)
+  return unitCenterX(last) + branchX(u, n - 1) + BRANCH.boxW / 2 + 100
+})
+
+/** 单元占宽：随通道台数自适应，不低于原双通道宽 */
+function unitWidth(u) {
+  const n = Math.max(1, (u?.channels || []).length)
+  return Math.max(UNIT_WIDTH, Math.round((n - 1) * 2 * BRANCH.channelX + BRANCH.boxW + 40))
+}
 
 function unitCenterX(i) {
-  return MARGIN_LEFT + i * UNIT_WIDTH + UNIT_WIDTH / 2
+  const units = props.snap.units || []
+  let x = MARGIN_LEFT
+  for (let k = 0; k < i; k++) x += unitWidth(units[k])
+  return x + unitWidth(units[i]) / 2
 }
 
 function fmtVolt(v) {
@@ -415,6 +444,7 @@ const ChannelBranch = defineComponent({
       const bmsLines = [
         ch.bmsCompact,
         ch.bmsRunStatus || '运行:—',
+        ch.bmsAirConditioner,
         ch.bmsEnergy || `累计充 ${(ch.cumulativeChargeEnergyKwh ?? 0).toFixed(1)} / 放 ${(ch.cumulativeDischargeEnergyKwh ?? 0).toFixed(1)} kWh`,
         `并网:${ch.gridConnect}`,
         ch.bmsBlackStart
@@ -658,6 +688,23 @@ const ChannelBranch = defineComponent({
   border: 1px solid #e6a23c;
   color: #303133;
 }
+.svg-device-box.svg-station-box {
+  background: #f3fbf6;
+  border: 1px solid #3d9a6a;
+  color: #303133;
+  padding: 3px 5px;
+  font-size: 10px;
+  line-height: 1.2;
+  height: auto;
+}
+.svg-device-box.svg-station-box .box-title { margin-bottom: 1px; white-space: nowrap; }
+.svg-device-box.svg-station-box .box-title-meta { font-weight: 500; color: #606266; }
+.svg-device-box.svg-station-box .box-line { margin-bottom: 0; line-height: 1.2; }
+.svg-device-box.svg-station-box .box-controls { margin-top: 3px; padding-top: 0; }
+.svg-device-box.svg-station-box .power-row { margin-top: 3px; height: 18px; }
+.svg-device-box.svg-station-box .power-input { height: 18px; padding: 0 3px; }
+.svg-device-box.svg-station-box .act-btn { height: 18px; padding: 0 4px; line-height: 16px; }
+.svg-device-box.svg-station-box .box-actions { margin-top: 3px; }
 .svg-device-box .box-title {
   font-weight: 700;
   margin-bottom: 3px;

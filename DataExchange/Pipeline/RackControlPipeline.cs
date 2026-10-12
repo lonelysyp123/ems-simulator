@@ -1,5 +1,7 @@
+using EssSimulator.Core;
 using EssSimulator.DataExchange.Adapters;
 using EssSimulator.DataExchange.Catalog;
+using EssSimulator.EssDeviceSimModel;
 using log4net;
 
 namespace EssSimulator.DataExchange.Pipeline
@@ -52,6 +54,8 @@ namespace EssSimulator.DataExchange.Pipeline
 
         public void RunOnce()
         {
+            if (ExternalControlGate.IsBlocked)
+                return;
             if (_points.Count == 0 || _clusterCount <= 0)
                 return;
 
@@ -63,6 +67,8 @@ namespace EssSimulator.DataExchange.Pipeline
 
         public void RunForRack(int rackId)
         {
+            if (ExternalControlGate.IsBlocked)
+                return;
             if (_points.Count == 0 || rackId < 0 || rackId >= _clusterCount)
                 return;
 
@@ -98,18 +104,28 @@ namespace EssSimulator.DataExchange.Pipeline
                 }
 
                 string path = binding.ResolvePath(rackId);
-                if (!_simulation.Write(path, applied))
-                {
-                    _log.Warn($"Rack control write failed: {path} <= {applied}");
-                    continue;
-                }
-
+                string paramName = binding.ParamName;
+                int rack = rackId;
                 _shadow.CommitControl(shadowKey, applied);
-                if (_logControlChanges)
+                PlantControlMailbox.Submit(path, () =>
                 {
-                    _log.Info(
-                        $"[BMS-RackControl:change] {_serverName}.r{rackId}.{binding.ParamName}: -> {applied}");
-                }
+                    if (PlantControlMailbox.IsSuperseded(path))
+                        return;
+
+                    if (!_simulation.Write(path, applied))
+                    {
+                        if (!PlantControlMailbox.IsSuperseded(path))
+                            _shadow.CommitControl(shadowKey, previous);
+                        _log.Warn($"Rack control write failed: {path} <= {applied}");
+                        return;
+                    }
+
+                    if (_logControlChanges)
+                    {
+                        _log.Info(
+                            $"[BMS-RackControl:change] {_serverName}.r{rack}.{paramName}: -> {applied}");
+                    }
+                });
             }
         }
 

@@ -21,6 +21,11 @@ namespace EssSimulator.EssSimModelApi.Bms
         private const ushort BlackStartStatusEnterFailed = 4;
         private const ushort BlackStartStatusExited = 5;
 
+        // BatteryStack.SOC 为 0~1 标幺值（与电芯 CellState.SOC、点表 yc11 Scale=1000 一致）
+        private const float BlackStartMinSoc = 0.25f;
+        private const float BlackStartMaxCoolingSetpointC = 25f;
+        private const double VoltageEnergizedThresholdV = 1.0;
+
         private static readonly Dictionary<int, ushort> LastBlackStartCommand = new();
 
         public static void ApplyForChannel(int bmsIndex)
@@ -36,7 +41,8 @@ namespace EssSimulator.EssSimModelApi.Bms
             var stack = bmsData.BatteryStacks[0];
             var bms = ess._bmsRackDevices[bmsIndex];
             ApplyLinkLogic(bmsIndex, stack, bms, ess);
-            ApplyBlackStartLogic(bmsIndex, stack, bms, ess);
+            ApplyBlackStartLogic(bmsIndex, stack, bms, ess, bmsData);
+            ApplyFaultClearLogic(bmsIndex, stack, bms);
         }
 
         public static void ApplyAllChannels()
@@ -188,7 +194,8 @@ namespace EssSimulator.EssSimModelApi.Bms
             int bmsIndex,
             BatteryStack stack,
             BmsRackDevice bms,
-            EnergyStorageSystem ess)
+            EnergyStorageSystem ess,
+            BatteryManagementSystemData bmsData)
         {
             var label = BmsLabel(bmsIndex, bms);
             ushort cmd = stack.BlackStartCommand;
@@ -199,9 +206,52 @@ namespace EssSimulator.EssSimModelApi.Bms
 
             if (enterRequested)
             {
+                // 1. 220kV 母线电压检测（实际电压，非断路器位置）
                 if (Is220KvBusEnergized(ess))
+                {
                     FailBlackStartEnter(label, stack, "220kV母线带电");
-                else if (!stack.IsPcsLinked)
+                    return;
+                }
+
+                // 2. SOC 检测：总 SOC 须 ≥ 25%（SOC 为 0~1 标幺值）
+                if (!stack.SOC.HasValue || stack.SOC.Value < BlackStartMinSoc)
+                {
+                    FailBlackStartEnter(label, stack, $"系统SOC不足{BlackStartMinSoc * 100f:0}%");
+                    return;
+                }
+
+                // 3. 二级报警检测（一级保护忽略）
+                if (stack.BMSAlarmSummary > 0)
+                {
+                    FailBlackStartEnter(label, stack, $"存在二级报警=0x{stack.BMSAlarmSummary:X}");
+                    return;
+                }
+
+                // 4. 三级故障检测
+                if (stack.BMSFaultSummary > 0)
+                {
+                    FailBlackStartEnter(label, stack, $"存在三级故障=0x{stack.BMSFaultSummary:X}");
+                    return;
+                }
+
+                // 5. 储能单元 AC 侧电压检测：须为 0
+                int unitIndex = ess.UnitIndexOfPcs(bmsIndex);
+                double acVoltage = ess.GetUnitAcBusVoltage(unitIndex);
+                if (acVoltage > VoltageEnergizedThresholdV)
+                {
+                    FailBlackStartEnter(label, stack, $"储能单元AC侧带电（{acVoltage:F1}V）");
+                    return;
+                }
+
+                // 6. 空调检测：须已启动且制冷设定温度 < 25℃
+                if (!IsAirConditionerReady(bmsData))
+                {
+                    FailBlackStartEnter(label, stack, "空调未启动或制冷设定温度≥25℃");
+                    return;
+                }
+
+                // PCS 直流链路检测
+                if (!stack.IsPcsLinked)
                 {
                     AssignGridConnectStatus(label, stack, GridStatusRunning, "黑启动进入前需先并网");
                     if (!TryExecuteGridConnect(bmsIndex, stack, bms, ess, label))
@@ -279,13 +329,63 @@ namespace EssSimulator.EssSimModelApi.Bms
         }
 
         private static bool Is220KvBusEnergized(EnergyStorageSystem ess) =>
-            ess.IsMainBreakerClosed;
+            ess.PccLineVoltageV > VoltageEnergizedThresholdV;
+
+        private static bool IsAirConditionerReady(BatteryManagementSystemData bmsData)
+        {
+            if (bmsData?.AirConditioners == null || bmsData.AirConditioners.Count == 0)
+                return false;
+
+            var ac = bmsData.AirConditioners[0];
+            if (!ac.OnCommand.HasValue || !ac.OnCommand.Value)
+                return false;
+
+            if (!ac.CoolingSetpointCommand.HasValue ||
+                ac.CoolingSetpointCommand.Value >= BlackStartMaxCoolingSetpointC)
+                return false;
+
+            return true;
+        }
 
         private static void ClearConnectCommandPulse(BatteryStack stack) =>
             stack.GridConnectCommand = 0;
 
         private static void ClearBlackStartCommand(BatteryStack stack) =>
             stack.BlackStartCommand = 0;
+
+        /// <summary>一键复归脉冲处理：检测到 FaultClearCommand=1 时清除充放电方向故障，随后复位脉冲。</summary>
+        private static void ApplyFaultClearLogic(int bmsIndex, BatteryStack stack, BmsRackDevice bms)
+        {
+            if (stack.FaultClearCommand == 0)
+                return;
+
+            var label = BmsLabel(bmsIndex, bms);
+            ushort prevFaultSummary = stack.BMSFaultSummary;
+            var rackState = bms.Rack.GetRackState();
+            ushort prevRackFault = rackState?.IsFault ?? 0;
+
+            // 先复位脉冲，确保 ControlFeedbackPipeline 回写 0 到 Modbus
+            stack.FaultClearCommand = 0;
+
+            if (BmsFaultClearEngine.TryClearFaults(bmsIndex, out var message))
+            {
+                SimStateChangeLogger.BmsStateChanged(
+                    label,
+                    "FaultClear",
+                    $"BMSFaultSummary=0x{prevFaultSummary:X}, RackIsFault={SimStateChangeLogger.FormatRackFault(prevRackFault)}",
+                    "已清除充放电方向故障",
+                    "一键复归");
+            }
+            else
+            {
+                SimStateChangeLogger.BmsStateChanged(
+                    label,
+                    "FaultClear",
+                    $"BMSFaultSummary=0x{prevFaultSummary:X}, RackIsFault={SimStateChangeLogger.FormatRackFault(prevRackFault)}",
+                    $"清除失败：{message}",
+                    "一键复归");
+            }
+        }
 
         private static void SetLinked(
             EnergyStorageSystem ess,

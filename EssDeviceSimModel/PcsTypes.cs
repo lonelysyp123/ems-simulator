@@ -32,7 +32,9 @@ namespace EssSimulator.EssDeviceSimModel
         /// <summary>闭环调压：追踪设定，可因限流导致母线电压滞后。</summary>
         VoltageRegulating = 3,
         /// <summary>母线已达标，稳态构网。</summary>
-        Synchronized = 4
+        Synchronized = 4,
+        /// <summary>活母线上跟网（PQ），不注入 V/f 电压源。</summary>
+        Following = 5
     }
 
     public class PcsConfiguration
@@ -45,6 +47,15 @@ namespace EssSimulator.EssDeviceSimModel
         public double AcVoltageNominal { get; set; }
         public double FrequencyNominal { get; set; }
         public double MaxCurrent { get; set; }
+
+        // 暂态建模参数
+        public double TransientSubStepMs { get; set; } = 10;
+        public double VoltageControllerTauMs { get; set; } = 15;
+        public double InrushPeakMultiplier { get; set; } = 6.0;
+        public double InrushDecayTauMs { get; set; } = 300;
+        public double InrushTriggerVoltageFrac { get; set; } = 0.15;
+        public double DvDtTripThresholdVPerSec { get; set; } = 500;
+        public double DvDtRideThroughMs { get; set; } = 100;
     }
 
     public class PcsState
@@ -86,6 +97,14 @@ namespace EssSimulator.EssDeviceSimModel
         public double IslandVoltageEffectiveV { get; set; }
         public bool BlackStartEnabled { get; set; }
         public BlackStartPhase BlackStartPhase { get; set; }
+        public double FormingPhaseRad { get; set; }
+
+        // 暂态保护状态（模型内部，暂不映射到 EMU 协议）
+        public double DvDt { get; set; }              // 电压变化率(V/s)
+        public double InrushCurrentA { get; set; }     // 当前涌流电流(A)
+        public double InrushPeakA { get; set; }       // 本轮涌流峰值(A)
+        public ushort ProtectionFlags { get; set; }    // 保护标志位
+        // bit0=dV/dt越限, bit1=dV/dt跳闸, bit2=涌流激活, bit3=涌流过流
     }
 
     public class GridState

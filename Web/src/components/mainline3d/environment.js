@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { Z } from './layout.js'
 
 /** 程序化水泥/混凝土贴图（含噪点 + 模板缝） */
 function makeConcreteMaps(size = 512) {
@@ -217,17 +216,23 @@ function createStreetLamp(withLight = true) {
 }
 
 /**
- * 在设备区周围铺路面、绿化、路灯，并加远景虚化建筑
- * @param {{ busStartX: number, busEndX: number, unitXs: number[] }} layout
+ * 在设备区周围铺路面、绿化、路灯，并加远景虚化建筑。
+ * 范围取组态 3D 布局包围盒，不写死单元深度。
  */
 export function buildEnvironment(layout) {
   const root = new THREE.Group()
   root.name = 'station-environment'
 
-  const x0 = (layout.busStartX ?? 0) - 18
-  const x1 = (layout.busEndX ?? 20) + 18
+  const b = layout?.bounds || layout || {}
+  const x0 = (b.minX ?? b.busStartX ?? 0) - 18
+  const x1 = (b.maxX ?? b.busEndX ?? 20) + 18
+  const zMin = b.minZ ?? -22
+  const zMax = b.maxZ ?? 26
   const cx = (x0 + x1) / 2
   const width = Math.max(40, x1 - x0)
+  // 设备区纵深跨度自适应（方阵 1:1 后 z 范围显著增大，侧翼景物随之拉长）
+  const zMid = (zMin + zMax) / 2
+  const zSpan = Math.max(70, zMax - zMin + 30)
 
   const concreteMaps = makeConcreteMaps(512)
   if (concreteMaps.map) {
@@ -237,13 +242,13 @@ export function buildEnvironment(layout) {
   }
 
   // —— 设备区水泥地：与前方道路在 Z 向上严格错开，避免共面闪烁 ——
-  const roadZ = Z.bms + 10
+  const roadZ = zMax + 10
   const roadDepth = 7.5
   const roadHalf = roadDepth / 2
   const roadInnerZ = roadZ - roadHalf // 道路靠设备一侧边缘
   const gap = 0.6 // 垫层与道路之间的缝，放一条路缘
   const padFrontZ = roadInnerZ - gap
-  const padBackZ = Z.grid - 6
+  const padBackZ = zMin - 6
   const padDepth = Math.max(36, padFrontZ - padBackZ)
   const padCenterZ = (padFrontZ + padBackZ) / 2
   const padH = 0.1
@@ -277,12 +282,12 @@ export function buildEnvironment(layout) {
   curbB.position.set(cx, 0, roadZ + roadHalf + 0.2)
   root.add(curbB)
 
-  // —— 侧向联络道路 ——
-  const sideRoad = box(6.5, 0.08, 70, MAT.asphalt(), 0.03)
-  sideRoad.position.set(x0 - 10, 0, 4)
+  // —— 侧向联络道路（草坪带外侧，与草坪严格不重叠）——
+  const sideRoad = box(6.5, 0.08, zSpan, MAT.asphalt(), 0.03)
+  sideRoad.position.set(x0 - 14.25, 0, zMid)
   root.add(sideRoad)
-  const sideRoad2 = box(6.5, 0.08, 70, MAT.asphalt(), 0.03)
-  sideRoad2.position.set(x1 + 10, 0, 4)
+  const sideRoad2 = box(6.5, 0.08, zSpan, MAT.asphalt(), 0.03)
+  sideRoad2.position.set(x1 + 14.25, 0, zMid)
   root.add(sideRoad2)
 
   // —— 绿化带（道路外侧 + 储能区侧翼）——
@@ -291,15 +296,15 @@ export function buildEnvironment(layout) {
   strip.receiveShadow = true
   root.add(strip)
   const stripBack = box(width + 20, 0.06, 8, MAT.grassDark(), 0.02)
-  stripBack.position.set(cx, 0, Z.grid - 14)
+  stripBack.position.set(cx, 0, zMin - 14)
   root.add(stripBack)
 
-  // 储能区两侧草坪带（增强绿化包围感）
-  const sideGrassL = box(7, 0.05, 52, MAT.grassLight(), 0.02)
-  sideGrassL.position.set(x0 - 5.5, 0, 8)
+  // 储能区两侧草坪带（设备垫与侧路之间，增强绿化包围感）
+  const sideGrassL = box(7, 0.05, zSpan - 16, MAT.grassLight(), 0.02)
+  sideGrassL.position.set(x0 - 7.5, 0, zMid)
   root.add(sideGrassL)
-  const sideGrassR = box(7, 0.05, 52, MAT.grass(), 0.02)
-  sideGrassR.position.set(x1 + 5.5, 0, 8)
+  const sideGrassR = box(7, 0.05, zSpan - 16, MAT.grass(), 0.02)
+  sideGrassR.position.set(x1 + 7.5, 0, zMid)
   root.add(sideGrassR)
 
   // 绿篱（道路侧 + 侧翼矮篱）
@@ -307,11 +312,11 @@ export function buildEnvironment(layout) {
   const hedge = box(hedgeLen, 1.1, 0.7, MAT.hedge(), 0.55)
   hedge.position.set(cx, 0, roadZ + 5.2)
   root.add(hedge)
-  const hedgeSideL = box(0.55, 0.85, 36, MAT.hedge(), 0.42)
-  hedgeSideL.position.set(x0 - 3.2, 0, 10)
+  const hedgeSideL = box(0.55, 0.85, zSpan - 24, MAT.hedge(), 0.42)
+  hedgeSideL.position.set(x0 - 3.2, 0, zMid)
   root.add(hedgeSideL)
-  const hedgeSideR = box(0.55, 0.85, 36, MAT.hedge(), 0.42)
-  hedgeSideR.position.set(x1 + 3.2, 0, 10)
+  const hedgeSideR = box(0.55, 0.85, zSpan - 24, MAT.hedge(), 0.42)
+  hedgeSideR.position.set(x1 + 3.2, 0, zMid)
   root.add(hedgeSideR)
 
   // 树木沿道路外侧（加密）
@@ -333,12 +338,12 @@ export function buildEnvironment(layout) {
   // BMS 舱前绿化点缀
   for (let x = x0 + 2; x <= x1 - 2; x += 9) {
     const bush = createBush(0.65 + (Math.abs(x) % 3) * 0.08)
-    bush.position.set(x, 0, Z.bms + 5.5)
+    bush.position.set(x, 0, zMax + 5.5)
     root.add(bush)
   }
 
   // 侧翼乔木 + 灌木丛
-  for (let z = Z.grid; z <= Z.bms + 4; z += 12) {
+  for (let z = zMin; z <= zMax + 4; z += 12) {
     const treeL = createTree(0.95, 1)
     treeL.position.set(x0 - 7, 0, z)
     root.add(treeL)
@@ -356,7 +361,7 @@ export function buildEnvironment(layout) {
   // 电网侧零星树木
   for (let x = x0; x <= x1; x += 14) {
     const tree = createTree(1.05, Math.abs(Math.round(x)) % 3)
-    tree.position.set(x + 2, 0, Z.grid - 18)
+    tree.position.set(x + 2, 0, zMin - 18)
     root.add(tree)
   }
 
@@ -386,24 +391,6 @@ export function buildEnvironment(layout) {
     root.add(post)
   }
 
-  // —— 远景虚化建筑（电站周边厂房感，更淡以配合雾效）——
-  const farBuildings = [
-    { x: cx - width * 0.55, z: -55, w: 28, h: 14, d: 12, far: true },
-    { x: cx + width * 0.4, z: -62, w: 36, h: 18, d: 14, far: true },
-    { x: cx - 8, z: 58, w: 42, h: 12, d: 16, far: false },
-    { x: cx + width * 0.6, z: 52, w: 24, h: 16, d: 10, far: false },
-    { x: cx - width * 0.7, z: 48, w: 30, h: 10, d: 12, far: true },
-    { x: x0 - 40, z: 10, w: 18, h: 22, d: 18, far: true },
-    { x: x1 + 42, z: -5, w: 20, h: 20, d: 16, far: true }
-  ]
-  for (const b of farBuildings) {
-    const mat = b.far ? MAT.buildingFar() : MAT.building()
-    const mesh = box(b.w, b.h, b.d, mat, b.h / 2)
-    mesh.position.set(b.x, 0, b.z)
-    mesh.castShadow = false
-    root.add(mesh)
-  }
-
   // —— 天空穹顶（淡色渐变感，配合雾效虚化远景）——
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(420, 24, 16),
@@ -417,33 +404,8 @@ export function buildEnvironment(layout) {
   sky.position.set(cx, 0, 4)
   root.add(sky)
 
-  // 地平线雾环（半透明带，增强远处模糊）
-  const haze = new THREE.Mesh(
-    new THREE.CylinderGeometry(140, 190, 36, 32, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0x9aabbc,
-      transparent: true,
-      opacity: 0.38,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    })
-  )
-  haze.position.set(cx, 12, 4)
-  root.add(haze)
-
-  // 外圈更淡的雾层
-  const hazeOuter = new THREE.Mesh(
-    new THREE.CylinderGeometry(200, 260, 48, 28, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0xa8b8c8,
-      transparent: true,
-      opacity: 0.2,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    })
-  )
-  hazeOuter.position.set(cx, 14, 4)
-  root.add(hazeOuter)
+  // 远景虚化由场景自适应雾效（SceneController._adaptSceneExtent）负责，
+  // 不再使用固定半径雾环——场站扩大后固定半径雾环会圈进场站内部形成白色圆环。
 
   root.userData.center = { x: cx, z: 4 }
   root.userData.width = width

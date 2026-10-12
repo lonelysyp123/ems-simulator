@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: web_frontend_backend/backend_droop_slices
+title: 下垂调压白盒切片采集与存储
+scope:
+    - Web/DroopSlices/
+source_files: []
+depends_on: []
+related_to: []

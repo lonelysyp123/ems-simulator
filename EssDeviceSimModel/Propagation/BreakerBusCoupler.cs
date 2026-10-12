@@ -34,7 +34,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             PropagationPortBinding.SetAcVoltageInput(
                 _breaker.Primary, args.LineVoltageV, ThreePhaseConnection.Star);
 
-            var secondaryCurrent = _resolveSecondaryCurrent(args.Sweep);
+            var secondaryCurrent = _breaker.ReferToRated(_resolveSecondaryCurrent(args.Sweep));
             PropagationPortBinding.SetAcQuantitiesInput(_breaker.Secondary, secondaryCurrent);
 
             _breaker.Step(args.Sweep.DeviceContext, args.Sweep.Step);

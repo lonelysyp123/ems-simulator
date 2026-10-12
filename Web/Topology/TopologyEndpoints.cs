@@ -28,6 +28,8 @@ namespace EssSimulator.Web.Topology
             {
                 if (project == null)
                     return Results.BadRequest(new { message = "工程体为空" });
+                if (Mw300EssStation.IsThis(project.Id))
+                    return Results.BadRequest(new { message = Mw300EssStation.LockedMessage });
                 var validation = TopologyValidator.ValidateProjectForSave(project);
                 if (!validation.Ok)
                 {
@@ -37,7 +39,10 @@ namespace EssSimulator.Web.Topology
                         validation
                     });
                 }
-                return Results.Ok(store.SaveProject(project));
+                var saved = store.SaveProject(project);
+                // 按 PCS 总数自动选型 LC 点表（随下次重启生效）
+                LcPointMapAutoSelect.ApplyForProject(saved);
+                return Results.Ok(saved);
             });
 
             g.MapPost("/validate", (TopologyProject project) =>
@@ -92,11 +97,15 @@ namespace EssSimulator.Web.Topology
             {
                 try
                 {
-                    var emuCount = body?.EmuCount ?? 1;
+                    var emuCount = body?.EmuCount ?? 0;
+                    var pvCount = body?.PvCount ?? 0;
+                    if (emuCount == 0 && pvCount == 0)
+                        emuCount = 1;
                     var project = TopologyScaffold.BuildRadial(
                         emuCount,
                         body?.Name,
-                        body?.IncludeLoad ?? true);
+                        body?.IncludeLoad ?? true,
+                        pvCount);
                     return Results.Ok(project);
                 }
                 catch (ArgumentOutOfRangeException ex)
@@ -150,7 +159,8 @@ namespace EssSimulator.Web.Topology
                 projects = "configs/topology/projects"
             }));
 
-            g.MapGet("/projects", (TopologyStore store) => Results.Ok(store.ListProjects()));
+            g.MapGet("/projects", (TopologyStore store) =>
+                Results.Ok(Mw300EssStation.WithBuiltin(store.ListProjects())));
 
             // 静态路径须注册在 {id} 之前，避免被当成 id
             g.MapGet("/projects/check-name", (string name, string? excludeId, TopologyStore store) =>
@@ -168,6 +178,8 @@ namespace EssSimulator.Web.Topology
 
             g.MapGet("/projects/{id}", (string id, TopologyStore store) =>
             {
+                if (Mw300EssStation.IsThis(id))
+                    return Results.BadRequest(new { message = Mw300EssStation.LockedMessage });
                 var p = store.LoadNamedProject(id);
                 return p == null
                     ? Results.NotFound(new { message = "工程不存在" })
@@ -176,14 +188,33 @@ namespace EssSimulator.Web.Topology
 
             g.MapPost("/projects/{id}/open", (string id, TopologyStore store) =>
             {
+                if (Mw300EssStation.IsThis(id))
+                    return Results.BadRequest(new { message = Mw300EssStation.LockedMessage });
                 var p = store.OpenNamedProject(id);
                 return p == null
                     ? Results.NotFound(new { message = "工程不存在" })
                     : Results.Ok(p);
             });
 
+            g.MapPost("/projects/{id}/copy", (string id, TopologyStore store, CopyProjectRequest? body) =>
+            {
+                if (Mw300EssStation.IsThis(id))
+                    return Results.BadRequest(new { message = Mw300EssStation.LockedMessage });
+                try
+                {
+                    var p = store.CopyNamedProject(id, body?.Name);
+                    return Results.Ok(p);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.NotFound(new { message = ex.Message });
+                }
+            });
+
             g.MapDelete("/projects/{id}", (string id, TopologyStore store) =>
-                store.DeleteNamedProject(id)
+                Mw300EssStation.IsThis(id)
+                    ? Results.BadRequest(new { message = Mw300EssStation.LockedMessage })
+                    : store.DeleteNamedProject(id)
                     ? Results.Ok(new { ok = true })
                     : Results.NotFound(new { message = "工程不存在" }));
 
@@ -206,6 +237,11 @@ namespace EssSimulator.Web.Topology
     }
 
     public sealed class CreateProjectRequest
+    {
+        public string? Name { get; set; }
+    }
+
+    public sealed class CopyProjectRequest
     {
         public string? Name { get; set; }
     }

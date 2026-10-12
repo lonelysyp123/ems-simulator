@@ -57,6 +57,22 @@ public class PcsDisplayLabelsTests
     }
 
     [Fact]
+    public void MapPcsState_BatteryPower_IsKilowatts()
+    {
+        var src = new PcsState
+        {
+            DcVoltage = 1350,
+            DcCurrent = 40,
+            ActivePower = 50
+        };
+        var dst = new PcsData();
+
+        PcsMapper.MapPcsState(src, dst, null!);
+
+        Assert.Equal(54f, dst.BatteryPower, precision: 3);
+    }
+
+    [Fact]
     public void MapEmuState_SumsPcsActiveAndReactivePower()
     {
         var emu = new EnergyManagementData();
@@ -68,6 +84,37 @@ public class PcsDisplayLabelsTests
         Assert.Equal(150f, emu.Emu.OutputActivePower);
         Assert.Equal(10f, emu.Emu.OutputReactivePower);
         Assert.Equal(5, emu.Emu.OperationStatus);
+    }
+
+    [Fact]
+    public void MapElectricityMeterState_FollowsPcsBusbarAndEmuAggregates()
+    {
+        var emu = new EnergyManagementData();
+        emu.PcsList.Add(new PcsData { LineVoltageAB = 690f, Frequency = 50f, PhaseACurrent = 100f, PhaseBCurrent = 101f, PhaseCCurrent = 99f });
+        emu.PcsList.Add(new PcsData { LineVoltageAB = 692f, Frequency = 50f, PhaseACurrent = 90f, PhaseBCurrent = 91f, PhaseCCurrent = 89f });
+        emu.Emu.OutputActivePower = 1200f;
+        emu.Emu.OutputReactivePower = 900f;
+
+        PcsMapper.MapElectricityMeterState(emu);
+
+        var meter = emu.ElectricityMeter;
+        Assert.Equal(691f, meter.LineVoltageAB, 0.1f);   // 母线线电压取 PCS 均值
+        Assert.Equal(691f, meter.LineVoltageCA, 0.1f);
+        Assert.Equal(691f / MathF.Sqrt(3), meter.PhaseAVoltage, 0.1f);
+        Assert.Equal(50f, meter.Frequency);
+        Assert.Equal(190f, meter.PhaseACurrent);          // 相电流按 PCS 求和
+        Assert.Equal(1200f, meter.TotalActivePower);      // 功率取 EMU 聚合值
+        Assert.Equal(1500f, meter.TotalApparentPower, 0.1f);
+        Assert.Equal(0.8f, meter.PowerFactor, 0.001f);
+    }
+
+    [Fact]
+    public void BreakerMirror_ClosedAaEe_FollowsClosedState()
+    {
+        var breaker = new BreakerMirrorData();
+        Assert.Equal(0xAA, breaker.ClosedAaEe);   // 缺省合闸 → AA 动作
+        breaker.Closed = 0;
+        Assert.Equal(0xEE, breaker.ClosedAaEe);   // 分闸 → EE 复归
     }
 
     [Fact]

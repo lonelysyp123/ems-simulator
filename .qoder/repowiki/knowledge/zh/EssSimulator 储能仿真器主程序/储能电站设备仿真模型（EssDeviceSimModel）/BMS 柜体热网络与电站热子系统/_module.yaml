@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model/thermal_domain
+title: BMS 柜体热网络与电站热子系统
+scope:
+    - EssDeviceSimModel/Thermal/
+source_files: []
+depends_on: []
+related_to: []

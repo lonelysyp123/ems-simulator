@@ -1,5 +1,7 @@
 using EssSimulator.Configuration;
 using EssSimulator.Core;
+using EssSimulator.DataExchange.Config;
+using EssSimulator.Protocol.Modbus;
 using log4net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -14,13 +16,17 @@ namespace EssSimulator.LocalControl
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(LocalControlHostedService));
         private readonly SimulatorConfig _cfg;
+        private readonly DataExchangeOptions _dataExchange;
         private readonly List<LocalControlModbusServer> _servers = new();
-        private readonly LocalControlBridgeEngine _bridge;
+        private readonly LcRuntimeBase _runtime;
 
-        public LocalControlHostedService(IOptions<SimulatorConfig> simOptions)
+        public LocalControlHostedService(
+            IOptions<SimulatorConfig> simOptions,
+            IOptions<DataExchangeOptions> dataExchangeOptions)
         {
             _cfg = simOptions.Value;
-            _bridge = new LocalControlBridgeEngine(Log);
+            _dataExchange = dataExchangeOptions.Value;
+            _runtime = LcRuntimeFactory.Create(Log);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,8 +38,7 @@ namespace EssSimulator.LocalControl
             if (_servers.Count == 0)
                 return;
 
-            int emuPerGroup = Math.Max(1, _cfg.Protocol.LocalControlEmuPerGroup);
-            int emuCount = Math.Max(1, _cfg.Devices?.Count ?? 1);
+            int emuCount = _cfg.EffectiveEssUnitCount;
             var store = SimulatorHost.Instance;
 
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
@@ -44,7 +49,7 @@ namespace EssSimulator.LocalControl
                     var lc = _servers[lcIdx];
                     try
                     {
-                        _bridge.RunCycle(store.Get<ModbusSimServer>, lc, lcIdx, emuPerGroup, emuCount);
+                        _runtime.RunCycle(store.Get<ModbusSimServer>, lc, lcIdx, emuPerGroup: 1, emuCount);
                     }
                     catch (Exception ex)
                     {
@@ -58,7 +63,11 @@ namespace EssSimulator.LocalControl
         {
             foreach (var server in _servers)
             {
-                try { server.Stop(); }
+                try
+                {
+                    if (server.IsOnline)
+                        server.Stop();
+                }
                 catch (Exception ex) { Log.Warn("关闭 LocalControl Modbus 服务时异常", ex); }
             }
 
@@ -69,14 +78,16 @@ namespace EssSimulator.LocalControl
         private async Task StartServersWhenEmuReadyAsync(CancellationToken stoppingToken)
         {
             var store = SimulatorHost.Instance;
-            int emuPerGroup = Math.Max(1, _cfg.Protocol.LocalControlEmuPerGroup);
-            int emuCount = Math.Max(1, _cfg.Devices?.Count ?? 1);
-            int lcCount = (int)Math.Ceiling(emuCount / (double)emuPerGroup);
+            int emuCount = _cfg.EffectiveEssUnitCount;
+            if (emuCount <= 0)
+                return;
+
+            int lcCount = emuCount;
 
             for (int attempt = 0; attempt < 120 && !stoppingToken.IsCancellationRequested; attempt++)
             {
                 var emu = store.Get<ModbusSimServer>("simEmu1");
-                if (emu != null && emu.IsOnline)
+                if (emu != null && emu.IsDataPathReady)
                     break;
 
                 await Task.Delay(500, stoppingToken);
@@ -84,14 +95,21 @@ namespace EssSimulator.LocalControl
 
             for (int i = 0; i < lcCount; i++)
             {
-                int port = _cfg.Protocol.BaseLocalControlModbusPort + i * _cfg.Protocol.LocalControlPortStep;
                 string name = $"simLc{i + 1}";
-                var server = new LocalControlModbusServer("lc.csv", port, name);
+                int firstEmuId = i + 1;
+                int groupCount = LcLayout.ExpandGroupCountForUnit(_cfg, i);
+                var server = new LocalControlModbusServer(
+                    groupCount, 0, name, firstEmuId,
+                    essUnits: _cfg.ResolveEssUnitsOrFallback(),
+                    dataExchangeOptions: _dataExchange);
                 store.Register(name, server);
-                server.Start();
-                SimServer.serverListenInfo[name] = $"Modbus TCP 端口 {port}（LC 转发）";
+                // 由协议层管理器按端口计划分配端口/从站号并启动（可与其它设备共享端口）
+                var report = ProtocolLayerManager.Instance.RegisterAndStart(server, ProtocolDeviceType.Lc, "lc.csv");
                 _servers.Add(server);
-                Log.Info($"[LocalControl] {name} 已启动，端口 {port}");
+                if (server.IsOnline)
+                    Log.Info($"[LocalControl] {name} 已启动，端口 {server.Port}（从站号 {server.SlaveId}），runtime={_runtime.GetType().Name}");
+                else
+                    Log.Error($"[LocalControl] {name} 启动失败：{string.Join("；", report.Errors)}");
             }
         }
     }

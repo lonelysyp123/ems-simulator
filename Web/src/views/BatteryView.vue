@@ -45,7 +45,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
-import { getBattery, getConfig, getHub } from '@/services/api.js'
+import { getBattery, getConfig, joinHubChannel, leaveHubChannel, onHubMethod, offHubMethod } from '@/services/api.js'
 import { RealtimeMethods, RealtimeChannels } from '@/services/constants.js'
 
 const unitNumber = ref(1)
@@ -53,7 +53,6 @@ const unitCount = ref(1)
 const data = ref(null)
 const chartEl = ref(null)
 let chart = null
-let hub = null
 
 async function reload() {
   try { data.value = await getBattery(unitNumber.value) } catch (e) { console.warn(e) }
@@ -82,12 +81,10 @@ function renderChart() {
 }
 
 async function joinGroup(n) {
-  if (!hub) return
-  try { await hub.invoke('JoinChannel', `${RealtimeChannels.Battery}.${n}`) } catch { /* ignore */ }
+  await joinHubChannel(`${RealtimeChannels.Battery}.${n}`)
 }
 async function leaveGroup(n) {
-  if (!hub) return
-  try { await hub.invoke('LeaveChannel', `${RealtimeChannels.Battery}.${n}`) } catch { /* ignore */ }
+  await leaveHubChannel(`${RealtimeChannels.Battery}.${n}`)
 }
 
 function onReceiveBattery(d) {
@@ -116,17 +113,14 @@ onMounted(async () => {
   } catch { /* ignore */ }
   await reload()
   try {
-    hub = await getHub()
-    hub.on(RealtimeMethods.ReceiveBattery, onReceiveBattery)
+    onHubMethod(RealtimeMethods.ReceiveBattery, onReceiveBattery)
     await joinGroup(unitNumber.value)
   } catch { /* ignore */ }
 })
 
 onBeforeUnmount(() => {
   if (chart) { chart.dispose(); chart = null }
-  if (hub) {
-    hub.off(RealtimeMethods.ReceiveBattery, onReceiveBattery)
-    leaveGroup(unitNumber.value)
-  }
+  offHubMethod(RealtimeMethods.ReceiveBattery, onReceiveBattery)
+  leaveGroup(unitNumber.value)
 })
 </script>

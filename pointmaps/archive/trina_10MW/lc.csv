@@ -1,0 +1,173 @@
+FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
+4,104,u16,16,sysyc104,10,SYSTEM-系统SOC(0.001;标幺),model=4|arg1=emuDeviceId.Emu.AverageBatterySoc|arg2=|arg3=|arg4=10
+4,105,u16,16,sysyc105,10,SYSTEM-系统SOH(0.001;标幺),0
+4,106,u16,16,sysyc106,1,SYSTEM-系统总状态详细版(0初始化1停机2启动中3运行中4待机),0
+4,107,u16,16,sysyc107,1,SYSTEM-系统故障总(0正常1故障;统计全部机组所有PCS模块告警),model=plugin|arg1=SystemFaultSummary|arg2=emuDeviceId
+4,108,u16,16,sysyc108,1,SYSTEM-系统总状态精简版(1停机3运行中5故障6告警;待机按运行中),model=plugin|arg1=SystemRunStateSummary|arg2=emuDeviceId
+4,109,u32,32,sysyc109,10,SYSTEM-允许充电电量(0.1kWh),0
+4,111,u32,32,sysyc111,10,SYSTEM-允许放电电量(0.1kWh),0
+4,113,u32,32,sysyc113,10,SYSTEM-允许充电功率(0.1kW),model=4|arg1=emuDeviceId.Emu.MaxChargePower|arg2=|arg3=|arg4=10
+4,115,u32,32,sysyc115,10,SYSTEM-允许放电功率(0.1kW),model=4|arg1=emuDeviceId.Emu.MaxDischargePower|arg2=|arg3=|arg4=10
+4,121,u16,16,sysyc121,1,SYSTEM-PCS状态汇总(0初始1关闭2待机3运行),0
+4,122,int16,16,sysyc122,10000,SYSTEM-功率因数(0.0001),model=4|arg1=emuDeviceId.PcsList[0].PowerFactor|arg2=|arg3=|arg4=10000
+4,123,int32,32,sysyc123,10,SYSTEM-视在功率(0.1kVA),model=sum|arg1=emuDeviceId.PcsList[0].ApparentPower;emuDeviceId.PcsList[1].ApparentPower;emuDeviceId.PcsList[2].ApparentPower;emuDeviceId.PcsList[3].ApparentPower;emuDeviceId.PcsList[4].ApparentPower;emuDeviceId.PcsList[5].ApparentPower;emuDeviceId.PcsList[6].ApparentPower;emuDeviceId.PcsList[7].ApparentPower|arg2=|arg3=|arg4=10
+4,125,int32,32,sysyc125,10,SYSTEM-有功功率(0.1kW),model=4|arg1=emuDeviceId.Emu.OutputActivePower|arg2=|arg3=|arg4=10
+4,127,int32,32,sysyc127,10,SYSTEM-无功功率(0.1kVar),model=4|arg1=emuDeviceId.Emu.OutputReactivePower|arg2=|arg3=|arg4=10
+4,129,u32,32,sysyc129,100,SYSTEM-交流侧频率(0.01Hz),model=4|arg1=emuDeviceId.PcsList[0].Frequency|arg2=|arg3=|arg4=100
+4,131,int32,32,sysyc131,10,SYSTEM-直流侧功率(0.1kW),model=sum|arg1=emuDeviceId.PcsList[0].BatteryPower;emuDeviceId.PcsList[1].BatteryPower;emuDeviceId.PcsList[2].BatteryPower;emuDeviceId.PcsList[3].BatteryPower;emuDeviceId.PcsList[4].BatteryPower;emuDeviceId.PcsList[5].BatteryPower;emuDeviceId.PcsList[6].BatteryPower;emuDeviceId.PcsList[7].BatteryPower|arg2=|arg3=|arg4=10
+4,133,int32,32,sysyc133,10,SYSTEM-直流侧电流(0.1A),model=sum|arg1=emuDeviceId.PcsList[0].BatteryCurrent;emuDeviceId.PcsList[1].BatteryCurrent;emuDeviceId.PcsList[2].BatteryCurrent;emuDeviceId.PcsList[3].BatteryCurrent;emuDeviceId.PcsList[4].BatteryCurrent;emuDeviceId.PcsList[5].BatteryCurrent;emuDeviceId.PcsList[6].BatteryCurrent;emuDeviceId.PcsList[7].BatteryCurrent|arg2=|arg3=|arg4=10
+4,135,u32,32,sysyc135,10,SYSTEM-直流侧平均电压(0.1V),model=4|arg1=emuDeviceId.PcsList[0].BatteryVoltage|arg2=|arg3=|arg4=10
+4,141,u32,32,sysyc141,10,SYSTEM-直流侧总充电电量(0.1kWh),0
+4,143,u32,32,sysyc143,10,SYSTEM-直流侧总放电电量(0.1kWh),0
+4,149,u32,32,sysyc149,10,SYSTEM-交流侧总充电有功电量(0.1kWh),0
+4,151,u32,32,sysyc151,10,SYSTEM-交流侧总放电有功电量(0.1kWh),0
+4,165,u32,32,sysyc165,10,SYSTEM-交流侧总容性无功电量(0.1kVarh),0
+4,167,u32,32,sysyc167,10,SYSTEM-交流侧总感性无功电量(0.1kVarh),0
+4,170,u16,16,sysyc170,1,SYSTEM-黑启动模式(0非电压源1电压源;单元内全部PCS开启才算启动),model=plugin|arg1=UnitBlackStartStatus|arg2=emuDeviceId
+4,171,u16,16,sysyc171,1,SYSTEM-高压开关状态(AA动作EE复归),model=4|arg1=emuDeviceId.Breaker.ClosedAaEe|arg2=|arg3=|arg4=1
+4,200,u16,16,sysyc200,1,SYSTEM-PCS数量(单元内PCS总台数),model=plugin|arg1=UnitPcsTotalCount|arg2=emuDeviceId
+4,201,u16,16,sysyc201,1,SYSTEM-运行PCS数量(单元内待机/充电/放电台数;待机按运行),model=plugin|arg1=UnitPcsRunningCount|arg2=emuDeviceId
+4,202,u16,16,sysyc202,1,SYSTEM-告警PCS数量(单元内非故障且告警汇总非零台数),model=plugin|arg1=UnitPcsAlarmCount|arg2=emuDeviceId
+4,203,u16,16,sysyc203,1,SYSTEM-故障PCS数量(单元内故障台数),model=plugin|arg1=UnitPcsFaultCount|arg2=emuDeviceId
+4,204,u16,16,sysyc204,1,SYSTEM-BMS数量,0
+4,205,u16,16,sysyc205,1,SYSTEM-运行BMS数量,0
+4,206,u16,16,sysyc206,1,SYSTEM-告警BMS数量,0
+4,207,u16,16,sysyc207,1,SYSTEM-故障BMS数量,0
+4,218,u16,16,sysyc218,1,SYSTEM-状态字1(一体机PCS通讯状态Bit0~15对应#1~#16PCS;1已连接),0
+4,219,u16,16,sysyc219,1,SYSTEM-状态字2(Bit8测控设备通讯;Bit9 UPS485通讯;Bit10 EMS通讯;1已连接),0
+4,220,u16,16,sysyc220,1,SYSTEM-状态字3(BMS通讯状态Bit0~9对应#1~#10BMS;1已连接),0
+4,221,u16,16,sysyc221,1,SYSTEM-状态字4(PCS组状态Bit0~15对应#1~#16组;1故障),0
+4,222,u16,16,sysyc222,1,SYSTEM-状态字5(PCS组状态Bit0~7对应#17~#24组;1故障),0
+4,223,u16,16,sysyc223,1,SYSTEM-状态字6(PCS软件版本校验字;0正常1异常),0
+4,224,u16,16,sysyc224,1,SYSTEM-状态字7(PCS安规标准校验字;0正常1异常),0
+4,225,u16,16,sysyc225,1,SYSTEM-状态字8(PCS模式校验字:总线模式/并离网/运行模式/主从机;0正常1异常),0
+4,226,u16,16,sysyc226,1,SYSTEM-状态字9(保留),0
+4,227,u16,16,sysyc227,1,SYSTEM-状态字10(保留),0
+4,228,u16,16,sysyc228,1,SYSTEM-状态字11(5.5MW一体机PCS通讯状态Bit0~1对应#1~#2PCS;1已连接),0
+4,2600,int16,16,yc0,1,10MW PCS1-模块1电池电压,model=4|arg1=emuDeviceId.PcsList[0].BatteryVoltage|arg2=|arg3=|arg4=1
+4,2601,int16,16,yc1,1,10MW PCS1-模块1电池电流,model=4|arg1=emuDeviceId.PcsList[0].BatteryCurrent|arg2=|arg3=|arg4=1
+4,2602,int16,16,yc2,1,10MW PCS1-模块1母线电压,0
+4,2603,u16,16,yc3,1,10MW PCS1-模块1电感电流 R,model=4|arg1=emuDeviceId.PcsList[0].PhaseACurrent|arg2=|arg3=|arg4=1
+4,2604,u16,16,yc4,1,10MW PCS1-模块1电感电流 S,model=4|arg1=emuDeviceId.PcsList[0].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,2605,u16,16,yc5,1,10MW PCS1-模块1电感电流 T,model=4|arg1=emuDeviceId.PcsList[0].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,2606,int16,16,yc6,1,10MW PCS1-模块2电池电压,model=4|arg1=emuDeviceId.PcsList[1].BatteryVoltage|arg2=|arg3=|arg4=1
+4,2607,int16,16,yc7,1,10MW PCS1-模块2电池电流,model=4|arg1=emuDeviceId.PcsList[1].BatteryCurrent|arg2=|arg3=|arg4=1
+4,2608,int16,16,yc8,1,10MW PCS1-模块2母线电压,0
+4,2609,u16,16,yc9,1,10MW PCS1-模块2电感电流 R,model=4|arg1=emuDeviceId.PcsList[1].PhaseACurrent|arg2=|arg3=|arg4=1
+4,2610,u16,16,yc10,1,10MW PCS1-模块2电感电流 S,model=4|arg1=emuDeviceId.PcsList[1].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,2611,u16,16,yc11,1,10MW PCS1-模块2电感电流 T,model=4|arg1=emuDeviceId.PcsList[1].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,2612,u16,16,yc12,1,10MW PCS1-交流电流 R,model=4|arg1=emuDeviceId.Groups[0].Meters[0].PhaseACurrent|arg3=|arg4=1
+4,2613,u16,16,yc13,1,10MW PCS1-交流电流 S,model=4|arg1=emuDeviceId.Groups[0].Meters[0].PhaseBCurrent|arg3=|arg4=1
+4,2614,u16,16,yc14,1,10MW PCS1-交流电流 T,model=4|arg1=emuDeviceId.Groups[0].Meters[0].PhaseCCurrent|arg3=|arg4=1
+4,2615,int16,16,yc15,1,10MW PCS1-电池总功率,model=sum|arg1=emuDeviceId.PcsList[0].BatteryPower|arg2=emuDeviceId.PcsList[1].BatteryPower|arg3=|arg4=1
+4,2616,int16,16,yc16,1,10MW PCS1-电池1 功率,model=4|arg1=emuDeviceId.PcsList[0].BatteryPower|arg2=|arg3=|arg4=1
+4,2617,int16,16,yc17,1,10MW PCS1-电池2 功率,model=4|arg1=emuDeviceId.PcsList[1].BatteryPower|arg2=|arg3=|arg4=1
+4,2618,int16,16,yc18,1,10MW PCS1-电网有功功率,model=4|arg1=emuDeviceId.Groups[0].Meters[0].TotalActivePower|arg3=|arg4=1
+4,2619,int16,16,yc19,1,10MW PCS1-电网无功功率,model=4|arg1=emuDeviceId.Groups[0].Meters[0].TotalReactivePower|arg3=|arg4=1
+4,2620,u16,16,yc20,1,10MW PCS1-电网电压 RS,model=4|arg1=emuDeviceId.Groups[0].Meters[0].LineVoltageAB|arg3=|arg4=1
+4,2621,u16,16,yc21,1,10MW PCS1-电网电压 ST,model=4|arg1=emuDeviceId.Groups[0].Meters[0].LineVoltageBC|arg3=|arg4=1
+4,2622,u16,16,yc22,1,10MW PCS1-电网电压 TR,model=4|arg1=emuDeviceId.Groups[0].Meters[0].LineVoltageCA|arg3=|arg4=1
+4,2623,int16,16,yc23,10,10MW PCS1-PCS 过温降载NTC,model=max|arg1=emuDeviceId.PcsList[0].IGBTMaxTemp|arg2=emuDeviceId.PcsList[1].IGBTMaxTemp|arg3=|arg4=10
+4,2624,u16,16,yc24,1,10MW PCS1-PCS 可用容量,model=sum|arg1=emuDeviceId.PcsList[0].AvailableCapacity|arg2=emuDeviceId.PcsList[1].AvailableCapacity|arg3=|arg4=1
+4,2625,u16,16,yc25,1,10MW PCS1-PCS 额定容量,model=sum|arg1=emuDeviceId.PcsList[0].PCSRatePower|arg2=emuDeviceId.PcsList[1].PCSRatePower|arg3=|arg4=1
+4,2831,u16,16,yc199,1,10MW PCS1-模块1 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[0]
+4,2832,u16,16,yc200,1,10MW PCS1-模块1 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[0]
+4,2845,u16,16,yc202,1,10MW PCS1-模块2 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[1]
+4,2846,u16,16,yc203,1,10MW PCS1-模块2 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[1]
+4,2900,int16,16,yc204,1,10MW PCS2-模块1电池电压,model=4|arg1=emuDeviceId.PcsList[2].BatteryVoltage|arg2=|arg3=|arg4=1
+4,2901,int16,16,yc205,1,10MW PCS2-模块1电池电流,model=4|arg1=emuDeviceId.PcsList[2].BatteryCurrent|arg2=|arg3=|arg4=1
+4,2902,int16,16,yc206,1,10MW PCS2-模块1母线电压,0
+4,2903,u16,16,yc207,1,10MW PCS2-模块1电感电流 R,model=4|arg1=emuDeviceId.PcsList[2].PhaseACurrent|arg2=|arg3=|arg4=1
+4,2904,u16,16,yc208,1,10MW PCS2-模块1电感电流 S,model=4|arg1=emuDeviceId.PcsList[2].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,2905,u16,16,yc209,1,10MW PCS2-模块1电感电流 T,model=4|arg1=emuDeviceId.PcsList[2].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,2906,int16,16,yc210,1,10MW PCS2-模块2电池电压,model=4|arg1=emuDeviceId.PcsList[3].BatteryVoltage|arg2=|arg3=|arg4=1
+4,2907,int16,16,yc211,1,10MW PCS2-模块2电池电流,model=4|arg1=emuDeviceId.PcsList[3].BatteryCurrent|arg2=|arg3=|arg4=1
+4,2908,int16,16,yc212,1,10MW PCS2-模块2母线电压,0
+4,2909,u16,16,yc213,1,10MW PCS2-模块2电感电流 R,model=4|arg1=emuDeviceId.PcsList[3].PhaseACurrent|arg2=|arg3=|arg4=1
+4,2910,u16,16,yc214,1,10MW PCS2-模块2电感电流 S,model=4|arg1=emuDeviceId.PcsList[3].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,2911,u16,16,yc215,1,10MW PCS2-模块2电感电流 T,model=4|arg1=emuDeviceId.PcsList[3].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,2912,u16,16,yc216,1,10MW PCS2-交流电流 R,model=4|arg1=emuDeviceId.Groups[0].Meters[1].PhaseACurrent|arg3=|arg4=1
+4,2913,u16,16,yc217,1,10MW PCS2-交流电流 S,model=4|arg1=emuDeviceId.Groups[0].Meters[1].PhaseBCurrent|arg3=|arg4=1
+4,2914,u16,16,yc218,1,10MW PCS2-交流电流 T,model=4|arg1=emuDeviceId.Groups[0].Meters[1].PhaseCCurrent|arg3=|arg4=1
+4,2915,int16,16,yc219,1,10MW PCS2-电池总功率,model=sum|arg1=emuDeviceId.PcsList[2].BatteryPower|arg2=emuDeviceId.PcsList[3].BatteryPower|arg3=|arg4=1
+4,2916,int16,16,yc220,1,10MW PCS2-电池1 功率,model=4|arg1=emuDeviceId.PcsList[2].BatteryPower|arg2=|arg3=|arg4=1
+4,2917,int16,16,yc221,1,10MW PCS2-电池2 功率,model=4|arg1=emuDeviceId.PcsList[3].BatteryPower|arg2=|arg3=|arg4=1
+4,2918,int16,16,yc222,1,10MW PCS2-电网有功功率,model=4|arg1=emuDeviceId.Groups[0].Meters[1].TotalActivePower|arg3=|arg4=1
+4,2919,int16,16,yc223,1,10MW PCS2-电网无功功率,model=4|arg1=emuDeviceId.Groups[0].Meters[1].TotalReactivePower|arg3=|arg4=1
+4,2920,u16,16,yc224,1,10MW PCS2-电网电压 RS,model=4|arg1=emuDeviceId.Groups[0].Meters[1].LineVoltageAB|arg3=|arg4=1
+4,2921,u16,16,yc225,1,10MW PCS2-电网电压 ST,model=4|arg1=emuDeviceId.Groups[0].Meters[1].LineVoltageBC|arg3=|arg4=1
+4,2922,u16,16,yc226,1,10MW PCS2-电网电压 TR,model=4|arg1=emuDeviceId.Groups[0].Meters[1].LineVoltageCA|arg3=|arg4=1
+4,2923,int16,16,yc227,10,10MW PCS2-PCS 过温降载NTC,model=max|arg1=emuDeviceId.PcsList[2].IGBTMaxTemp|arg2=emuDeviceId.PcsList[3].IGBTMaxTemp|arg3=|arg4=10
+4,2924,u16,16,yc228,1,10MW PCS2-PCS 可用容量,model=sum|arg1=emuDeviceId.PcsList[2].AvailableCapacity|arg2=emuDeviceId.PcsList[3].AvailableCapacity|arg3=|arg4=1
+4,2925,u16,16,yc229,1,10MW PCS2-PCS 额定容量,model=sum|arg1=emuDeviceId.PcsList[2].PCSRatePower|arg2=emuDeviceId.PcsList[3].PCSRatePower|arg3=|arg4=1
+4,3131,u16,16,yc403,1,10MW PCS2-模块1 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[2]
+4,3132,u16,16,yc404,1,10MW PCS2-模块1 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[2]
+4,3145,u16,16,yc406,1,10MW PCS2-模块2 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[3]
+4,3146,u16,16,yc407,1,10MW PCS2-模块2 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[3]
+4,3200,int16,16,yc408,1,10MW PCS3-模块1电池电压,model=4|arg1=emuDeviceId.PcsList[4].BatteryVoltage|arg2=|arg3=|arg4=1
+4,3201,int16,16,yc409,1,10MW PCS3-模块1电池电流,model=4|arg1=emuDeviceId.PcsList[4].BatteryCurrent|arg2=|arg3=|arg4=1
+4,3202,int16,16,yc410,1,10MW PCS3-模块1母线电压,0
+4,3203,u16,16,yc411,1,10MW PCS3-模块1电感电流 R,model=4|arg1=emuDeviceId.PcsList[4].PhaseACurrent|arg2=|arg3=|arg4=1
+4,3204,u16,16,yc412,1,10MW PCS3-模块1电感电流 S,model=4|arg1=emuDeviceId.PcsList[4].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,3205,u16,16,yc413,1,10MW PCS3-模块1电感电流 T,model=4|arg1=emuDeviceId.PcsList[4].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,3206,int16,16,yc414,1,10MW PCS3-模块2电池电压,model=4|arg1=emuDeviceId.PcsList[5].BatteryVoltage|arg2=|arg3=|arg4=1
+4,3207,int16,16,yc415,1,10MW PCS3-模块2电池电流,model=4|arg1=emuDeviceId.PcsList[5].BatteryCurrent|arg2=|arg3=|arg4=1
+4,3208,int16,16,yc416,1,10MW PCS3-模块2母线电压,0
+4,3209,u16,16,yc417,1,10MW PCS3-模块2电感电流 R,model=4|arg1=emuDeviceId.PcsList[5].PhaseACurrent|arg2=|arg3=|arg4=1
+4,3210,u16,16,yc418,1,10MW PCS3-模块2电感电流 S,model=4|arg1=emuDeviceId.PcsList[5].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,3211,u16,16,yc419,1,10MW PCS3-模块2电感电流 T,model=4|arg1=emuDeviceId.PcsList[5].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,3212,u16,16,yc420,1,10MW PCS3-交流电流 R,model=4|arg1=emuDeviceId.Groups[1].Meters[0].PhaseACurrent|arg3=|arg4=1
+4,3213,u16,16,yc421,1,10MW PCS3-交流电流 S,model=4|arg1=emuDeviceId.Groups[1].Meters[0].PhaseBCurrent|arg3=|arg4=1
+4,3214,u16,16,yc422,1,10MW PCS3-交流电流 T,model=4|arg1=emuDeviceId.Groups[1].Meters[0].PhaseCCurrent|arg3=|arg4=1
+4,3215,int16,16,yc423,1,10MW PCS3-电池总功率,model=sum|arg1=emuDeviceId.PcsList[4].BatteryPower|arg2=emuDeviceId.PcsList[5].BatteryPower|arg3=|arg4=1
+4,3216,int16,16,yc424,1,10MW PCS3-电池1 功率,model=4|arg1=emuDeviceId.PcsList[4].BatteryPower|arg2=|arg3=|arg4=1
+4,3217,int16,16,yc425,1,10MW PCS3-电池2 功率,model=4|arg1=emuDeviceId.PcsList[5].BatteryPower|arg2=|arg3=|arg4=1
+4,3218,int16,16,yc426,1,10MW PCS3-电网有功功率,model=4|arg1=emuDeviceId.Groups[1].Meters[0].TotalActivePower|arg3=|arg4=1
+4,3219,int16,16,yc427,1,10MW PCS3-电网无功功率,model=4|arg1=emuDeviceId.Groups[1].Meters[0].TotalReactivePower|arg3=|arg4=1
+4,3220,u16,16,yc428,1,10MW PCS3-电网电压 RS,model=4|arg1=emuDeviceId.Groups[1].Meters[0].LineVoltageAB|arg3=|arg4=1
+4,3221,u16,16,yc429,1,10MW PCS3-电网电压 ST,model=4|arg1=emuDeviceId.Groups[1].Meters[0].LineVoltageBC|arg3=|arg4=1
+4,3222,u16,16,yc430,1,10MW PCS3-电网电压 TR,model=4|arg1=emuDeviceId.Groups[1].Meters[0].LineVoltageCA|arg3=|arg4=1
+4,3223,int16,16,yc431,10,10MW PCS3-PCS 过温降载NTC,model=max|arg1=emuDeviceId.PcsList[4].IGBTMaxTemp|arg2=emuDeviceId.PcsList[5].IGBTMaxTemp|arg3=|arg4=10
+4,3224,u16,16,yc432,1,10MW PCS3-PCS 可用容量,model=sum|arg1=emuDeviceId.PcsList[4].AvailableCapacity|arg2=emuDeviceId.PcsList[5].AvailableCapacity|arg3=|arg4=1
+4,3225,u16,16,yc433,1,10MW PCS3-PCS 额定容量,model=sum|arg1=emuDeviceId.PcsList[4].PCSRatePower|arg2=emuDeviceId.PcsList[5].PCSRatePower|arg3=|arg4=1
+4,3431,u16,16,yc607,1,10MW PCS3-模块1 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[4]
+4,3432,u16,16,yc608,1,10MW PCS3-模块1 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[4]
+4,3445,u16,16,yc610,1,10MW PCS3-模块2 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[5]
+4,3446,u16,16,yc611,1,10MW PCS3-模块2 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[5]
+4,3500,int16,16,yc612,1,10MW PCS4-模块1电池电压,model=4|arg1=emuDeviceId.PcsList[6].BatteryVoltage|arg2=|arg3=|arg4=1
+4,3501,int16,16,yc613,1,10MW PCS4-模块1电池电流,model=4|arg1=emuDeviceId.PcsList[6].BatteryCurrent|arg2=|arg3=|arg4=1
+4,3502,int16,16,yc614,1,10MW PCS4-模块1母线电压,0
+4,3503,u16,16,yc615,1,10MW PCS4-模块1电感电流 R,model=4|arg1=emuDeviceId.PcsList[6].PhaseACurrent|arg2=|arg3=|arg4=1
+4,3504,u16,16,yc616,1,10MW PCS4-模块1电感电流 S,model=4|arg1=emuDeviceId.PcsList[6].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,3505,u16,16,yc617,1,10MW PCS4-模块1电感电流 T,model=4|arg1=emuDeviceId.PcsList[6].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,3506,int16,16,yc618,1,10MW PCS4-模块2电池电压,model=4|arg1=emuDeviceId.PcsList[7].BatteryVoltage|arg2=|arg3=|arg4=1
+4,3507,int16,16,yc619,1,10MW PCS4-模块2电池电流,model=4|arg1=emuDeviceId.PcsList[7].BatteryCurrent|arg2=|arg3=|arg4=1
+4,3508,int16,16,yc620,1,10MW PCS4-模块2母线电压,0
+4,3509,u16,16,yc621,1,10MW PCS4-模块2电感电流 R,model=4|arg1=emuDeviceId.PcsList[7].PhaseACurrent|arg2=|arg3=|arg4=1
+4,3510,u16,16,yc622,1,10MW PCS4-模块2电感电流 S,model=4|arg1=emuDeviceId.PcsList[7].PhaseBCurrent|arg2=|arg3=|arg4=1
+4,3511,u16,16,yc623,1,10MW PCS4-模块2电感电流 T,model=4|arg1=emuDeviceId.PcsList[7].PhaseCCurrent|arg2=|arg3=|arg4=1
+4,3512,u16,16,yc624,1,10MW PCS4-交流电流 R,model=4|arg1=emuDeviceId.Groups[1].Meters[1].PhaseACurrent|arg3=|arg4=1
+4,3513,u16,16,yc625,1,10MW PCS4-交流电流 S,model=4|arg1=emuDeviceId.Groups[1].Meters[1].PhaseBCurrent|arg3=|arg4=1
+4,3514,u16,16,yc626,1,10MW PCS4-交流电流 T,model=4|arg1=emuDeviceId.Groups[1].Meters[1].PhaseCCurrent|arg3=|arg4=1
+4,3515,int16,16,yc627,1,10MW PCS4-电池总功率,model=sum|arg1=emuDeviceId.PcsList[6].BatteryPower|arg2=emuDeviceId.PcsList[7].BatteryPower|arg3=|arg4=1
+4,3516,int16,16,yc628,1,10MW PCS4-电池1 功率,model=4|arg1=emuDeviceId.PcsList[6].BatteryPower|arg2=|arg3=|arg4=1
+4,3517,int16,16,yc629,1,10MW PCS4-电池2 功率,model=4|arg1=emuDeviceId.PcsList[7].BatteryPower|arg2=|arg3=|arg4=1
+4,3518,int16,16,yc630,1,10MW PCS4-电网有功功率,model=4|arg1=emuDeviceId.Groups[1].Meters[1].TotalActivePower|arg3=|arg4=1
+4,3519,int16,16,yc631,1,10MW PCS4-电网无功功率,model=4|arg1=emuDeviceId.Groups[1].Meters[1].TotalReactivePower|arg3=|arg4=1
+4,3520,u16,16,yc632,1,10MW PCS4-电网电压 RS,model=4|arg1=emuDeviceId.Groups[1].Meters[1].LineVoltageAB|arg3=|arg4=1
+4,3521,u16,16,yc633,1,10MW PCS4-电网电压 ST,model=4|arg1=emuDeviceId.Groups[1].Meters[1].LineVoltageBC|arg3=|arg4=1
+4,3522,u16,16,yc634,1,10MW PCS4-电网电压 TR,model=4|arg1=emuDeviceId.Groups[1].Meters[1].LineVoltageCA|arg3=|arg4=1
+4,3523,int16,16,yc635,10,10MW PCS4-PCS 过温降载NTC,model=max|arg1=emuDeviceId.PcsList[6].IGBTMaxTemp|arg2=emuDeviceId.PcsList[7].IGBTMaxTemp|arg3=|arg4=10
+4,3524,u16,16,yc636,1,10MW PCS4-PCS 可用容量,model=sum|arg1=emuDeviceId.PcsList[6].AvailableCapacity|arg2=emuDeviceId.PcsList[7].AvailableCapacity|arg3=|arg4=1
+4,3525,u16,16,yc637,1,10MW PCS4-PCS 额定容量,model=sum|arg1=emuDeviceId.PcsList[6].PCSRatePower|arg2=emuDeviceId.PcsList[7].PCSRatePower|arg3=|arg4=1
+4,3731,u16,16,yc811,1,10MW PCS4-模块1 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[6]
+4,3732,u16,16,yc812,1,10MW PCS4-模块1 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[6]
+4,3745,u16,16,yc814,1,10MW PCS4-模块2 警告字1(Bit0 模块警告字1总线1绝缘低;Bit1 模块警告字1总线2绝缘低;Bit2 模块警告字1湿度过高;Bit3 模块警告字1除湿机故障;Bit4 模块警告字1UPS电池电压低;Bit5 模块警告字1J板过温;Bit6 模块警告字1相R驱动线松动;Bit7 模块警告字1相S驱动线松动;Bit8 模块警告字1相T驱动线松动;Bit9 模块警告字1UPS交流电源丢失;Bit10 模块警告字1DC SPD;Bit11 模块警告字1辅助变压器SW馈电;Bit12 模块警告字1AC SPD;Bit13 模块警告字1辅助SPD;Bit14 模块警告字13352通信丢失;Bit15 模块警告字1IMD通信丢失),model=plugin|arg1=ModuleWarningWord1|arg2=emuDeviceId.PcsList[7]
+4,3746,u16,16,yc815,1,10MW PCS4-模块2 警告字2(Bit0 模块警告字2CBC警告R;Bit1 模块警告字2CBC警告S;Bit2 模块警告字2CBC警告T;Bit3 模块警告字2电池欠压保护;Bit4 模块警告字2外部风扇欠流保护),model=plugin|arg1=ModuleWarningWord2|arg2=emuDeviceId.PcsList[7]
+6,4,u16,16,syst4,1,SYSTEM-远程&本地控制使能(0禁止1使能),model=4|arg1=emuDeviceId.Emu.RemoteControlEnable|arg2=|arg3=|arg4=1
+6,5,u16,16,syst5,1,SYSTEM-远程&本地控制模式(0本地1远程),model=4|arg1=emuDeviceId.Emu.RemoteControlMode|arg2=|arg3=|arg4=1
+6,6,u16,16,syst6,1,SYSTEM-系统操作(3启动4停止5待机6重置),model=4|arg1=emuDeviceId.Emu.SystemOperation|arg2=|arg3=|arg4=1
+6,7,u16,16,syst7,1,SYSTEM-黑启动模式写入(0关闭1开启;批量下发单元内全部PCS),model=4|arg1=emuDeviceId.Emu.BlackStartModeWrite|arg2=|arg3=|arg4=1
+6,1010,int16,16,syst1010,1,SYSTEM-交流侧目标有功功率(1kW;正放电负充电;远程使能时按PCS台数均分),model=4|arg1=emuDeviceId.Emu.TargetActivePower|arg2=|arg3=|arg4=1
+6,1011,int16,16,syst1011,1,SYSTEM-交流侧目标无功功率(1kVar;远程使能时按PCS台数均分),model=4|arg1=emuDeviceId.Emu.TargetReactivePower|arg2=|arg3=|arg4=1
+6,1399,u16,16,syst1399,1,SYSTEM-系统重启(AA重启),0

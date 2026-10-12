@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "id": "304f4aff48874b4c80cbd9dada82f83d",
+  "name": "\u6807\u51C6 PCS \u53D8\u6D41\u5668",
+  "templateId": "pcs",
+  "updatedAtUtc": "2026-08-27T06:23:39.804727Z",
+  "parameters": {
+    "acVoltage": 690,
+    "pcsRatedPowerKw": 1725,
+    "pcsMaxPowerKw": 1897.5,
+    "pcsEfficiency": 0.99,
+    "dcVoltageMin": 1000,
+    "dcVoltageMax": 1500,
+    "name": "PCS\u53D8\u6D41\u5668",
+    "emuId": "bf3e9d6e6d3b21a01d33fa38"
+  }
+}

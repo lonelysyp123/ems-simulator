@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SCL xmlns="http://www.iec.ch/61850/2003/SCL" version="2007" revision="B">
+  <Header id="TRNA_PCS" nameStructure="IEDName" version="1.0" revision="1" toolID="EssSimulator"/>
+  <IED name="TEMPLATE" type="TRNA_PCS" manufacturer="Trina" desc="PCS IED template (one PCS per IED)">
+    <Services>
+      <DynAssociation/>
+      <GetDirectory/>
+      <GetDataObjectDefinition/>
+      <GetDataSetValue/>
+      <DataSet name="dsMX"/>
+      <ConfReportControl max="4" bufConf="false"/>
+      <GetCBValues/>
+      <ConfLNs fixPrefix="true" fixLnInst="true"/>
+    </Services>
+    <AccessPoint name="S1">
+      <Server>
+        <Authentication none="true"/>
+        <LDevice inst="PCS" desc="Power conversion system">
+          <LN0 lnClass="LLN0" inst="" lnType="LLN0_PCS">
+            <DataSet name="dsMX">
+              <FCDA ldInst="PCS" lnClass="MMXU" lnInst="1" doName="PhV" daName="phsAB.cVal.mag.f" fc="MX"/>
+              <FCDA ldInst="PCS" lnClass="MMXU" lnInst="1" doName="Hz" daName="mag.f" fc="MX"/>
+              <FCDA ldInst="PCS" lnClass="MMXU" lnInst="1" doName="TotW" daName="mag.f" fc="MX"/>
+              <FCDA ldInst="PCS" lnClass="MMXU" lnInst="1" doName="TotVAr" daName="mag.f" fc="MX"/>
+              <FCDA ldInst="PCS" lnClass="MMDC" lnInst="1" doName="Vol" daName="mag.f" fc="MX"/>
+              <FCDA ldInst="PCS" lnClass="GGIO" lnInst="1" doName="IntIn1" daName="stVal" fc="ST"/>
+            </DataSet>
+            <ReportControl name="URCB1" datSet="dsMX" intgPd="1000" confRev="1" buffered="false" bufTime="0" indexed="true">
+              <TrgOps dchg="true" qchg="false" dupd="false" period="true" gi="true"/>
+              <OptFields seqNum="true" timeStamp="true" dataSet="true" reasonCode="true" dataRef="true" entryID="true"/>
+              <RptEnabled max="4"/>
+            </ReportControl>
+          </LN0>
+          <LN lnClass="LPHD" inst="1" lnType="LPHD_1"/>
+          <LN lnClass="MMXU" inst="1" lnType="MMXU_1" desc="AC measurements"/>
+          <LN lnClass="MMDC" inst="1" lnType="MMDC_1" desc="DC measurements"/>
+          <LN lnClass="MMXN" inst="1" lnType="MMXN_1" desc="Island voltage feedback"/>
+          <LN lnClass="MMTR" inst="1" lnType="MMTR_1" desc="Energy"/>
+          <LN lnClass="STMP" inst="1" lnType="STMP_1" desc="IGBT temperature"/>
+          <LN lnClass="STMP" inst="2" lnType="STMP_1" desc="Cabinet temperature"/>
+          <LN lnClass="DRCC" inst="1" lnType="DRCC_1" desc="DER supervisory control"/>
+          <LN lnClass="ZINV" inst="1" lnType="ZINV_1" desc="Inverter ratings"/>
+          <LN lnClass="GGIO" inst="1" lnType="GGIO_1" desc="Status, fault words, start/stop"/>
+        </LDevice>
+      </Server>
+    </AccessPoint>
+  </IED>
+  <DataTypeTemplates>
+    <LNodeType id="LLN0_PCS" lnClass="LLN0">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="Health" type="INS_Health"/>
+      <DO name="NamPlt" type="LPL"/>
+    </LNodeType>
+    <LNodeType id="LPHD_1" lnClass="LPHD">
+      <DO name="PhyNam" type="DPL"/>
+      <DO name="PhyHealth" type="INS_Health"/>
+      <DO name="Proxy" type="SPS"/>
+    </LNodeType>
+    <LNodeType id="MMXU_1" lnClass="MMXU">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="Health" type="INS_Health"/>
+      <DO name="NamPlt" type="LPL"/>
+      <DO name="PhV" type="DEL"/>
+      <DO name="A" type="WYE"/>
+      <DO name="Hz" type="MV"/>
+      <DO name="TotW" type="MV"/>
+      <DO name="TotVAr" type="MV"/>
+      <DO name="TotVA" type="MV"/>
+      <DO name="TotPF" type="MV"/>
+    </LNodeType>
+    <LNodeType id="MMDC_1" lnClass="MMDC">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="Vol" type="MV"/>
+      <DO name="Amp" type="MV"/>
+      <DO name="Watt" type="MV"/>
+    </LNodeType>
+    <LNodeType id="MMXN_1" lnClass="MMXN">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="Vol" type="MV"/>
+    </LNodeType>
+    <LNodeType id="MMTR_1" lnClass="MMTR">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="TotWh" type="BCR"/>
+      <DO name="SupWh" type="BCR"/>
+      <DO name="DlyWh" type="BCR"/>
+      <DO name="DlySupWh" type="BCR"/>
+    </LNodeType>
+    <LNodeType id="STMP_1" lnClass="STMP">
+      <DO name="Tmp" type="MV"/>
+    </LNodeType>
+    <LNodeType id="DRCC_1" lnClass="DRCC">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="OutWSet" type="APC"/>
+      <DO name="OutVarSet" type="APC"/>
+      <DO name="OutPFSet" type="APC"/>
+      <DO name="OutVSet" type="APC"/>
+      <DO name="OutHzSet" type="APC"/>
+      <DO name="WMaxChg" type="MV"/>
+      <DO name="WMaxDsch" type="MV"/>
+    </LNodeType>
+    <LNodeType id="ZINV_1" lnClass="ZINV">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="VArMax" type="MV"/>
+      <DO name="VArMin" type="MV"/>
+    </LNodeType>
+    <LNodeType id="GGIO_1" lnClass="GGIO">
+      <DO name="Mod" type="INC_Mod"/>
+      <DO name="Beh" type="INS_Beh"/>
+      <DO name="SPCSO1" type="SPC"/>
+      <DO name="SPCSO2" type="SPC"/>
+      <DO name="IntIn1" type="INS"/>
+      <DO name="IntIn2" type="INS"/>
+      <DO name="IntIn3" type="INS"/>
+      <DO name="IntIn4" type="INS"/>
+      <DO name="IntIn5" type="INS"/>
+      <DO name="AnIn1" type="MV"/>
+      <DO name="AnIn2" type="MV"/>
+      <DO name="AnIn3" type="MV"/>
+      <DO name="AnIn4" type="MV"/>
+      <DO name="AnIn5" type="MV"/>
+      <DO name="AnIn6" type="MV"/>
+      <DO name="AnIn7" type="MV"/>
+      <DO name="AnIn8" type="MV"/>
+      <DO name="AnIn9" type="MV"/>
+      <DO name="AnIn10" type="MV"/>
+      <DO name="AnIn11" type="MV"/>
+      <DO name="AnIn12" type="MV"/>
+      <DO name="AnIn13" type="MV"/>
+      <DO name="AnIn14" type="MV"/>
+      <DO name="AnIn15" type="MV"/>
+      <DO name="AnIn16" type="MV"/>
+      <DO name="AnIn17" type="MV"/>
+      <DO name="AnIn18" type="MV"/>
+      <DO name="AnIn19" type="MV"/>
+      <DO name="AnIn20" type="MV"/>
+      <DO name="AnIn21" type="MV"/>
+      <DO name="AnIn22" type="MV"/>
+      <DO name="AnIn23" type="MV"/>
+    </LNodeType>
+    <DOType id="DEL" cdc="DEL">
+      <DA name="phsAB" bType="Struct" type="CMV" fc="MX"/>
+      <DA name="phsBC" bType="Struct" type="CMV" fc="MX"/>
+      <DA name="phsCA" bType="Struct" type="CMV" fc="MX"/>
+    </DOType>
+    <DOType id="WYE" cdc="WYE">
+      <DA name="phsA" bType="Struct" type="CMV" fc="MX"/>
+      <DA name="phsB" bType="Struct" type="CMV" fc="MX"/>
+      <DA name="phsC" bType="Struct" type="CMV" fc="MX"/>
+    </DOType>
+    <!-- CMV 嵌在 WYE/DEL 的 DA 里，必须是 DAType；写成 DOType 时客户端 GetDAType("CMV") 会失败。 -->
+    <DAType id="CMV">
+      <BDA name="cVal" bType="Struct" type="Vector"/>
+      <BDA name="q" bType="Quality"/>
+      <BDA name="t" bType="Timestamp"/>
+    </DAType>
+    <DAType id="Vector">
+      <BDA name="mag" bType="Struct" type="AnalogueValue"/>
+    </DAType>
+    <DAType id="AnalogueValue">
+      <BDA name="f" bType="FLOAT32"/>
+    </DAType>
+    <DOType id="MV" cdc="MV">
+      <DA name="mag" bType="Struct" type="AnalogueValue" fc="MX"/>
+      <DA name="q" bType="Quality" fc="MX"/>
+      <DA name="t" bType="Timestamp" fc="MX"/>
+    </DOType>
+    <DOType id="APC" cdc="APC">
+      <DA name="setMag" bType="Struct" type="AnalogueValue" fc="SP"/>
+      <DA name="q" bType="Quality" fc="ST"/>
+      <DA name="t" bType="Timestamp" fc="ST"/>
+      <DA name="Oper" bType="Struct" type="OperAPC" fc="CO"/>
+      <DA name="ctlModel" bType="Enum" type="ctlModel" fc="CF"/>
+    </DOType>
+    <DOType id="SPC" cdc="SPC">
+      <DA name="stVal" bType="BOOLEAN" fc="ST"/>
+      <DA name="q" bType="Quality" fc="ST"/>
+      <DA name="t" bType="Timestamp" fc="ST"/>
+      <DA name="Oper" bType="Struct" type="OperSPC" fc="CO"/>
+      <DA name="ctlModel" bType="Enum" type="ctlModel" fc="CF"/>
+    </DOType>
+    <DOType id="INS" cdc="INS">
+      <DA name="stVal" bType="INT32" fc="ST"/>
+      <DA name="q" bType="Quality" fc="ST"/>
+      <DA name="t" bType="Timestamp" fc="ST"/>
+    </DOType>
+    <DOType id="INS_Beh" cdc="ENS">
+      <DA name="stVal" bType="INT32" fc="ST"/>
+    </DOType>
+    <DOType id="INS_Health" cdc="ENS">
+      <DA name="stVal" bType="INT32" fc="ST"/>
+    </DOType>
+    <DOType id="INC_Mod" cdc="INC">
+      <DA name="stVal" bType="INT32" fc="ST"/>
+      <DA name="ctlModel" bType="Enum" type="ctlModel" fc="CF"/>
+    </DOType>
+    <DOType id="BCR" cdc="BCR">
+      <DA name="actVal" bType="INT64" fc="ST"/>
+    </DOType>
+    <DOType id="SPS" cdc="SPS">
+      <DA name="stVal" bType="BOOLEAN" fc="ST"/>
+    </DOType>
+    <DOType id="LPL" cdc="LPL">
+      <DA name="vendor" bType="VisString255" fc="DC"/>
+      <DA name="swRev" bType="VisString255" fc="DC"/>
+    </DOType>
+    <DOType id="DPL" cdc="DPL">
+      <DA name="vendor" bType="VisString255" fc="DC"/>
+      <DA name="hwRev" bType="VisString255" fc="DC"/>
+    </DOType>
+    <DAType id="OperSPC">
+      <BDA name="ctlVal" bType="BOOLEAN"/>
+      <BDA name="origin" bType="Struct" type="Originator"/>
+      <BDA name="ctlNum" bType="INT8U"/>
+      <BDA name="T" bType="Timestamp"/>
+      <BDA name="Test" bType="BOOLEAN"/>
+    </DAType>
+    <DAType id="OperAPC">
+      <BDA name="ctlVal" bType="Struct" type="AnalogueValue"/>
+      <BDA name="origin" bType="Struct" type="Originator"/>
+      <BDA name="ctlNum" bType="INT8U"/>
+      <BDA name="T" bType="Timestamp"/>
+      <BDA name="Test" bType="BOOLEAN"/>
+    </DAType>
+    <DAType id="Originator">
+      <BDA name="orCat" bType="INT8U"/>
+      <BDA name="orIdent" bType="Octet64"/>
+    </DAType>
+    <EnumType id="ctlModel">
+      <EnumVal ord="0">status-only</EnumVal>
+      <EnumVal ord="1">direct-with-normal-security</EnumVal>
+      <EnumVal ord="2">sbo-with-normal-security</EnumVal>
+    </EnumType>
+  </DataTypeTemplates>
+</SCL>

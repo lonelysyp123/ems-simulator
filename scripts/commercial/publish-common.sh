@@ -92,9 +92,15 @@ copy_runtime_files() {
   local config
   config="$(edition_config_file "$edition")"
 
-  echo "==> Copying runtime config and point maps ($edition)..."
+  echo "==> Copying runtime config and point maps ($edition, models + LC fragments)..."
   cp -f "$config" "$out/appsettings.json"
   echo "    appsettings.json (from $(basename "$config"))"
+
+  mkdir -p "$out/configs"
+  if [[ -f "$ROOT/configs/protocol-bindings.json" ]]; then
+    cp -f "$ROOT/configs/protocol-bindings.json" "$out/configs/protocol-bindings.json"
+    echo "    configs/protocol-bindings.json"
+  fi
 
   local f
   for f in "${RUNTIME_FILES[@]}"; do
@@ -102,7 +108,7 @@ copy_runtime_files() {
     echo "    $f"
   done
 
-  copy_pointmaps_to "$out" "$DEFAULT_COMMERCIAL_POINTMAP_VERSION"
+  copy_pointmaps_to "$out"
 
   if [[ -f "$ROOT/pointmap.manifest.json" ]]; then
     cp -f "$ROOT/pointmap.manifest.json" "$out/pointmap.manifest.json"
@@ -116,6 +122,21 @@ copy_runtime_files() {
   fi
 }
 
+# Windows 单文件发布会把 runtimes/win-x64/native/iec61850.dll 打进 exe，运行时找不到。
+# 再抄一份到 exe 同目录（DllImport 默认探测位置）。
+copy_iec61850_windows_native() {
+  local out="$1"
+  local src="$ROOT/lib61850/native/win-x64/iec61850.dll"
+  if [[ ! -f "$src" ]]; then
+    echo "警告: 缺少 $src，Windows 包内 IEC 61850 将无法启动" >&2
+    return 0
+  fi
+  cp -f "$src" "$out/iec61850.dll"
+  mkdir -p "$out/runtimes/win-x64/native"
+  cp -f "$src" "$out/runtimes/win-x64/native/iec61850.dll"
+  echo "    iec61850.dll"
+}
+
 copy_platform_files() {
   local out="$1"
   local edition="$2"
@@ -127,6 +148,7 @@ copy_platform_files() {
     windows)
       cp -f "$ROOT/scripts/windows/start.bat" "$out/start.bat"
       cp -f "$ROOT/scripts/windows/README-Windows.txt" "$out/README-Windows.txt"
+      copy_iec61850_windows_native "$out"
       ;;
     linux)
       cp -f "$ROOT/scripts/linux/start.sh" "$out/start.sh"

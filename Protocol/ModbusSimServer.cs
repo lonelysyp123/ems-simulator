@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using EssSimulator.Configuration;
 using EssSimulator.DataExchange;
+using EssSimulator.DataExchange.Adapters;
 using EssSimulator.DataExchange.Catalog;
 using EssSimulator.DataExchange.Config;
 using EssSimulator.Protocol.Modbus;
@@ -25,8 +27,9 @@ namespace EssSimulator
     /// <summary>
     /// Modbus TCP 从站门面类（仿真设备：simEmu / simBms / simEm）。
     /// 走 <see cref="DataExchangeSession"/> 与内部仿真模型绑定；LocalControl 见 <c>LocalControl/</c> 模块。
+    /// 传输层（端口监听/从站网络）由 <see cref="ModbusPortHub"/> 统一提供，支持同端口多设备共享。
     /// </summary>
-    public class ModbusSimServer : IModbusRegisterServer
+    public class ModbusSimServer : IModbusRegisterServer, IProtocolLayerServer
     {
         private readonly ILog              _log = LogManager.GetLogger(typeof(ModbusSimServer));
         private readonly IModbusSlave      _slave;
@@ -40,9 +43,17 @@ namespace EssSimulator
             int modbusPort,
             string serverName,
             int clusterCount = 0,
-            DataExchangeOptions? dataExchangeOptions = null)
+            DataExchangeOptions? dataExchangeOptions = null,
+            IReadOnlyList<EssUnitConfig>? essUnits = null,
+            int? emuDeviceIdOverride = null,
+            int pcsIndex = 0,
+            int? pvDeviceIdOverride = null,
+            int? inverterIndex = null)
         {
-            _pointMap = new EssSimulator.Protocol.Modbus.ModbusPointMap(mapFilePath, serverName, clusterCount);
+            RackCount = clusterCount;
+            _pointMap = new EssSimulator.Protocol.Modbus.ModbusPointMap(
+                mapFilePath, serverName, clusterCount, emuDeviceIdOverride, pcsIndex: pcsIndex,
+                pvDeviceIdOverride: pvDeviceIdOverride, inverterIndex: inverterIndex);
 
             _deviceInfo = new DeviceInfoDto
             {
@@ -53,27 +64,17 @@ namespace EssSimulator
                 collectionCycle = 1000,
                 name           = serverName
             };
-            var tcpComm = new TCPCommunicator(_deviceInfo);
-            _slave  = new ModbusTCPSlave(_deviceInfo, _pointMap.RawMaps, tcpComm, clusterCount);
+            _slave  = new ModbusTCPSlave(_deviceInfo, _pointMap.RawMaps, clusterCount);
             _parser = new ModbusParser(_pointMap.RawMaps);
 
-            if (RequiresDataExchange(serverName))
-            {
-                var options = dataExchangeOptions ?? new DataExchangeOptions();
-                var catalog = PointCatalogLoader.FromPointMap(_pointMap, serverName, options);
-                _dataSync = new DataExchangeSession(
-                    _slave, _parser, catalog, _deviceInfo, options, clusterCount);
-            }
-            else
-            {
-                _dataSync = new ModbusDataSync(_slave, _parser, _pointMap, _deviceInfo, clusterCount);
-            }
+            var options = dataExchangeOptions ?? new DataExchangeOptions();
+            var catalog = PointCatalogLoader.FromPointMap(_pointMap, serverName, options, essUnits);
+            var session = new DataExchangeSession(
+                _slave, _parser, catalog, _deviceInfo, options, clusterCount);
+            _dataSync = session;
+            PointStore = session.PointStore;
+            KeepDataPathOnDisconnect = serverName.StartsWith("simEmu", StringComparison.OrdinalIgnoreCase);
         }
-
-        private static bool RequiresDataExchange(string serverName) =>
-            serverName.StartsWith("simEmu", StringComparison.OrdinalIgnoreCase)
-            || serverName.StartsWith("simBms", StringComparison.OrdinalIgnoreCase)
-            || serverName.Equals("simEm", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// 尝试连接并启动所有 worker 线程。
@@ -95,6 +96,7 @@ namespace EssSimulator
                 if (_slave.GetCommunicatorState())
                 {
                     _dataSync.Start();
+                    IsDataPathReady = true;
                     return true;
                 }
                 _log.Warn($"{_deviceInfo.name} 连接失败，第 {attempt}/{maxRetries} 次重试...");
@@ -107,7 +109,46 @@ namespace EssSimulator
         {
             try { _dataSync.Stop(); }
             catch (Exception ex) { _log.Error("Stop error", ex); }
+            IsDataPathReady = false;
             _slave.DeviceDisconnect();
+        }
+
+        /// <summary>
+        /// 仅启动 DataExchange / 寄存器影子，不绑定 Modbus TCP。
+        /// 供 IEC 61850-only 的 PCS 以及 LC 进程内抄数使用。
+        /// </summary>
+        public bool StartDataPathOnly()
+        {
+            _dataSync.Start();
+            IsDataPathReady = true;
+            return true;
+        }
+
+        // ── 协议层编排接口（IProtocolLayerServer）────────────────
+
+        public string ServerName => _deviceInfo.name ?? string.Empty;
+        public int Port => _deviceInfo.port;
+        public byte SlaveId => _deviceInfo.slaveId;
+        public int RackCount { get; }
+        public IProtocolPointStore PointStore { get; }
+        /// <summary>DataExchange 已运行（即使未监听 Modbus TCP）。</summary>
+        public bool IsDataPathReady { get; private set; }
+        /// <summary>链路 off 时是否保留点影子（EMU 默认保留，供 61850 / LC）。</summary>
+        public bool KeepDataPathOnDisconnect { get; set; }
+
+        /// <summary>已加载的点表（bank + 可选 rack），供协议层地址查重使用。</summary>
+        public EssSimulator.Protocol.Modbus.ModbusPointMap PointMap => _pointMap;
+
+        /// <summary>调整端口/从站号：要求先离线，由协议层管理器在重建时调用。</summary>
+        public void Reconfigure(int port, byte slaveId)
+        {
+            if (IsOnline)
+            {
+                _log.Warn($"{ServerName} 在线时调整端口/从站号被忽略，请先停止服务");
+                return;
+            }
+            _deviceInfo.port = port;
+            _deviceInfo.slaveId = slaveId;
         }
 
         /// <summary>Modbus TCP 监听是否处于活动状态（端口已绑定）。</summary>
@@ -125,6 +166,12 @@ namespace EssSimulator
             }
 
             if (!IsOnline) return true;
+            if (KeepDataPathOnDisconnect)
+            {
+                _slave.DeviceDisconnect();
+                return !IsOnline;
+            }
+
             Stop();
             return !IsOnline;
         }

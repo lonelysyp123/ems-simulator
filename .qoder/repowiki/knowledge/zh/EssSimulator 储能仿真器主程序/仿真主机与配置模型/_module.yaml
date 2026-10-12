@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: core_host
+title: 仿真主机与配置模型
+scope:
+    - Core/
+    - Configuration/
+source_files: []
+depends_on: []
+related_to: []

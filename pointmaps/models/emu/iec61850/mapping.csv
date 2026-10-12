@@ -1,0 +1,61 @@
+ParamName,ObjectRef,Cdc,Fc,CtlModel,Scale,Description,Transport
+yk2,PCS/GGIO1.SPCSO2.stVal,SPC,ST,1,1,PCS黑启动开启,goose
+yk3,PCS/GGIO1.SPCSO1.stVal,SPC,ST,1,1,PCS启停,goose
+yc0,PCS/GGIO1.AnIn1.mag.f,MV,MX,0,1,状态位1,mms
+yc1,PCS/GGIO1.AnIn2.mag.f,MV,MX,0,1,状态位1,mms
+yc2,PCS/GGIO1.AnIn3.mag.f,MV,MX,0,1,状态位1,mms
+yc3,PCS/GGIO1.AnIn4.mag.f,MV,MX,0,1,状态位1,mms
+yc4,PCS/GGIO1.AnIn5.mag.f,MV,MX,0,1,状态位1,mms
+yc5,PCS/GGIO1.AnIn6.mag.f,MV,MX,0,1,状态位1,mms
+yc6,PCS/GGIO1.AnIn7.mag.f,MV,MX,0,1,状态位1,mms
+yc7,PCS/GGIO1.AnIn8.mag.f,MV,MX,0,1,状态位1,mms
+yc8,PCS/GGIO1.AnIn9.mag.f,MV,MX,0,1,状态位1,mms
+yc9,PCS/GGIO1.AnIn10.mag.f,MV,MX,0,1,状态位1,mms
+yc10,PCS/GGIO1.AnIn11.mag.f,MV,MX,0,1,故障位1,mms
+yc11,PCS/GGIO1.AnIn12.mag.f,MV,MX,0,1,故障位2,mms
+yc12,PCS/GGIO1.AnIn13.mag.f,MV,MX,0,1,故障位3,mms
+yc13,PCS/GGIO1.AnIn14.mag.f,MV,MX,0,1,故障位4,mms
+yc14,PCS/GGIO1.AnIn15.mag.f,MV,MX,0,1,故障位5,mms
+yc15,PCS/GGIO1.AnIn16.mag.f,MV,MX,0,1,故障位6,mms
+yc16,PCS/GGIO1.AnIn17.mag.f,MV,MX,0,1,故障位7,mms
+yc17,PCS/GGIO1.AnIn18.mag.f,MV,MX,0,1,故障位8,mms
+yc18,PCS/GGIO1.AnIn19.mag.f,MV,MX,0,1,故障位9,mms
+yc19,PCS/GGIO1.AnIn20.mag.f,MV,MX,0,1,故障位10,mms
+yc20,PCS/MMXU1.PhV.phsAB.cVal.mag.f,MV,MX,0,1,PCS交流侧AB电压,mms
+yc21,PCS/MMXU1.PhV.phsBC.cVal.mag.f,MV,MX,0,1,PCS交流侧BC电压,mms
+yc22,PCS/MMXU1.PhV.phsCA.cVal.mag.f,MV,MX,0,1,PCS交流侧CA电压,mms
+yc23,PCS/MMXU1.Hz.mag.f,MV,MX,0,1,PCS交流侧频率,mms
+yc24,PCS/MMXU1.A.phsA.cVal.mag.f,MV,MX,0,1,PCS交流侧A相电流,mms
+yc25,PCS/MMXU1.A.phsB.cVal.mag.f,MV,MX,0,1,PCS交流侧B相电流,mms
+yc26,PCS/MMXU1.A.phsC.cVal.mag.f,MV,MX,0,1,PCS交流侧C相电流,mms
+yc27,PCS/MMXU1.TotW.mag.f,MV,MX,0,1,PCS交流侧有功功率,mms
+yc28,PCS/MMXU1.TotVAr.mag.f,MV,MX,0,1,PCS交流侧无功功率,mms
+yc29,PCS/MMXU1.TotVA.mag.f,MV,MX,0,1,PCS交流侧视在功率,mms
+yc30,PCS/MMXU1.TotPF.mag.f,MV,MX,0,1,PCS功率因数,mms
+yc31,PCS/MMDC1.Vol.mag.f,MV,MX,0,1,PCS直流侧电压,mms
+yc32,PCS/MMDC1.Amp.mag.f,MV,MX,0,1,PCS直流侧电流,mms
+yc33,PCS/MMDC1.Watt.mag.f,MV,MX,0,1,PCS直流侧功率,mms
+yc34,PCS/STMP1.Tmp.mag.f,MV,MX,0,1,PCS IGBT温度,mms
+yc35,PCS/STMP2.Tmp.mag.f,MV,MX,0,1,PCS 舱内温度,mms
+yc36,PCS/DRCC1.WMaxChg.mag.f,MV,MX,0,1,PCS最大允许充电功率,mms
+yc37,PCS/DRCC1.WMaxDsch.mag.f,MV,MX,0,1,PCS最大允许放电功率,mms
+yc38,PCS/ZINV1.VArMax.mag.f,MV,MX,0,1,PCS最大感性无功,mms
+yc39,PCS/ZINV1.VArMin.mag.f,MV,MX,0,1,PCS最大容性无功,mms
+yc40,PCS/MMTR1.TotWh.actVal,BCR,ST,0,1,PCS总充电量,mms
+yc41,PCS/MMTR1.SupWh.actVal,BCR,ST,0,1,PCS总放电量,mms
+yc42,PCS/MMTR1.DlyWh.actVal,BCR,ST,0,1,PCS当日充电量,mms
+yc43,PCS/MMTR1.DlySupWh.actVal,BCR,ST,0,1,PCS当日放电量,mms
+yc44,PCS/GGIO1.IntIn1.stVal,INS,ST,0,1,PCS运行状态,mms
+yc45,PCS/GGIO1.IntIn2.stVal,INS,ST,0,1,PCS当前告警,mms
+yc46,PCS/GGIO1.IntIn3.stVal,INS,ST,0,1,PCS当前故障,mms
+yc74,PCS/MMXN1.Vol.mag.f,MV,MX,0,1,PCS孤岛电压反馈V,mms
+yc75,PCS/GGIO1.IntIn4.stVal,INS,ST,0,1,PCS PTP同步状态,mms
+yc76,PCS/GGIO1.AnIn21.mag.f,MV,MX,0,1,PCS PTP主钟偏差ns,mms
+yc77,PCS/GGIO1.AnIn22.mag.f,MV,MX,0,1,PCS PTP路径时延ns,mms
+yc78,PCS/GGIO1.AnIn23.mag.f,MV,MX,0,1,PCS PTP时间品质ns,mms
+yc79,PCS/GGIO1.IntIn5.stVal,INS,ST,0,1,PCS PTP对时异常,mms
+yt0,PCS/DRCC1.OutWSet.setMag.f,APC,SP,1,1,PCS有功功率设置值,goose
+yt1,PCS/DRCC1.OutVarSet.setMag.f,APC,SP,1,1,PCS无功设置值,goose
+yt2,PCS/DRCC1.OutPFSet.setMag.f,APC,SP,1,1,PCS功率因数设置值,goose
+yt3,PCS/DRCC1.OutVSet.setMag.f,APC,SP,1,1,PCS孤岛电压设定V,goose
+yt4,PCS/DRCC1.OutHzSet.setMag.f,APC,SP,1,100,PCS孤岛频率设定Hz,goose

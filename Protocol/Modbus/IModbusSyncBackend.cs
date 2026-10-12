@@ -1,6 +1,6 @@
 namespace EssSimulator.Protocol.Modbus
 {
-    /// <summary>Modbus 与仿真之间的数据同步后端（ModbusDataSync 或 DataExchangeSession）。</summary>
+    /// <summary>Modbus 与仿真之间的数据同步后端（DataExchangeSession 或 RegisterOnlyBackend）。</summary>
     public interface IModbusSyncBackend
     {
         void Start();

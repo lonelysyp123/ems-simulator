@@ -2,6 +2,8 @@
 
 export const UNIT_SPACING = 22
 export const CHANNEL_OFFSET_X = 5.5
+/** 光伏方阵比 PCS/BMS 更宽，左右路间距加大避免叠板 */
+export const PV_CHANNEL_OFFSET_X = 7.2
 
 /** 主干沿 -Z → +Z：电网 → 主断 → 主变 → 35kV 母线 */
 export const Z = {
@@ -13,7 +15,9 @@ export const Z = {
   unitXf: 9,
   bus690: 13,
   pcs: 18,
-  bms: 26
+  bms: 26,
+  pvInverter: 18,
+  pvArray: 26
 }
 
 export const Y = {
@@ -30,22 +34,40 @@ export const Y = {
 }
 
 /**
- * @param {number} unitCount
- * @returns {{ mainX: number, busStartX: number, busEndX: number, unitXs: number[], spacing: number }}
+ * @param {number|{ essCount?: number, pvCount?: number }} essCountOrOpts
+ * @param {number} [pvCount]
+ * @returns {{
+ *   mainX: number, busStartX: number, busEndX: number,
+ *   unitXs: number[], pvXs: number[], spacing: number,
+ *   essCount: number, pvCount: number
+ * }}
  */
-export function computeLayout(unitCount) {
-  const n = Math.max(0, unitCount | 0)
+export function computeLayout(essCountOrOpts, pvCount = 0) {
+  let essCount = 0
+  let pv = pvCount
+  if (essCountOrOpts && typeof essCountOrOpts === 'object') {
+    essCount = essCountOrOpts.essCount ?? 0
+    pv = essCountOrOpts.pvCount ?? 0
+  } else {
+    essCount = essCountOrOpts
+  }
+  const e = Math.max(0, essCount | 0)
+  const p = Math.max(0, pv | 0)
+  const n = e + p
   // 单元多时略压缩间距，避免场景过宽难适配
   const spacing = n >= 16 ? 16 : n >= 10 ? 18 : UNIT_SPACING
   const unitXs = []
-  for (let i = 0; i < n; i++) {
-    unitXs.push(i * spacing)
-  }
-  const busStartX = n > 0 ? unitXs[0] - 2 : 0
-  const busEndX = n > 0 ? unitXs[n - 1] + 2 : 8
-  const mainX = n > 0 ? unitXs[0] : 0
-  return { mainX, busStartX, busEndX, unitXs, spacing }
+  const pvXs = []
+  for (let i = 0; i < e; i++) unitXs.push(i * spacing)
+  for (let i = 0; i < p; i++) pvXs.push((e + i) * spacing)
+  const allXs = unitXs.length || pvXs.length ? [...unitXs, ...pvXs] : [0]
+  const busStartX = allXs[0] - 2
+  const busEndX = allXs[allXs.length - 1] + 2
+  const mainX = allXs[0]
+  return { mainX, busStartX, busEndX, unitXs, pvXs, spacing, essCount: e, pvCount: p }
 }
+
+export { stationKey } from './project3dLayout.js'
 
 /**
  * @param {number} unitX
@@ -53,4 +75,12 @@ export function computeLayout(unitCount) {
  */
 export function channelX(unitX, side) {
   return unitX + (side === 'A' ? -CHANNEL_OFFSET_X : CHANNEL_OFFSET_X)
+}
+
+/**
+ * @param {number} unitX
+ * @param {'A'|'B'} side
+ */
+export function pvChannelX(unitX, side) {
+  return unitX + (side === 'A' ? -PV_CHANNEL_OFFSET_X : PV_CHANNEL_OFFSET_X)
 }

@@ -17,7 +17,7 @@
         <el-link @click="setInput('esscmd setLoad activePower -500')">esscmd setLoad activePower -500</el-link> ·
         <el-link @click="setInput('breaker set true')">breaker set true</el-link> ·
         <el-link @click="setInput('dpc simEmu1.yt0 set 1000')">dpc simEmu1.yt0 set 1000</el-link> ·
-        <el-link @click="setInput('dpc simEmu1.yx3 set 1')">dpc simEmu1.yx3 set 1</el-link> ·
+        <el-link @click="setInput('dpc simEmu1.yk3 set 1')">dpc simEmu1.yk3 set 1</el-link> ·
         <el-link @click="setInput('dpctest list')">dpctest list</el-link>
       </div>
       <div v-if="history.length" class="cmd-history">
@@ -79,7 +79,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { postCommand, postDpcTest, getAutoTest, getHub } from '@/services/api.js'
+import { postCommand, postDpcTest, getAutoTest, joinHubChannel, leaveHubChannel, onHubMethod, offHubMethod } from '@/services/api.js'
 import { RealtimeMethods, RealtimeChannels } from '@/services/constants.js'
 
 const HISTORY_KEY = 'ess-simulator.command-history'
@@ -92,7 +92,6 @@ const progress = ref([])
 const tests = ref([])
 const testing = ref('')
 const history = ref(loadHistory())
-let hub = null
 
 function loadHistory() {
   try {
@@ -159,26 +158,25 @@ async function runDpcTest(name) {
   }
 }
 
+function onCommandProgress(p) {
+  progress.value.push(`${p.time} | ${p.message}`)
+  if (progress.value.length > 500) progress.value.length = 500
+}
+
 onMounted(async () => {
   try {
     const r = await getAutoTest()
     if (r.ok) tests.value = r.tests || []
   } catch { /* ignore */ }
   try {
-    hub = await getHub()
-    await hub.invoke('JoinChannel', RealtimeChannels.CommandProgress)
-    hub.on(RealtimeMethods.ReceiveCommandProgress, p => {
-      progress.value.push(`${p.time} | ${p.message}`)
-      if (progress.value.length > 500) progress.value.length = 500
-    })
+    onHubMethod(RealtimeMethods.ReceiveCommandProgress, onCommandProgress)
+    await joinHubChannel(RealtimeChannels.CommandProgress)
   } catch { /* ignore */ }
 })
 
 onBeforeUnmount(() => {
-  if (hub) {
-    hub.off(RealtimeMethods.ReceiveCommandProgress)
-    try { hub.invoke('LeaveChannel', RealtimeChannels.CommandProgress) } catch { /* ignore */ }
-  }
+  offHubMethod(RealtimeMethods.ReceiveCommandProgress, onCommandProgress)
+  leaveHubChannel(RealtimeChannels.CommandProgress)
 })
 </script>
 

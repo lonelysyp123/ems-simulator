@@ -20,6 +20,16 @@ public class ElectricalBusNodeTests
     }
 
     [Fact]
+    public void Constructor_StartsDeenergized()
+    {
+        var bus = new ElectricalBusNode("BUS_35", 35000);
+
+        Assert.Equal(35000, bus.NominalLineVoltageV);
+        Assert.True(bus.LineVoltageV < 2, $"新建母线电压应为 0，实际 {bus.LineVoltageV:F1} V");
+        Assert.Equal(0, bus.FrequencyHz);
+    }
+
+    [Fact]
     public void CollectFromContributors_sums_power_from_registered_devices()
     {
         var bus = new ElectricalBusNode("BUS_35", 35000);

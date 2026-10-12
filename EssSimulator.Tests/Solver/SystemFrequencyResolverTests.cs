@@ -46,6 +46,15 @@ public class SystemFrequencyResolverTests
         var grid = new GridSimulator("grid", gridCfg);
         grid.SetAggregatedReactivePowerKvar(0);
         grid.Step(new DeviceStepContext { MainBreakerClosed = gridStepMainClosed }, TimeSpan.FromMilliseconds(100));
+        if (!gridStepMainClosed)
+        {
+            grid.Port.Output = ElectricalPortSnapshot.FromAc(new AcInternalQuantities
+            {
+                Connection = ThreePhaseConnection.Star,
+                LineVoltageV = 0,
+                FrequencyHz = 0
+            });
+        }
 
         var mainBreaker = new BreakerSimulator("main", new BreakerBranchConfig { InitialClosed = gridStepMainClosed });
 

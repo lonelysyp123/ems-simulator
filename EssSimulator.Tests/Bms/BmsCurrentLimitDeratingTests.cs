@@ -53,7 +53,7 @@ public class BmsCurrentLimitDeratingTests
     [Fact]
     public void Stack_MaxChargeCurrent_SumsClusters_AndRespectsClusterVoltageDerate()
     {
-        var stack = new BatteryStack { ThermalPowerDeratingFactor = 1f };
+        var stack = new BatteryStack();
         var c1 = new BatteryCluster
         {
             Measurements =

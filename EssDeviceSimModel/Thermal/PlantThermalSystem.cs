@@ -79,6 +79,20 @@ namespace EssSimulator.EssDeviceSimModel.Thermal
 
         public bool HvacEnabled => _cfg.Cabinet.HvacEnabled && _cfg.Cabinet.HvacCoolingPowerW > 0;
 
+        /// <summary>运行时开关指定柜体空调（外部控制：1 开 / 0 关）。</summary>
+        public void SetCabinetAirConditioningOn(int bmsIndex, bool on)
+        {
+            if (bmsIndex >= 0 && bmsIndex < _cabinets.Count)
+                _cabinets[bmsIndex].AirConditioningOn = on;
+        }
+
+        /// <summary>运行时修改指定柜体空调制冷设定温度（°C），如 20。</summary>
+        public void SetCabinetCoolingSetpointC(int bmsIndex, double setpointCelsius)
+        {
+            if (bmsIndex >= 0 && bmsIndex < _cabinets.Count)
+                _cabinets[bmsIndex].CoolingSetpointCelsius = setpointCelsius;
+        }
+
         /// <summary>根据本步 BMS 电流登记电池欧姆损耗，供下一热步注入。</summary>
         public void RecordBatteryHeatFromRack(int bmsIndex, BatteryRackSimulator rack, double rackCurrentA)
         {

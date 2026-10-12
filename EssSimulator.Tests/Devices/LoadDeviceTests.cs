@@ -60,6 +60,26 @@ public class LoadDeviceTests
     }
 
     [Fact]
+    public void Step_DeadBus_ZerosMeasuredPower_KeepsSetpoint()
+    {
+        var load = new LoadDevice("load_35", -100, 20);
+        load.Port.Input = ElectricalPortSnapshot.FromAc(new AcInternalQuantities
+        {
+            Connection = ThreePhaseConnection.Star,
+            LineVoltageV = 0,
+            FrequencyHz = 0
+        });
+
+        load.Step(new DeviceStepContext { SimulationTime = DateTime.UtcNow }, TimeSpan.FromMilliseconds(200));
+
+        Assert.Equal(-100, load.ActivePowerSetpointKw);
+        Assert.Equal(20, load.ReactivePowerSetpointKvar);
+        Assert.Equal(0, load.ActivePower);
+        Assert.Equal(0, load.ReactivePower);
+        Assert.Equal(0, load.Port.Output.Ac!.Internal.LineCurrentA);
+    }
+
+    [Fact]
     public void ComputeLoadCurrentA_NegativeWhenConsuming()
     {
         var load = new LoadDevice("load_35", -100, 0);

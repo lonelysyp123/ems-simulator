@@ -1,0 +1,6 @@
+{
+  "id": "em",
+  "name": "EM",
+  "description": "并网电表（EM）",
+  "files": [ "em.csv" ]
+}

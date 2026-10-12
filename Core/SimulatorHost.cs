@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace EssSimulator.Core
 {
-    public sealed class SimulatorHost
+    public sealed partial class SimulatorHost
     {
         private static readonly Lazy<SimulatorHost> _instance = new(() => new SimulatorHost());
         public static SimulatorHost Instance => _instance.Value;
@@ -23,5 +23,8 @@ namespace EssSimulator.Core
         }
 
         public bool Contains(string key) => _store.ContainsKey(key);
+
+        /// <summary>清空注册表。仅测试夹具使用；生产启动只 Register。</summary>
+        public void Reset() => _store.Clear();
     }
 }

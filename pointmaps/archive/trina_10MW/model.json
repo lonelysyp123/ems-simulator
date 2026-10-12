@@ -1,0 +1,5 @@
+{
+  "id": "trina_10MW",
+  "name": "天合中压版-10MW",
+  "description": "TRINA MV-EMS Modbus TCP 协议 V0.15 中压 LC 点表（10MW 一体机），挂在 simLc*：172 点，含 SYSTEM 系统级遥测/控制与 PCS×4（8 模块）遥测读寄存器；组态对应单机组 emu1 × 8 台 PCS，PCS1~4 模块1/2 ↔ PcsList[0..7] 扁平序；故障/状态字描述并入 PCS Status&Alarm 位定义（已剔除模块 FPGA/IO/采样故障字），模块警告字1/2 经插件层组字，绑定 137 点（含 23 个插件点）；绑定全部收敛至 EMU 单元内部设备（PCS/虚拟模型/电表/断路器），不映射 ess/em/bms 外部设备属性；各 PCS 块交流电流/电网有功无功/电网电压绑定所属分组电表（PCS1/2↔分组#1，PCS3/4↔分组#2，组口径含组内全部 PCS；分组绑两台电表时，PCS2/4 块绑第二台组电表 Meters[1]）；映射设备前缀统一使用 emuDeviceId 占位符，加载期按 LC 聚合组首机组替换为 emu{n}"
+}

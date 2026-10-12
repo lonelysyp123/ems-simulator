@@ -20,7 +20,7 @@ namespace EssSimulator.EssDeviceSimModel
             if (!ess.IsMainBreakerClosed)
                 return false;
 
-            int unit = pcsSimIndex / 2;
+            int unit = ess.UnitIndexOfPcs(pcsSimIndex);
             return ess.IsUnitBreakerClosed(unit);
         }
     }

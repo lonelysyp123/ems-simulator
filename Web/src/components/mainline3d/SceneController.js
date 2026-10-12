@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { createApp, h, reactive } from 'vue'
-import { computeLayout } from './layout.js'
-import { buildStation, setBreakerVisual } from './buildMeshes.js'
+import { buildStation3dLayout, stationKey, paramNum } from './project3dLayout.js'
+import { makeGraph, runtimeUnitIndexOfEmu } from '../topology/topologyMainLineLayout.js'
+import { buildStation, setBreakerVisual, setPvArrayVisual } from './buildMeshes.js'
 import { buildEnvironment } from './environment.js'
 import { updateCableState, tickCable } from './powerFlow.js'
 import { createInteraction } from './interaction.js'
@@ -28,6 +29,21 @@ function fmtBreaker(closed, tripped) {
   return tripped ? '跳闸' : closed ? '合' : '分'
 }
 
+/** 断路器遥信：优先按 emuId 对齐运行时单元，避免馈线序号把分闸画成组态默认「合」。 */
+function liveUnitForBreaker(snap, item) {
+  const emuId = item?.emuId || item?.node?.parameters?.emuId
+  let idx = Number.isFinite(item?.unitIndex) ? item.unitIndex : null
+  if (emuId && snap?.topology?.nodes) {
+    const runtime = runtimeUnitIndexOfEmu(
+      makeGraph(snap.topology.nodes, snap.topology.edges),
+      String(emuId)
+    )
+    if (runtime != null) idx = runtime
+  }
+  if (idx == null) return null
+  return (snap.units || []).find(u => u.unitIndex === idx) || (snap.units || [])[idx] || null
+}
+
 /** PCS 实时有功：优先 ActualActivePowerKw（>0 放电，<0 充电） */
 function channelPowerKw(ch) {
   if (!ch) return 0
@@ -36,6 +52,35 @@ function channelPowerKw(ch) {
   // 兼容旧快照：从 "P实:12.3kW" 解析
   const m = String(ch.pcsActualP || '').match(/P实:(-?\d+(?:\.\d+)?)/)
   return m ? Number(m[1]) : 0
+}
+
+function pvUnitPowerKw(pv) {
+  if (!pv) return 0
+  const v = pv.activePowerKw
+  return v != null && Number.isFinite(Number(v)) ? Number(v) : 0
+}
+
+function pvArrayOf(pv, side) {
+  if (!pv) return null
+  return side === 'B' ? (pv.arrayB || pv.ArrayB) : (pv.arrayA || pv.ArrayA)
+}
+
+/** 单元运行时通道列表：优先逐槽位 channels，兼容旧 A/B 双通道字段 */
+function unitChannels(unit) {
+  if (!unit) return []
+  return (unit.channels || [unit.channelA, unit.channelB]).filter(Boolean)
+}
+
+/** 侧位字母（A=槽位 0）→ 单元对应运行时通道 */
+function channelOfSide(unit, side) {
+  const c = String(side || '').toUpperCase().charCodeAt(0)
+  if (!Number.isFinite(c) || c < 65) return null
+  return unitChannels(unit)[c - 65] || null
+}
+
+/** 单元全部通道实时有功合计 */
+function unitPowerKw(unit) {
+  return unitChannels(unit).reduce((s, ch) => s + channelPowerKw(ch), 0)
 }
 
 /**
@@ -49,8 +94,8 @@ export class SceneController {
   constructor(container, handlers) {
     this.container = container
     this.onEvent = handlers?.onEvent || (() => {})
-    this.snap = { units: [] }
-    this.unitCount = -1
+    this.snap = { units: [], pvUnits: [] }
+    this.stationKey = ''
     this.stationRoot = null
     this.envRoot = null
     this.refs = null
@@ -103,14 +148,22 @@ export class SceneController {
     this._setupGround()
 
     this.interaction = createInteraction(this.camera, this.renderer.domElement, this.scene, {
-      onBreakerClick: ({ pickId, unitIndex }) => {
+      onBreakerClick: ({ pickId, unitIndex, layoutItem }) => {
         if (this.viewMode !== 'station') return
         if (pickId === 'main') this.onEvent('toggle-main-breaker')
-        else if (typeof unitIndex === 'number') this.onEvent('toggle-unit-breaker', unitIndex)
+        else {
+          const live = liveUnitForBreaker(this.snap, layoutItem)
+          const idx = live?.unitIndex ?? unitIndex
+          if (typeof idx === 'number') this.onEvent('toggle-unit-breaker', idx)
+        }
+      },
+      onDeviceClick: (panelKey) => {
+        if (this.viewMode !== 'station') return
+        this.toggleDevicePanel(panelKey)
       },
       onDeviceDblClick: (panelKey) => {
-        // 仅 BMS 支持双击进入 3D 详情；PCS 不再切入剖切视图
         if (String(panelKey || '').startsWith('bms-')) this.enterDeviceDetail(panelKey)
+        else if (this.viewMode === 'station') this.toggleDevicePanel(panelKey)
       },
       onPointerMove: (e) => this._onDetailPointerMove(e),
       onClick: (e) => this._onDetailClick(e)
@@ -157,10 +210,10 @@ export class SceneController {
       if (t.unitIndex === ui && t.slotInUnit === slot) return t
     }
     return {
-      clusterCount: 12,
-      packCount: 4,
-      cellSeriesCount: 104,
-      cellParallelCount: 1
+      clusterCount: Number(channel?.clusterCount) || 0,
+      packCount: Number(channel?.packCount) || 0,
+      cellSeriesCount: Number(channel?.cellSeriesCount) || 0,
+      cellParallelCount: Number(channel?.cellParallelCount) || 0
     }
   }
 
@@ -263,9 +316,9 @@ export class SceneController {
    */
   updateFromSnap(snap) {
     if (this._disposed) return
-    this.snap = snap || { units: [] }
-    const n = (this.snap.units || []).length
-    if (n !== this.unitCount) {
+    this.snap = snap || { units: [], pvUnits: [] }
+    const key = stationKey(this.snap)
+    if (key !== this.stationKey) {
       const keepDetailKey = this.viewMode === 'device' ? this.detailKey : null
       this.rebuild(this.snap)
       if (keepDetailKey) {
@@ -283,10 +336,10 @@ export class SceneController {
     if (this.detailKey) this._restorePanelAnchor(this.detailKey)
     this._disposeDetailRoot()
     this._disposeStation()
-    const units = snap?.units || []
-    this.unitCount = units.length
-    const layout = computeLayout(this.unitCount)
-    const { root, refs } = buildStation(layout, units)
+    this.stationKey = stationKey(snap)
+    const layout = buildStation3dLayout(snap)
+    this.stationLayout = layout
+    const { root, refs } = buildStation(layout)
     this.stationRoot = root
     this.refs = refs
     this.scene.add(root)
@@ -350,7 +403,8 @@ export class SceneController {
     for (const a of this.refs.labelAnchors) {
       const el = document.createElement('div')
       el.className = 'dt-float-label'
-      el.style.pointerEvents = 'auto'
+      // 标签纯展示：不拦截鼠标，避免遮挡画布的缩放/旋转/点选操作
+      el.style.pointerEvents = 'none'
       const obj = new CSS2DObject(el)
       obj.position.copy(a.position)
       this.stationRoot.add(obj)
@@ -358,45 +412,74 @@ export class SceneController {
     }
 
     for (const a of this.refs.panelAnchors) {
-      const unit = (snap.units || []).find(u => (u.unitIndex ?? -1) === a.unitIndex)
-        || (snap.units || [])[a.unitIndex]
-      const channel = a.side === 'A' ? unit?.channelA : unit?.channelB
-      if (!channel) continue
+      let panelProps = null
+      if (a.type === 'pv' || a.type === 'pv-array') {
+        const pv = (snap.pvUnits || []).find(u => (u.pvIndex ?? -1) === a.pvIndex)
+          || (snap.pvUnits || [])[a.pvIndex]
+        if (!pv) continue
+        const state = a.type === 'pv-array'
+          ? reactive({ unit: { ...pv }, array: { ...(pvArrayOf(pv, a.side) || {}) } })
+          : reactive({ unit: { ...pv } })
+        this.panelStates.set(a.key, state)
+        panelProps = () => ({
+          type: a.type,
+          side: a.side || 'A',
+          pvUnit: state.unit,
+          pvArray: state.array,
+          onClose: () => {
+            if (this.viewMode === 'device' && this.detailKey === a.key) this.exitDeviceDetail()
+            else this.setDevicePanelVisible(a.key, false)
+          },
+          onPvStart: (n) => this.onEvent('pv-start', n),
+          onPvStop: (n) => this.onEvent('pv-stop', n),
+          onPvSetPower: (p) => this.onEvent('pv-set-power', p && typeof p === 'object' ? p : {}),
+          onPvSetReactive: (p) => this.onEvent('pv-set-reactive', p && typeof p === 'object' ? p : {}),
+          onPvSetTemp: (p) => this.onEvent('pv-set-temp', p && typeof p === 'object' ? p : {}),
+          onPvSetAngle: (p) => this.onEvent('pv-set-angle', p && typeof p === 'object' ? p : {}),
+          onPvSetAlbedo: (p) => this.onEvent('pv-set-albedo', p && typeof p === 'object' ? p : {})
+        })
+      } else {
+        const unit = (snap.units || []).find(u => (u.unitIndex ?? -1) === a.unitIndex)
+          || (snap.units || [])[a.unitIndex]
+        const channel = channelOfSide(unit, a.side)
+        if (!channel) continue
 
-      const state = reactive({ channel: { ...channel } })
-      this.panelStates.set(a.key, state)
+        const state = reactive({ channel: { ...channel } })
+        this.panelStates.set(a.key, state)
+        panelProps = () => ({
+          type: a.type,
+          side: a.side,
+          channel: state.channel,
+          onClose: () => {
+            if (this.viewMode === 'device' && this.detailKey === a.key) {
+              this.exitDeviceDetail()
+            } else {
+              this.setDevicePanelVisible(a.key, false)
+            }
+          },
+          onPcsStart: (n) => this.onEvent('pcs-start', n),
+          onPcsStop: (n) => this.onEvent('pcs-stop', n),
+          onPcsSetPower: (p) => {
+            const payload = p && typeof p === 'object' && !('isTrusted' in p) ? p : {}
+            this.onEvent('pcs-set-power', payload)
+          },
+          onPcsSetReactive: (p) => {
+            const payload = p && typeof p === 'object' && !('isTrusted' in p) ? p : {}
+            this.onEvent('pcs-set-reactive', payload)
+          },
+          onBmsPowerOn: (n) => this.onEvent('bms-power-on', n),
+          onBmsPowerOff: (n) => this.onEvent('bms-power-off', n),
+          onBmsFaultClear: (n) => this.onEvent('bms-fault-clear', n)
+        })
+      }
 
+      const propsFn = panelProps
       const mountEl = document.createElement('div')
       mountEl.className = 'dt-panel-host'
       mountEl.style.pointerEvents = 'none'
       mountEl.style.display = 'none'
       const app = createApp({
-        setup: () => () =>
-          h(DevicePanel, {
-            type: a.type,
-            side: a.side,
-            channel: state.channel,
-            onClose: () => {
-              if (this.viewMode === 'device' && this.detailKey === a.key) {
-                this.exitDeviceDetail()
-              } else {
-                this.setDevicePanelVisible(a.key, false)
-              }
-            },
-            onPcsStart: (n) => this.onEvent('pcs-start', n),
-            onPcsStop: (n) => this.onEvent('pcs-stop', n),
-            onPcsSetPower: (p) => {
-              const payload = p && typeof p === 'object' && !('isTrusted' in p) ? p : {}
-              this.onEvent('pcs-set-power', payload)
-            },
-            onPcsSetReactive: (p) => {
-              const payload = p && typeof p === 'object' && !('isTrusted' in p) ? p : {}
-              this.onEvent('pcs-set-reactive', payload)
-            },
-            onBmsPowerOn: (n) => this.onEvent('bms-power-on', n),
-            onBmsPowerOff: (n) => this.onEvent('bms-power-off', n),
-            onBmsFaultClear: (n) => this.onEvent('bms-fault-clear', n)
-          })
+        setup: () => () => h(DevicePanel, propsFn())
       })
       app.mount(mountEl)
       this.panelApps.set(a.key, app)
@@ -414,14 +497,14 @@ export class SceneController {
    * @param {string} panelKey
    */
   _resolvePanelKey(panelKey) {
-    const m = String(panelKey || '').match(/^(pcs|bms)-(\d+)-(A|B)$/)
+    const m = String(panelKey || '').match(/^(pcs|bms)-(\d+)-([A-Z])$/)
     if (!m) return null
     const type = m[1]
     const unitIndex = Number(m[2])
     const side = m[3]
     const unit = (this.snap?.units || []).find(u => u.unitIndex === unitIndex)
       || (this.snap?.units || [])[unitIndex]
-    const channel = side === 'A' ? unit?.channelA : unit?.channelB
+    const channel = channelOfSide(unit, side)
     if (!channel) return null
     return { type, unitIndex, side, channel, key: panelKey }
   }
@@ -797,6 +880,8 @@ export class SceneController {
       tripped: snap.mainBreakerTripped
     })
 
+    const mainLive = !!(snap.mainBreakerClosed && !snap.mainBreakerTripped)
+
     for (const u of snap.units || []) {
       const idx = u.unitIndex
       const br = this.refs.unitBreakers[idx]
@@ -808,40 +893,85 @@ export class SceneController {
       }
     }
 
-    const mainLive = !!(snap.mainBreakerClosed && !snap.mainBreakerTripped)
+    for (const pv of snap.pvUnits || []) {
+      const idx = pv.pvIndex
+      const br = this.refs.pvBreakers?.[idx]
+      if (br) {
+        setBreakerVisual(br, {
+          closed: mainLive && (pv.running || pvUnitPowerKw(pv) > 0.5),
+          tripped: !!snap.mainBreakerTripped
+        })
+      }
+    }
 
-    // 全站对外有功：各 PCS 实时有功之和（>0 放电，<0 充电）
+    for (const br of this.refs.tieBreakers || []) {
+      const item = br.userData?.layoutItem || {}
+      const live = liveUnitForBreaker(snap, item)
+      setBreakerVisual(br, live
+        ? { closed: !!live.unitBreakerClosed, tripped: !!live.unitBreakerTripped }
+        : {
+          closed: !!item.node?.parameters?.closed,
+          tripped: !!item.node?.parameters?.tripped
+        })
+    }
+
+    for (const arr of this.refs.pvArrays || []) {
+      const pv = (snap.pvUnits || []).find(x => x.pvIndex === arr.userData.pvIndex)
+        || (snap.pvUnits || [])[arr.userData.pvIndex]
+      const liveArr = pvArrayOf(pv, arr.userData.side)
+      setPvArrayVisual(arr, {
+        irradianceWm2: liveArr?.planeOfArrayWm2,
+        running: !!(pv?.running || (liveArr?.activePowerKw > 0.5))
+      })
+    }
+
+    // 全站对外有功：PCS 实发 + 光伏实发（光伏只向电网送电，≥0）
     let plantPowerKw = 0
     for (const u of snap.units || []) {
-      plantPowerKw += channelPowerKw(u.channelA) + channelPowerKw(u.channelB)
+      plantPowerKw += unitPowerKw(u)
+    }
+    for (const pv of snap.pvUnits || []) {
+      plantPowerKw += pvUnitPowerKw(pv)
     }
 
     for (const cable of this.refs.cables) {
       const role = cable.userData.cableRole
       const ui = cable.userData.unitIndex
+      const pvIndex = cable.userData.pvIndex
       const side = cable.userData.side
       let energized = false
       let tripped = false
       let powerKw = 0
 
-      if (role === 'grid-main' || role === 'main-xf' || role === 'xf-bus35') {
-        // 35kV / 进线级：看整个储能区对外输出
+      if (role === 'grid-main' || role === 'main-xf' || role === 'xf-bus35' || role === 'sld-wire') {
         energized = mainLive
         tripped = !!snap.mainBreakerTripped
         powerKw = plantPowerKw
+      } else if (role === 'pv-drop' || role === 'pv-xf' || role === 'pv-690') {
+        const pv = (snap.pvUnits || []).find(x => x.pvIndex === pvIndex)
+          || (snap.pvUnits || [])[pvIndex]
+        const pvLive = !!(mainLive && pv)
+        tripped = !!snap.mainBreakerTripped
+        energized = pvLive
+        powerKw = pvUnitPowerKw(pv)
+      } else if (role === 'pv-inv' || role === 'pv-dc') {
+        const pv = (snap.pvUnits || []).find(x => x.pvIndex === pvIndex)
+          || (snap.pvUnits || [])[pvIndex]
+        const arr = pvArrayOf(pv, side)
+        tripped = !!snap.mainBreakerTripped
+        energized = !!(mainLive && pv)
+        powerKw = Number(arr?.activePowerKw) || 0
       } else {
         const unit = (snap.units || []).find(x => x.unitIndex === ui)
         const unitLive = !!(unit?.unitBreakerClosed && !unit?.unitBreakerTripped && mainLive)
         tripped = !!(unit?.unitBreakerTripped || snap.mainBreakerTripped)
-        const unitPower = channelPowerKw(unit?.channelA) + channelPowerKw(unit?.channelB)
+        const unitPower = unitPowerKw(unit)
 
         if (role === 'unit-drop' || role === 'unit-xf' || role === 'unit-690') {
-          // 储能单元级：两台 PCS 功率合计
           energized = unitLive
           powerKw = unitPower
         } else if (role === 'pcs-feed' || role === 'dc-link') {
-          // PCS 支路级：单台 PCS 充放电
-          const ch = side === 'A' ? unit?.channelA : unit?.channelB
+          const ch = channelOfSide(unit, side)
           energized = unitLive
           powerKw = channelPowerKw(ch)
         }
@@ -853,11 +983,13 @@ export class SceneController {
     for (const node of this.refs.busNodes || []) {
       const role = node.userData.busRole
       let live = mainLive
-      if (role === 'unit-690-bus') {
+      if (role === 'unit-690-bus' || role === 'unit-lv-bus') {
         const unit = (snap.units || []).find(x => x.unitIndex === node.userData.unitIndex)
         live = !!(unit?.unitBreakerClosed && !unit?.unitBreakerTripped && mainLive)
+      } else if (role === 'pv-690-bus' || role === 'ac-bus' || node.userData.layoutItem?.templateId === 'dc_bus') {
+        live = mainLive
       }
-      const core = node.children?.[0]
+      const core = node.userData?.core || node.children?.[0]
       if (core?.material) {
         core.material.color?.setHex?.(live ? 0xe07a3a : 0x8a9099)
         if (core.material.emissive) core.material.emissiveIntensity = live ? 0.55 : 0.12
@@ -866,13 +998,32 @@ export class SceneController {
 
     // 面板数据
     for (const [key, state] of this.panelStates) {
-      const m = key.match(/^(pcs|bms)-(\d+)-(A|B)$/)
-      if (!m) continue
-      const unitIndex = Number(m[2])
-      const side = m[3]
-      const unit = (snap.units || []).find(u => u.unitIndex === unitIndex)
-      const ch = side === 'A' ? unit?.channelA : unit?.channelB
-      if (ch) Object.assign(state.channel, ch)
+      const ess = key.match(/^(pcs|bms)-(\d+)-([A-Z])$/)
+      if (ess) {
+        const unitIndex = Number(ess[2])
+        const side = ess[3]
+        const unit = (snap.units || []).find(u => u.unitIndex === unitIndex)
+        const ch = channelOfSide(unit, side)
+        if (ch) Object.assign(state.channel, ch)
+        continue
+      }
+      const xf = key.match(/^pvxf-(\d+)$/)
+      if (xf && state.unit) {
+        const pv = (snap.pvUnits || []).find(u => u.pvIndex === Number(xf[1]))
+          || (snap.pvUnits || [])[Number(xf[1])]
+        if (pv) Object.assign(state.unit, pv)
+        continue
+      }
+      const arr = key.match(/^pvarr-(\d+)-(A|B)$/)
+      if (arr && state.unit) {
+        const pv = (snap.pvUnits || []).find(u => u.pvIndex === Number(arr[1]))
+          || (snap.pvUnits || [])[Number(arr[1])]
+        if (pv) {
+          Object.assign(state.unit, pv)
+          const liveArr = pvArrayOf(pv, arr[2])
+          if (liveArr && state.array) Object.assign(state.array, liveArr)
+        }
+      }
     }
 
     // 详情外观随快照刷新
@@ -887,33 +1038,90 @@ export class SceneController {
       }
     }
 
-    // 浮动标签
-    this._setLabel('grid', [
-      '220kV 电网',
-      `PCC ${fmtVolt(snap.pccLineVoltageV)} / ${fmtHz(snap.systemFrequencyHz)}`,
-      `设定 ${fmtVolt(snap.gridNominalLineVoltageV)} / ${fmtHz(snap.gridNominalFrequencyHz)}`
-    ])
-    this._setLabel('main-breaker', [
-      `主断 ${snap.mainBreakerLabel || fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}`
-    ])
-    this._setLabel('main-xf', [
-      '主变 220/35kV',
-      fmtVolt(snap.mainTransformerSecondary?.lineVoltageV)
-    ])
-    this._setLabel('bus35', [
-      `35kV 母线 ${fmtVolt(snap.stationBus35LineVoltageV)}`
-    ])
-
-    for (const u of snap.units || []) {
-      const i = u.unitIndex
-      this._setLabel(`unit-${i}`, [`UNIT ${u.unitNumber ?? i + 1}`], true)
-      this._setLabel(`unit-br-${i}`, [
-        `单元断 ${u.unitBreakerLabel || fmtBreaker(u.unitBreakerClosed, u.unitBreakerTripped)}`
-      ])
-      this._setLabel(`unit-xf-${i}`, [
-        '单元变 35/690',
-        u.unitTransformerLine || fmtVolt(u.unitTransformerSecondary?.lineVoltageV)
-      ])
+    // 浮动标签：文案来自组态节点参数，不写死电压等级
+    for (const a of this.refs.labelAnchors || []) {
+      const item = a.item || {}
+      const kind = a.kind
+      let lines = item.text || []
+      let title = !!item.title
+      if (kind === 'grid') {
+        const rated = paramNum(item.node, 'outputVoltage')
+        lines = [
+          item.node?.label || '电网',
+          `PCC ${fmtVolt(snap.pccLineVoltageV)} / ${fmtHz(snap.systemFrequencyHz)}`,
+          rated != null ? `额定 ${fmtVolt(rated)} / ${fmtHz(snap.gridNominalFrequencyHz)}` : ''
+        ]
+      } else if (kind === 'main-breaker' || kind === 'stem-breaker') {
+        lines = [
+          `${item.label || item.node?.label || '断路器'} ${fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}`
+        ]
+      } else if (kind === 'tie-breaker' || kind === 'branch-breaker') {
+        const live = liveUnitForBreaker(snap, item)
+        const closed = live ? !!live.unitBreakerClosed : !!item.node?.parameters?.closed
+        const tripped = live ? !!live.unitBreakerTripped : !!item.node?.parameters?.tripped
+        lines = [
+          `${item.label || item.node?.label || '断路器'} ${fmtBreaker(closed, tripped)}`
+        ]
+      } else if (kind === 'station-xf') {
+        lines = [
+          item.label || item.node?.label || '变压器',
+          item.ratioLabel,
+          item.kvaLabel,
+          fmtVolt(snap.mainTransformerSecondary?.lineVoltageV)
+        ]
+      } else if (kind === 'bus-bar' || kind === 'bus-node' || kind === 'dc-bus') {
+        const v = item.voltage ?? paramNum(item.node, 'nominalVoltage')
+        lines = [item.label || `${fmtVolt(v)} 母线`]
+      } else if (kind === 'meter') {
+        lines = [item.label || item.node?.label || '电表']
+      } else if (kind === 'load') {
+        lines = [
+          item.label || item.node?.label || '负载',
+          `${(Number(snap.loadActivePowerKw) || 0).toFixed(1)} kW`
+        ]
+      } else if (kind === 'svg') {
+        const rated = Number(item.node?.parameters?.ratedCapacityKvar)
+        const cap = Number.isFinite(rated) && rated >= 1000
+          ? `${(rated / 1000).toFixed(1)} Mvar`
+          : `${Number.isFinite(rated) ? rated.toFixed(0) : '—'} kvar`
+        lines = [item.label || item.node?.label || 'SVG', cap]
+      } else if (kind === 'unit-title') {
+        title = true
+        const u = (snap.units || []).find(x => x.unitIndex === a.unitIndex)
+        lines = [item.text?.[0] || `UNIT ${u?.unitNumber ?? (a.unitIndex ?? 0) + 1}`]
+      } else if (kind === 'unit-breaker') {
+        const u = liveUnitForBreaker(snap, item)
+          || (snap.units || []).find(x => x.unitIndex === a.unitIndex)
+        // 组态绑定的真实断路器（如中压三相断路器）显示节点名；合成兑底单元回落「单元断」
+        const name = item.label || item.node?.label || '单元断'
+        const state = u?.unitBreakerLabel || fmtBreaker(u?.unitBreakerClosed, u?.unitBreakerTripped)
+        lines = [`${name} ${state}`]
+      } else if (kind === 'unit-xf') {
+        const u = (snap.units || []).find(x => x.unitIndex === a.unitIndex)
+        lines = [item.label || '单元变', u?.unitTransformerLine || fmtVolt(u?.unitTransformerSecondary?.lineVoltageV)]
+      } else if (kind === 'pv-title') {
+        title = true
+        lines = item.text || [item.label]
+      } else if (kind === 'pv-breaker') {
+        const pv = (snap.pvUnits || []).find(x => x.pvIndex === a.pvIndex)
+        lines = [`单元断 ${pv?.running ? '合' : '分'}`]
+      } else if (kind === 'pv-xf') {
+        const pv = (snap.pvUnits || []).find(x => x.pvIndex === a.pvIndex)
+        const pKw = pvUnitPowerKw(pv)
+        lines = [
+          item.label || '箱变',
+          `${pKw.toFixed(1)} kW / ${(Number(pv?.reactivePowerKvar) || 0).toFixed(1)} kvar`
+        ]
+      } else if (kind === 'pv-array') {
+        const pv = (snap.pvUnits || []).find(x => x.pvIndex === a.pvIndex)
+        const arr = pvArrayOf(pv, a.side)
+        const irr = Number(arr?.planeOfArrayWm2)
+        lines = [
+          `方阵${a.side} ${(Number(arr?.activePowerKw) || 0).toFixed(1)} kW`,
+          Number.isFinite(irr) ? `${irr.toFixed(0)} W/㎡` : ''
+        ]
+      }
+      this._setLabel(a.key, lines, title)
     }
   }
 
@@ -1018,6 +1226,11 @@ export class SceneController {
       if (mat) mat.emissiveIntensity = pulse
     }
     for (const br of this.refs?.unitBreakers || []) {
+      if (!br?.userData?.tripped) continue
+      const pulse = 0.35 + 0.35 * Math.sin(t * 0.008)
+      if (br.userData.bodyMat) br.userData.bodyMat.emissiveIntensity = pulse
+    }
+    for (const br of this.refs?.pvBreakers || []) {
       if (!br?.userData?.tripped) continue
       const pulse = 0.35 + 0.35 * Math.sin(t * 0.008)
       if (br.userData.bodyMat) br.userData.bodyMat.emissiveIntensity = pulse

@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
-# 将指定版本的点位表同步到仓库根目录（供 dotnet run / 本地联调）
+# 可选：校验 pointmaps/models 完整性。开发与运行时不再把点表同步到仓库根。
+# 选型型要求 {type}/standard/ 齐全；LC 为拼装型，校验 models/lc/*/lc.csv。
+# 发布请用 copy_pointmaps_to（publish-*.sh 已调用），只把 models 目录带到输出。
 # 用法:
-#   ./scripts/sync-pointmaps-to-root.sh           # 默认 common
-#   ./scripts/sync-pointmaps-to-root.sh lc
+#   ./scripts/sync-pointmaps-to-root.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=pointmap-common.sh
 source "$(dirname "$0")/pointmap-common.sh"
 
-VERSION="${1:-${POINTMAP_VERSION:-$DEFAULT_DEV_POINTMAP_VERSION}}"
+validate_device_models
 
-validate_pointmap_version "$VERSION"
-copy_pointmaps_to "$ROOT" "$VERSION"
+fragments=""
+while IFS= read -r d; do
+  fragments="$fragments $(basename "$d")"
+done < <(list_type_subdirs "$POINTMAP_ROOT/models/lc")
 
-echo "Done. Root directory now uses point map version: $VERSION"
+echo "OK. Runtime point maps live in pointmaps/models/ (no root CSV copy needed)."
+echo "  选型型: emu/bms/em/pv 回退 $DEFAULT_ROOT_MODEL/"
+echo "  拼装型: lc 片段$fragments"
+echo "Publish output still gets a full models tree via copy_pointmaps_to."

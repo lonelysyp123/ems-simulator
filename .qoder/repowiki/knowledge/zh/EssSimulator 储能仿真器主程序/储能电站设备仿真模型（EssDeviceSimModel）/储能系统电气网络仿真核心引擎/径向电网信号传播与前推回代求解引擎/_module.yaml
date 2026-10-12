@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model/core_engine/signal_propagation
+title: 径向电网信号传播与前推回代求解引擎
+scope:
+    - EssDeviceSimModel/Propagation/
+source_files: []
+depends_on: []
+related_to: []

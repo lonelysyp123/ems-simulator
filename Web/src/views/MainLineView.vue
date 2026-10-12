@@ -85,10 +85,10 @@
 
     <div class="card">
       <p class="card-title">
-        电气主接线
+        电站概览
         <span class="card-hint">
           {{ useTopologyMainLine
-            ? '工程模式：经典单线图 · 右键平移 · Ctrl/⌘+滚轮缩放'
+            ? '工程模式：经典单线图 · 右键平移 · Ctrl/⌘+滚轮缩放 · PCS/BMS 可启停/设定'
             : '左键点击断路器 · 右键平移 · Ctrl/⌘+滚轮缩放 · PCS 可启停/设定功率' }}
         </span>
       </p>
@@ -96,7 +96,13 @@
         v-if="useTopologyMainLine"
         :snap="snap"
         @toggle-main-breaker="onToggleMainBreaker"
-        @toggle-unit-breaker="onToggleUnitBreaker"
+        @pv-start="onPvStart"
+        @pv-stop="onPvStop"
+        @pv-set-power="onPvSetPower"
+        @pv-set-reactive="onPvSetReactive"
+        @pv-set-temp="onPvSetTemp"
+        @pv-set-angle="onPvSetAngle"
+        @pv-set-albedo="onPvSetAlbedo"
         @pcs-start="onPcsStart"
         @pcs-stop="onPcsStop"
         @pcs-set-power="onPcsSetPower"
@@ -105,6 +111,8 @@
         @bms-power-off="onBmsPowerOff"
         @bms-fault-clear="onBmsFaultClear"
         @bms-set-soc="onBmsSetSoc"
+        @svg-run="onSvgRun"
+        @svg-set-reactive="onSvgSetReactive"
       />
       <MainLineSvg
         v-else
@@ -119,6 +127,8 @@
         @bms-power-off="onBmsPowerOff"
         @bms-fault-clear="onBmsFaultClear"
         @bms-set-soc="onBmsSetSoc"
+        @svg-run="onSvgRun"
+        @svg-set-reactive="onSvgSetReactive"
       />
     </div>
 
@@ -142,15 +152,75 @@
       </el-table>
     </div>
 
-    <div class="card">
+    <div v-if="pcsRows.length || transformerRows.length" class="card unit-detail">
       <p class="card-title">储能单元明细</p>
-      <el-table :data="unitRows" size="small" border stripe>
-        <el-table-column prop="unit" label="UNIT" width="80" fixed />
-        <el-table-column label="单元断/单元变" min-width="200"><template #default="{ row }">{{ row.xf }}</template></el-table-column>
-        <el-table-column label="PCS-A" min-width="240"><template #default="{ row }">{{ row.pcsA }}</template></el-table-column>
-        <el-table-column label="PCS-B" min-width="240"><template #default="{ row }">{{ row.pcsB }}</template></el-table-column>
-        <el-table-column label="舱-A" min-width="200"><template #default="{ row }">{{ row.bmsA }}</template></el-table-column>
-        <el-table-column label="舱-B" min-width="200"><template #default="{ row }">{{ row.bmsB }}</template></el-table-column>
+
+      <p class="section-title">PCS 明细</p>
+      <el-table :data="pcsRows" size="small" border stripe>
+        <el-table-column prop="unit" label="UNIT" width="88" fixed />
+        <el-table-column prop="pcs" label="PCS" width="88" />
+        <el-table-column prop="state" label="状态" min-width="120" />
+        <el-table-column prop="startStop" label="启停" min-width="80" />
+        <el-table-column prop="targetP" label="目标 P" min-width="110" />
+        <el-table-column prop="actualP" label="实际 P" min-width="110" />
+        <el-table-column prop="targetQ" label="目标 Q" min-width="110" />
+        <el-table-column prop="actualQ" label="实际 Q" min-width="110" />
+        <el-table-column prop="mode" label="模式" width="80" />
+        <el-table-column prop="blackStart" label="黑启动" min-width="100" />
+        <el-table-column prop="ac" label="交流" min-width="180" />
+      </el-table>
+
+      <p class="section-title">BMS 明细</p>
+      <el-table :data="bmsRows" size="small" border stripe>
+        <el-table-column prop="unit" label="UNIT" width="88" fixed />
+        <el-table-column prop="bms" label="舱" width="80" />
+        <el-table-column prop="compact" label="SOC / Vdc / Idc" min-width="180" />
+        <el-table-column prop="run" label="运行" min-width="100" />
+        <el-table-column prop="energy" label="电能" min-width="180" />
+        <el-table-column prop="grid" label="并网" min-width="90" />
+        <el-table-column prop="blackStart" label="黑启动" min-width="100" />
+        <el-table-column prop="ac" label="空调" min-width="140" />
+      </el-table>
+
+      <p class="section-title">单元变压器明细</p>
+      <el-table :data="transformerRows" size="small" border stripe>
+        <el-table-column prop="unit" label="UNIT" width="88" fixed />
+        <el-table-column prop="primary" label="一次" min-width="180" />
+        <el-table-column prop="secondary" label="二次" min-width="180" />
+        <el-table-column prop="power" label="功率" min-width="180" />
+        <el-table-column prop="load" label="负载率" width="90" />
+        <el-table-column prop="oil" label="油温" width="90" />
+      </el-table>
+
+      <p class="section-title">单元断路器明细</p>
+      <el-table :data="breakerRows" size="small" border stripe>
+        <el-table-column prop="unit" label="UNIT" width="88" fixed />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <span :class="row.tripped ? 'tag-offline' : (row.closed ? 'tag-online' : 'tag-offline')">{{ row.state }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <p class="section-title">单元电表明细</p>
+      <el-table :data="meterRows" size="small" border stripe>
+        <el-table-column prop="unit" label="UNIT" width="88" fixed />
+        <el-table-column prop="voltages" label="线电压" min-width="220" />
+        <el-table-column prop="currents" label="相电流" min-width="200" />
+        <el-table-column prop="power" label="功率" min-width="220" />
+        <el-table-column prop="freq" label="频率" width="90" />
+      </el-table>
+    </div>
+
+    <div v-if="pvRows.length" class="card">
+      <p class="card-title">光伏单元明细</p>
+      <el-table :data="pvRows" size="small" border stripe>
+        <el-table-column prop="pv" label="PV" width="80" fixed />
+        <el-table-column label="状态" min-width="140"><template #default="{ row }">{{ row.status }}</template></el-table-column>
+        <el-table-column label="有功 P" min-width="180"><template #default="{ row }">{{ row.activePower }}</template></el-table-column>
+        <el-table-column label="无功 Q" min-width="180"><template #default="{ row }">{{ row.reactivePower }}</template></el-table-column>
+        <el-table-column label="方阵-A" min-width="320"><template #default="{ row }">{{ row.arrayA }}</template></el-table-column>
+        <el-table-column label="方阵-B" min-width="320"><template #default="{ row }">{{ row.arrayB }}</template></el-table-column>
       </el-table>
     </div>
   </div>
@@ -164,7 +234,7 @@ import { useRealtime, RealtimeMethods, RealtimeChannels } from '@/services/useRe
 import MainLineSvg from '@/components/MainLineSvg.vue'
 import TopologyMainLineSvg from '@/components/TopologyMainLineSvg.vue'
 
-const snap = ref({ units: [] })
+const snap = ref({ units: [], pvUnits: [] })
 const useTopologyMainLine = computed(() =>
   !!(snap.value.engineeringMode && snap.value.topology?.nodes?.length)
 )
@@ -237,16 +307,80 @@ function fmtPhaseCurrents(m) {
 }
 function fmtBreaker(closed, tripped) { return tripped ? '跳闸' : closed ? '合' : '分' }
 
-function fmtPcsChannel(ch) {
-  if (!ch) return '—'
-  return [ch.pcsDeviceState, ch.pcsStartStop, ch.pcsTargetP, ch.pcsActualP, ch.pcsTargetQ, ch.pcsActualQ, ch.pcsBlackStart, `模式:${ch.pcsGridMode}`].join(' ')
+function fmtPf(v) {
+  if (v == null || Number.isNaN(Number(v))) return '—'
+  return Number(v).toFixed(3)
 }
-function fmtBmsChannel(ch) {
-  if (!ch) return '—'
-  const energy = ch.bmsEnergy || `累计充 ${(ch.cumulativeChargeEnergyKwh ?? 0).toFixed(1)} / 放 ${(ch.cumulativeDischargeEnergyKwh ?? 0).toFixed(1)} kWh`
-  const run = ch.bmsRunStatus || '运行:—'
-  return `${ch.bmsCompact} | ${run} | ${energy} | 并网:${ch.gridConnect} | ${ch.bmsBlackStart}`
+function unitLabel(u) {
+  return `UNIT ${u.unitNumber ?? (u.unitIndex ?? 0) + 1}`
 }
+
+const pcsRows = computed(() => {
+  const rows = []
+  for (const u of snap.value.units || []) {
+    for (const ch of u.channels || []) {
+      if (!ch) continue
+      rows.push({
+        unit: unitLabel(u),
+        pcs: `PCS-${ch.pcsNumber ?? ch.channelNumber ?? ''}`,
+        state: ch.pcsDeviceState || '—',
+        startStop: ch.pcsStartStop || '—',
+        targetP: ch.pcsTargetP || '—',
+        actualP: ch.pcsActualP || '—',
+        targetQ: ch.pcsTargetQ || '—',
+        actualQ: ch.pcsActualQ || '—',
+        mode: ch.pcsGridMode || '—',
+        blackStart: ch.pcsBlackStart || '—',
+        ac: ch.pcsAcLine || '—'
+      })
+    }
+  }
+  return rows
+})
+
+const bmsRows = computed(() => {
+  const rows = []
+  for (const u of snap.value.units || []) {
+    for (const ch of u.channels || []) {
+      if (!ch) continue
+      rows.push({
+        unit: unitLabel(u),
+        bms: `舱-${ch.compartmentNumber ?? ch.channelNumber ?? ''}`,
+        compact: ch.bmsCompact || '—',
+        run: ch.bmsRunStatus || '—',
+        energy: ch.bmsEnergy || `累计充 ${(ch.cumulativeChargeEnergyKwh ?? 0).toFixed(1)} / 放 ${(ch.cumulativeDischargeEnergyKwh ?? 0).toFixed(1)} kWh`,
+        grid: ch.gridConnect || '—',
+        blackStart: ch.bmsBlackStart || '—',
+        ac: ch.bmsAirConditioner || '—'
+      })
+    }
+  }
+  return rows
+})
+
+const transformerRows = computed(() => (snap.value.units || []).map(u => ({
+  unit: unitLabel(u),
+  primary: fmtPhasorViPhi(u.unitTransformerPrimary),
+  secondary: u.unitTransformerLine || fmtPhasorViPhi(u.unitTransformerSecondary),
+  power: `P ${fmtKw(u.unitTransformerActivePowerKw)}  Q ${fmtKvar(u.unitTransformerReactivePowerKvar)}`,
+  load: u.unitTransformerLoadFraction == null ? '—' : `${(Number(u.unitTransformerLoadFraction) * 100).toFixed(1)}%`,
+  oil: u.unitTransformerOilTemperatureC == null ? '—' : `${Number(u.unitTransformerOilTemperatureC).toFixed(1)} ℃`
+})))
+
+const breakerRows = computed(() => (snap.value.units || []).map(u => ({
+  unit: unitLabel(u),
+  state: u.unitBreakerLabel || fmtBreaker(u.unitBreakerClosed, u.unitBreakerTripped),
+  closed: !!u.unitBreakerClosed,
+  tripped: !!u.unitBreakerTripped
+})))
+
+const meterRows = computed(() => (snap.value.units || []).map(u => ({
+  unit: unitLabel(u),
+  voltages: fmtLineVoltages(u.unitMeterThreePhase),
+  currents: fmtPhaseCurrents(u.unitMeterThreePhase),
+  power: `P ${fmtKw(u.unitMeterActivePowerKw)}  Q ${fmtKvar(u.unitMeterReactivePowerKvar)}  PF ${fmtPf(u.unitMeterPowerFactor)}`,
+  freq: fmtHz(u.unitMeterFrequencyHz)
+})))
 
 const breakerLabel = computed(() =>
   snap.value.mainBreakerLabel || fmtBreaker(snap.value.mainBreakerClosed, snap.value.mainBreakerTripped)
@@ -303,19 +437,40 @@ const acRows = computed(() => [
   }
 ])
 
-const unitRows = computed(() => (snap.value.units || []).map(u => ({
-  unit: `UNIT ${u.unitNumber ?? u.unitIndex + 1}`,
-  xf: `${u.unitBreakerLabel || fmtBreaker(u.unitBreakerClosed, u.unitBreakerTripped)} | ${u.unitTransformerLine || fmtPhasorViPhi(u.unitTransformerSecondary)}`,
-  pcsA: fmtPcsChannel(u.channelA),
-  pcsB: fmtPcsChannel(u.channelB),
-  bmsA: fmtBmsChannel(u.channelA),
-  bmsB: fmtBmsChannel(u.channelB)
+function fmtPvArray(a) {
+  if (!a) return '—'
+  const parts = [
+    `辐照 ${Number(a.planeOfArrayWm2 || 0).toFixed(0)} W/m²`,
+    `环境 ${Number(a.ambientTemperatureC || 0).toFixed(1)}℃ / 组件 ${Number(a.cellTemperatureC || 0).toFixed(1)}℃`,
+    `入射角 ${Number(a.incidenceAngleDeg || 0).toFixed(0)}° / 反照率 ${Number(a.albedo || 0).toFixed(2)}`,
+    `DC ${Number(a.dcVoltageV || 0).toFixed(0)}V / ${Number(a.dcCurrentA || 0).toFixed(0)}A`,
+    `出力 ${fmtKw(a.activePowerKw)}`
+  ]
+  if (a.limitReason) parts.push(`限电:${a.limitReason}`)
+  return parts.join(' ')
+}
+
+const pvRows = computed(() => (snap.value.pvUnits || []).map(p => ({
+  pv: `PV ${p.pvNumber ?? p.pvIndex + 1}`,
+  status: `${p.running ? '运行' : '待机'} | 并网设备 ${p.gridConnectedDeviceCount ?? 0} 台`,
+  activePower: `设 ${fmtKw(p.targetActivePowerKw)} / 实 ${fmtKw(p.activePowerKw)}`,
+  reactivePower: `设 ${fmtKvar(p.targetReactivePowerKvar)} / 实 ${fmtKvar(p.reactivePowerKvar)}`,
+  arrayA: fmtPvArray(p.arrayA),
+  arrayB: fmtPvArray(p.arrayB)
 })))
+
+async function refreshSnap() {
+  try {
+    snap.value = await getMainLine()
+    syncLoadDrafts()
+  } catch { /* 实时通道稍后会补 */ }
+}
 
 async function runChannelCommand(input) {
   try {
     const r = await postCommand(input)
     ElMessage[r.success ? 'success' : 'error'](r.message)
+    if (r.success) await refreshSnap()
   } catch (e) {
     ElMessage.error(e.message)
   }
@@ -330,6 +485,7 @@ async function onToggleMainBreaker() {
     const next = !snap.value.mainBreakerClosed
     const r = await postMainBreaker(next)
     ElMessage[r.success ? 'success' : 'error'](r.message)
+    if (r.success) await refreshSnap()
   } catch (e) {
     ElMessage.error(e.message)
   }
@@ -345,20 +501,10 @@ async function onToggleUnitBreaker(unitIndex) {
     const next = !(u?.unitBreakerClosed ?? false)
     const r = await postUnitBreaker(unitIndex + 1, next)
     ElMessage[r.success ? 'success' : 'error'](r.message)
+    if (r.success) await refreshSnap()
   } catch (e) {
     ElMessage.error(e.message)
   }
-}
-
-function resolvePcsModbus(pcsNumber, kind = 'p') {
-  const n = Number(pcsNumber)
-  if (!Number.isFinite(n) || n < 1) return null
-  const emuUnit = Math.ceil(n / 2)
-  const isA = n % 2 === 1
-  const ytPoint = kind === 'p'
-    ? (isA ? 'yt0' : 'yt4')
-    : (isA ? 'yt1' : 'yt5')
-  return { emuUnit, ytPoint }
 }
 
 async function onPcsStart(pcsNumber) {
@@ -370,37 +516,132 @@ async function onPcsStop(pcsNumber) {
 }
 
 async function onPcsSetPower(payload = {}) {
+  const n = Number(payload.pcsNumber)
+  if (!Number.isFinite(n) || n < 1) {
+    ElMessage.error('无法解析 PCS 编号')
+    return
+  }
   const kw = Number(payload.powerKw)
   if (!Number.isFinite(kw)) {
     ElMessage.warning('请输入有效的有功功率')
     return
   }
-  const resolved = resolvePcsModbus(payload.pcsNumber, 'p')
-  const emuUnit = Number(payload.emuUnit) > 0 ? Number(payload.emuUnit) : resolved?.emuUnit
-  const ytPoint = payload.ytPoint || resolved?.ytPoint
-  if (!emuUnit || !ytPoint) {
-    ElMessage.error('无法解析 PCS 对应的 Modbus 设备')
-    return
-  }
-  const raw = Math.round(kw * 10)
-  await runChannelCommand(`dpc simEmu${emuUnit}.${ytPoint} set ${raw}`)
+  await runChannelCommand(`esscmd pcs${n} power ${kw}`)
 }
 
 async function onPcsSetReactive(payload = {}) {
+  const n = Number(payload.pcsNumber)
+  if (!Number.isFinite(n) || n < 1) {
+    ElMessage.error('无法解析 PCS 编号')
+    return
+  }
   const kvar = Number(payload.reactiveKvar)
   if (!Number.isFinite(kvar)) {
     ElMessage.warning('请输入有效的无功功率')
     return
   }
-  const resolved = resolvePcsModbus(payload.pcsNumber, 'q')
-  const emuUnit = Number(payload.emuUnit) > 0 ? Number(payload.emuUnit) : resolved?.emuUnit
-  const ytPoint = payload.ytPoint || resolved?.ytPoint
-  if (!emuUnit || !ytPoint) {
-    ElMessage.error('无法解析 PCS 对应的 Modbus 设备')
+  await runChannelCommand(`esscmd pcs${n} reactive ${kvar}`)
+}
+
+function resolvePvNumber(payload) {
+  const n = Number(payload?.pvNumber ?? payload)
+  return Number.isFinite(n) && n >= 1 ? n : 0
+}
+
+async function onPvStart(payload) {
+  const n = resolvePvNumber(payload)
+  if (!n) {
+    ElMessage.error('无法解析光伏单元')
     return
   }
-  const raw = Math.round(kvar * 10)
-  await runChannelCommand(`dpc simEmu${emuUnit}.${ytPoint} set ${raw}`)
+  await runChannelCommand(`esscmd setpv${n} run on`)
+}
+
+async function onPvStop(payload) {
+  const n = resolvePvNumber(payload)
+  if (!n) {
+    ElMessage.error('无法解析光伏单元')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} run off`)
+}
+
+async function onPvSetPower(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const kw = Number(payload.powerKw)
+  if (!n) {
+    ElMessage.error('无法解析光伏单元')
+    return
+  }
+  if (!Number.isFinite(kw) || kw < 0) {
+    ElMessage.warning('请输入有效的有功功率（≥0）')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} power ${kw}`)
+}
+
+async function onPvSetReactive(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const kvar = Number(payload.reactiveKvar)
+  if (!n) {
+    ElMessage.error('无法解析光伏单元')
+    return
+  }
+  if (!Number.isFinite(kvar)) {
+    ElMessage.warning('请输入有效的无功功率')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} reactive ${kvar}`)
+}
+
+function resolvePvSide(payload) {
+  const side = String(payload?.side || '').trim().toUpperCase()
+  return side === 'A' || side === 'B' ? side : ''
+}
+
+async function onPvSetTemp(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const side = resolvePvSide(payload)
+  const temperatureC = Number(payload.temperatureC)
+  if (!n || !side) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  if (!Number.isFinite(temperatureC)) {
+    ElMessage.warning('请输入有效的温度')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} array ${side} temperature ${temperatureC}`)
+}
+
+async function onPvSetAngle(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const side = resolvePvSide(payload)
+  const angleDeg = Number(payload.angleDeg)
+  if (!n || !side) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  if (!Number.isFinite(angleDeg)) {
+    ElMessage.warning('请输入有效的入射角')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} array ${side} angle ${angleDeg}`)
+}
+
+async function onPvSetAlbedo(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const side = resolvePvSide(payload)
+  const albedo = Number(payload.albedo)
+  if (!n || !side) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  if (!Number.isFinite(albedo)) {
+    ElMessage.warning('请输入有效的反照率（0~1）')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} array ${side} albedo ${albedo}`)
 }
 
 async function onBmsPowerOn(bmsNumber) {
@@ -427,6 +668,18 @@ async function onBmsSetSoc(payload = {}) {
     return
   }
   await runChannelCommand(`esscmd setbms${bmsNumber} soc ${pct}`)
+}
+
+async function onSvgRun(on) {
+  await runChannelCommand(`esscmd setSvg run ${on ? 'on' : 'off'}`)
+}
+
+async function onSvgSetReactive(kvar) {
+  if (!Number.isFinite(kvar)) {
+    ElMessage.warning('请输入有效的无功（kvar，正为容性发出）')
+    return
+  }
+  await runChannelCommand(`esscmd setSvg reactive ${kvar}`)
 }
 
 async function onSetLoadActive() {
@@ -499,6 +752,16 @@ useRealtime(RealtimeChannels.MainLine, {
 
 <style scoped>
 .card-hint { font-size: 12px; color: #909399; font-weight: normal; margin-left: 12px; }
+
+.section-title {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+}
+.unit-detail .section-title:first-of-type {
+  margin-top: 4px;
+}
 
 .metric-item-editable {
   position: relative;

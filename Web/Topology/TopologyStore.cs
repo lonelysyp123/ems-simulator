@@ -211,6 +211,34 @@ namespace EssSimulator.Web.Topology
             }
         }
 
+        /// <summary>
+        /// 复制命名工程为新工程：新 Id，副本名默认「原名-副本」，
+        /// 名称冲突时自动追加序号（-副本 2、-副本 3 …）。
+        /// </summary>
+        public TopologyProject CopyNamedProject(string id, string? newName = null)
+        {
+            var source = LoadNamedProject(id);
+            if (source == null)
+                throw new InvalidOperationException("待复制的工程不存在");
+
+            var sourceName = string.IsNullOrWhiteSpace(source.Name) ? source.Id : source.Name.Trim();
+            var baseName = string.IsNullOrWhiteSpace(newName) ? $"{sourceName}-副本" : newName.Trim();
+            var name = baseName;
+            for (int suffix = 2; FindProjectByName(name) != null; suffix++)
+                name = $"{baseName} {suffix}";
+
+            // LoadNamedProject 每次从 JSON 反序列化，Nodes/Edges 已是深拷贝
+            var copy = new TopologyProject
+            {
+                SchemaVersion = source.SchemaVersion,
+                Id = Guid.NewGuid().ToString("N"),
+                Name = name,
+                Nodes = source.Nodes,
+                Edges = source.Edges
+            };
+            return SaveNamedProject(copy);
+        }
+
         /// <summary>将命名工程载入当前画布（供「修改」进入组态编辑）。</summary>
         public TopologyProject? OpenNamedProject(string id)
         {
@@ -326,7 +354,8 @@ namespace EssSimulator.Web.Topology
             Name = string.IsNullOrWhiteSpace(p.Name) ? p.Id : p.Name,
             UpdatedAtUtc = p.UpdatedAtUtc,
             NodeCount = p.Nodes?.Count ?? 0,
-            EmuCount = p.Nodes?.Count(n => n.TemplateId == "emu") ?? 0
+            EmuCount = p.Nodes?.Count(n => n.TemplateId == "emu") ?? 0,
+            PvCount = p.Nodes?.Count(n => n.TemplateId == "pv_unit") ?? 0
         };
 
         private static void NormalizeParameters(TopologyProject project)
@@ -468,10 +497,6 @@ namespace EssSimulator.Web.Topology
         public TopologyLibraryItem SaveLibraryItem(TopologyLibraryItem item)
         {
             if (item == null) throw new ArgumentNullException(nameof(item));
-            if (string.IsNullOrWhiteSpace(item.TemplateId))
-                throw new ArgumentException("TemplateId 不能为空", nameof(item));
-            if (TopologyTemplates.Get(item.TemplateId) == null)
-                throw new ArgumentException($"未知模板: {item.TemplateId}", nameof(item));
 
             lock (_gate)
             {
@@ -479,13 +504,68 @@ namespace EssSimulator.Web.Topology
                 if (string.IsNullOrWhiteSpace(item.Id))
                     item.Id = Guid.NewGuid().ToString("N");
                 if (string.IsNullOrWhiteSpace(item.Name))
-                    item.Name = "未命名设备";
-                item.Parameters = NormalizeDict(item.Parameters);
+                    item.Name = item.IsComposite ? "未命名组合" : "未命名设备";
+
+                if (item.IsComposite)
+                    NormalizeCompositeLibraryItem(item);
+                else
+                    NormalizeDeviceLibraryItem(item);
+
                 item.UpdatedAtUtc = DateTime.UtcNow;
                 var json = JsonSerializer.Serialize(item, JsonOpts);
                 File.WriteAllText(LibraryPath(item.Id), json);
                 return item;
             }
+        }
+
+        private static void NormalizeDeviceLibraryItem(TopologyLibraryItem item)
+        {
+            item.Kind = "device";
+            item.Nodes = new List<TopologyNode>();
+            item.Edges = new List<TopologyEdge>();
+            if (string.IsNullOrWhiteSpace(item.TemplateId))
+                throw new ArgumentException("TemplateId 不能为空", nameof(item));
+            if (TopologyTemplates.Get(item.TemplateId) == null)
+                throw new ArgumentException($"未知模板: {item.TemplateId}", nameof(item));
+            item.Parameters = NormalizeDict(item.Parameters);
+        }
+
+        private static readonly string[] LibraryStripKeys = { "emuId", "groupId" };
+
+        private static void NormalizeCompositeLibraryItem(TopologyLibraryItem item)
+        {
+            item.Kind = "composite";
+            item.Nodes ??= new List<TopologyNode>();
+            item.Edges ??= new List<TopologyEdge>();
+            if (item.Nodes.Count < 2)
+                throw new ArgumentException("组合图元至少需要 2 个设备", nameof(item));
+
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var node in item.Nodes)
+            {
+                if (node == null || string.IsNullOrWhiteSpace(node.Id))
+                    throw new ArgumentException("组合图元设备缺少 Id", nameof(item));
+                if (!ids.Add(node.Id))
+                    throw new ArgumentException($"组合图元设备 Id 重复: {node.Id}", nameof(item));
+                if (string.IsNullOrWhiteSpace(node.TemplateId) || TopologyTemplates.Get(node.TemplateId) == null)
+                    throw new ArgumentException($"组合图元含未知模板: {node.TemplateId}", nameof(item));
+                node.Parameters = StripLibraryBinding(NormalizeDict(node.Parameters));
+            }
+
+            item.Edges = item.Edges
+                .Where(e => e != null && ids.Contains(e.FromNodeId) && ids.Contains(e.ToNodeId))
+                .ToList()!;
+
+            if (string.IsNullOrWhiteSpace(item.TemplateId) || TopologyTemplates.Get(item.TemplateId) == null)
+                item.TemplateId = item.Nodes[0].TemplateId;
+            item.Parameters = NormalizeDict(item.Parameters);
+        }
+
+        private static Dictionary<string, object?> StripLibraryBinding(Dictionary<string, object?> parameters)
+        {
+            foreach (var key in LibraryStripKeys)
+                parameters.Remove(key);
+            return parameters;
         }
 
         public bool DeleteLibraryItem(string id)

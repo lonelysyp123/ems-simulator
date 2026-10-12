@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model/core_engine/network_solver
+title: 储能系统电气网络求解器
+scope:
+    - EssDeviceSimModel/Solver/
+source_files: []
+depends_on: []
+related_to: []

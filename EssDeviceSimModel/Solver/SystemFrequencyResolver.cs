@@ -5,7 +5,7 @@ namespace EssSimulator.EssDeviceSimModel.Solver
 {
     /// <summary>
     /// 解析当前仿真步的系统唯一频率源（Hz）：
-    /// 主断合且电网有压 → 电网额定频率；主断分且 PCS 构网 → 构网 PCS 频率；否则 0。
+    /// 主断合且电网有压 → 电网额定频率；主断分且 PCS 构网 → 构网 PCS 频率平均；否则 0。
     /// </summary>
     public static class SystemFrequencyResolver
     {
@@ -19,8 +19,8 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 return network.Grid.NominalFrequencyHz;
             }
 
-            double bestV = 0;
-            double bestF = 0;
+            double sumF = 0;
+            int n = 0;
             foreach (var pcs in network.PcsDevices)
             {
                 if (!pcs.TryGetIslandBusVoltageInjection(out var v, out var f))
@@ -28,14 +28,11 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 if (v <= 1.0 || f <= 1.0)
                     continue;
 
-                if (v > bestV + 1e-3 || (Math.Abs(v - bestV) <= 1e-3 && f > bestF))
-                {
-                    bestV = v;
-                    bestF = f;
-                }
+                sumF += f;
+                n++;
             }
 
-            return bestF;
+            return n > 0 ? sumF / n : 0;
         }
 
         public static void Refresh(ElectricalNetwork network, DeviceStepContext context) =>

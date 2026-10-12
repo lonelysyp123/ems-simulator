@@ -46,6 +46,7 @@ namespace EssSimulator.Display
             "SoftStarting" => "软启动",
             "VoltageRegulating" => "调压",
             "Synchronized" => "已同步",
+            "Following" => "预同步",
             _ => string.IsNullOrWhiteSpace(phase) ? "—" : phase
         };
 
@@ -85,11 +86,12 @@ namespace EssSimulator.Display
 
         public static string BuildBlackStartSwitchSummary(int channelStart, int channelEndExclusive)
         {
+            var layout = GuiSimDataAccess.GetPcsPerUnit();
             var parts = new List<string>();
             for (int i = channelStart; i < channelEndExclusive; i++)
             {
-                int u = i / 2;
-                int slot = i % 2;
+                int u = PcsUnitLayout.UnitIndexOf(layout, i);
+                int slot = PcsUnitLayout.SlotOfChannel(layout, i);
                 string st = FormatBlackStartSwitchStatus(u, slot, i);
                 parts.Add($"PCS{i + 1}:{st}");
             }
@@ -225,6 +227,24 @@ namespace EssSimulator.Display
                 _ => $"S{status}"
             };
             return $"黑启:{tag}";
+        }
+
+        /// <summary>主接线 BMS 框空调紧凑文案：运行状态 + 柜内温度 + 制冷设定温。</summary>
+        public static string FormatBmsMainLineAirConditioner(int bmsIndex0)
+        {
+            string prefix = $"bms{bmsIndex0 + 1}.AirConditioners[0]";
+            if (GuiSimDataAccess.TryGetObject($"{prefix}.CabinetTemp") == null)
+                return string.Empty;
+
+            double temp = GuiSimDataAccess.SafeGetDouble($"{prefix}.CabinetTemp");
+            double set = GuiSimDataAccess.SafeGetDouble($"{prefix}.CoolingSetTemp");
+            bool on = GuiSimDataAccess.SafeGetBool($"{prefix}.DeviceOperationStatus");
+            bool cooling = GuiSimDataAccess.SafeGetBool($"{prefix}.CompressorStatus");
+            bool overheat = GuiSimDataAccess.SafeGetBool($"{prefix}.CabinetOverheat");
+
+            string mode = !on ? "停机" : cooling ? "制冷" : "运行";
+            string text = $"空调:{mode} {temp:0.0}℃ 设{set:0.0}℃";
+            return overheat ? $"{text} 过热" : text;
         }
 
         public static string FormatPcsControlStatus(int unitIndex0, int pcsSlotInUnit0, int essPcsListIndex)

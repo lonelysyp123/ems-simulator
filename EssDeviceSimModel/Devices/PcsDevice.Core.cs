@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using EssSimulator.EssDeviceSimModel;
+using EssSimulator.EssDeviceSimModel.Control;
 using EssSimulator.EssDeviceSimModel.Diagnostics;
 using EssSimulator.EssDeviceSimModel.Interface;
 using EssSimulator.EssDeviceSimModel.Model;
@@ -32,7 +33,6 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         public PcsState _currentState { get; set; }
         private GridState _gridState;
         private double _ambientTemperature;
-        private double _thermalPowerDeratingFactor = 1.0;
         private readonly Random _random = new Random();
         private readonly object _setpointLock = new object();
         private double _pendingActiveSetpoint;
@@ -57,7 +57,21 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         private readonly double _blackStartMagnetizingPowerFraction;
         private readonly double _blackStartBusEnergizedFraction;
         private readonly double _blackStartPrechargeDelaySec;
-        private readonly double _blackStartVoltageRampVs;
+        private readonly VoltageRampGenerator _voltageRamp;
+        private readonly QvDroopRegulator _qvDroop;
+        private readonly bool _qvDroopEnabled;
+        private readonly bool _qvDroopAfterSoftStartOnly;
+        private readonly VoltageOuterLoop _voltageOuter;
+        private readonly CurrentInnerLoop _currentInner;
+        private readonly PfDroopRegulator _pfDroop;
+        private readonly PhaseIntegrator _formingPhase;
+        private readonly PllTracker _pll;
+        private readonly PreSyncSupervisor _preSync;
+        private readonly double _pllEnableVoltagePu;
+        private bool _liveBusFollower;
+        private bool _ignoreZeroIslandCommandAfterJoin;
+        private double _busFrequencyHz;
+        private double _busPhaseRad;
         private readonly double _blackStartFrequencyStartHz;
         private readonly double _blackStartFrequencyRampHzPerSec;
         private readonly double _blackStartReactiveVoltageGainKvarPerV;
@@ -67,10 +81,14 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         private double _blackStartPrepareRemainingSec;
         private double _blackStartSoftCapV;
         private double _blackStartIslandFreqHz;
+        private double _islandFrequencyCommandHz;
         private double _transformerMagnetizingReactiveKvar;
         private double _blackStartSharedLossActivePowerKw;
         private double _blackStartInrushActiveKw;
         private double _blackStartInrushReactiveKvar;
+        private bool _joinedFromLiveBus;
+        private double _blackStartJoinShare = 1.0;
+        private readonly double _blackStartJoinShareRampSec;
         /// <summary>EMS 负荷有功/无功（爬坡线程），与站用电叠加后受额定功率限制。</summary>
         private double _loadActivePowerKw;
         private double _loadReactivePowerKvar;
@@ -79,6 +97,24 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         private bool _faultTripLatched;
         private bool _externalRunCommand;
         private bool _externalRunRisingEdge;
+
+        // 暂态建模
+        private readonly double _transientSubStepSec;
+        private readonly double _voltageControllerTauSec;
+        private double _transientAcVoltageV;       // PI 滞后后的瞬时电压
+        private double _prevSubStepAcVoltageV;     // 上一子步电压(算 dV/dt)
+        private double _dvDt;                      // 当前 dV/dt(V/s)
+        private readonly double _dvDtTripThresholdVPerSec;
+        private readonly double _dvDtRideThroughLimitMs;
+        private double _dvDtRideThroughMs;         // dV/dt 越限累计时间
+        // 涌流：跟正向 dV/dt（磁通变化）走，与单元变励磁涌流同一门槛（0.8 pu/s）
+        private const double InrushDvDtThresholdPuPerSec = 0.8;
+        private readonly double _inrushPeakA;
+        private readonly double _inrushTauSec;
+        private bool _inrushTriggered;
+        private bool _inrushExceededDesignPeak;
+        private double _inrushCurrentA;
+        private double _inrushPeakThisTick;
 
         public PcsDevice(string deviceId, PcsDeviceConfig deviceConfig, double ambientTemp = 25.0)
         {
@@ -94,7 +130,14 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 DcVoltageRangeMax = deviceConfig.DcVoltageRangeMaxV,
                 AcVoltageNominal = deviceConfig.AcNominalLineVoltageV,
                 FrequencyNominal = deviceConfig.FrequencyHz,
-                MaxCurrent = deviceConfig.MaxCurrentA
+                MaxCurrent = deviceConfig.MaxCurrentA,
+                TransientSubStepMs = deviceConfig.TransientSubStepMs,
+                VoltageControllerTauMs = deviceConfig.VoltageControllerTauMs,
+                InrushPeakMultiplier = deviceConfig.InrushPeakMultiplier,
+                InrushDecayTauMs = deviceConfig.InrushDecayTauMs,
+                InrushTriggerVoltageFrac = deviceConfig.InrushTriggerVoltageFrac,
+                DvDtTripThresholdVPerSec = deviceConfig.DvDtTripThresholdVPerSec,
+                DvDtRideThroughMs = deviceConfig.DvDtRideThroughMs
             };
             _ambientTemperature = ambientTemp;
             _gridLossCoefficient = Math.Clamp(deviceConfig.GridLossCoefficient, 0, 0.95);
@@ -104,12 +147,77 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _blackStartMagnetizingPowerFraction = Math.Clamp(deviceConfig.BlackStartMagnetizingPowerFraction, 0, 0.2);
             _blackStartBusEnergizedFraction = Math.Clamp(deviceConfig.BlackStartBusEnergizedFraction, 0.5, 1.0);
             _blackStartPrechargeDelaySec = Math.Max(0, deviceConfig.BlackStartPrechargeDelayMs / 1000.0);
-            _blackStartVoltageRampVs = Math.Max(1, deviceConfig.BlackStartVoltageRampVs);
+            var (upRate, downRate) = PcsFormingVoltageSettings.ResolveRampRates(
+                deviceConfig.AcNominalLineVoltageV,
+                deviceConfig.BlackStartVoltageRampVs,
+                deviceConfig.VoltageRampUpVs,
+                deviceConfig.VoltageRampDownVs);
+            _voltageRamp = new VoltageRampGenerator(upRate, downRate);
+            _qvDroopEnabled = deviceConfig.QvDroopEnabled;
+            _qvDroopAfterSoftStartOnly = deviceConfig.QvDroopEnableAfterSoftStartOnly;
+            double nq = PcsFormingVoltageSettings.ResolveNq(
+                deviceConfig.QvDroopEnabled,
+                deviceConfig.QvDroopCoefficientVPerKvar,
+                deviceConfig.AcNominalLineVoltageV,
+                deviceConfig.RatedPowerKw);
+            double deadband = PcsFormingVoltageSettings.ResolveDeadband(
+                deviceConfig.QvDroopDeadbandKvar,
+                deviceConfig.RatedPowerKw);
+            double vmax = deviceConfig.AcNominalLineVoltageV
+                * PcsFormingVoltageSettings.ResolveVmaxPu(deviceConfig.QvDroopVmaxPu);
+            _qvDroop = new QvDroopRegulator(
+                nq,
+                deviceConfig.QvDroopQ0Kvar,
+                deadband,
+                vMin: 0,
+                vMax: vmax);
+            double iMax = Math.Max(_config.MaxCurrent, 1);
+            double vNom = Math.Max(_config.AcVoltageNominal, 1);
+            _voltageOuter = new VoltageOuterLoop(kp: iMax / (0.15 * vNom), ki: iMax / (0.0075 * vNom));
+            _currentInner = new CurrentInnerLoop(kp: 8, ki: 40, tauSec: 0.02);
+            double mp = deviceConfig.PfDroopEnabled
+                ? PfDroopRegulator.ResolveMp(
+                    deviceConfig.PfDroopCoefficientHzPerKw,
+                    deviceConfig.RatedPowerKw)
+                : 0;
+            double pDead = PfDroopRegulator.ResolveDeadband(
+                deviceConfig.PfDroopDeadbandKw,
+                deviceConfig.RatedPowerKw);
+            _pfDroop = new PfDroopRegulator(
+                mp,
+                deviceConfig.PfDroopP0Kw,
+                pDead,
+                fMinHz: _config.FrequencyNominal - 1.0,
+                fMaxHz: _config.FrequencyNominal + 0.5);
+            _formingPhase = new PhaseIntegrator();
+            _pllEnableVoltagePu = deviceConfig.PllEnableVoltagePu > 0 ? deviceConfig.PllEnableVoltagePu : 0.20;
+            _pll = new PllTracker(deviceConfig.PllTauSec > 0 ? deviceConfig.PllTauSec : 0.10);
+            _preSync = new PreSyncSupervisor(
+                enableVoltagePu: deviceConfig.PreSyncEnableVoltagePu > 0
+                    ? deviceConfig.PreSyncEnableVoltagePu
+                    : 0.70,
+                voltageWindowPu: deviceConfig.PreSyncVoltageWindowPu > 0
+                    ? deviceConfig.PreSyncVoltageWindowPu
+                    : 0.05,
+                frequencyWindowHz: deviceConfig.PreSyncFrequencyWindowHz > 0
+                    ? deviceConfig.PreSyncFrequencyWindowHz
+                    : 0.2,
+                phaseWindowDeg: deviceConfig.PreSyncPhaseWindowDeg > 0
+                    ? deviceConfig.PreSyncPhaseWindowDeg
+                    : 10);
             _blackStartFrequencyStartHz = Math.Clamp(deviceConfig.BlackStartFrequencyStartHz, 40, deviceConfig.FrequencyHz);
             _blackStartFrequencyRampHzPerSec = Math.Max(0.1, deviceConfig.BlackStartFrequencyRampHzPerSec);
             _blackStartReactiveVoltageGainKvarPerV = Math.Max(0, deviceConfig.BlackStartReactiveVoltageGainKvarPerV);
             _blackStartCurrentLimitFraction = Math.Clamp(deviceConfig.BlackStartCurrentLimitFraction, 0.1, 1.0);
-            _blackStartIslandFreqHz = _blackStartFrequencyStartHz;
+            _blackStartJoinShareRampSec = deviceConfig.BlackStartJoinShareRampSec;
+            _blackStartIslandFreqHz = _config.FrequencyNominal;
+            // 暂态参数初始化
+            _transientSubStepSec = Math.Max(0.001, _config.TransientSubStepMs / 1000.0);
+            _voltageControllerTauSec = Math.Max(0.001, _config.VoltageControllerTauMs / 1000.0);
+            _inrushPeakA = _config.MaxCurrent * Math.Max(0.0, _config.InrushPeakMultiplier);
+            _inrushTauSec = Math.Max(0.01, _config.InrushDecayTauMs / 1000.0);
+            _dvDtTripThresholdVPerSec = Math.Max(1.0, _config.DvDtTripThresholdVPerSec);
+            _dvDtRideThroughLimitMs = Math.Max(1.0, _config.DvDtRideThroughMs);
             _slope = deviceConfig.RampSlope;
             _interval = Math.Max(1, deviceConfig.RampIntervalMs);
             _delay = Math.Max(0, deviceConfig.RampDelayMs);
@@ -190,14 +298,42 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         private void WriteIdleOutputs()
         {
+            var (v, f) = MeasureAcTerminal();
             AcPortHelper.WriteAcOutput(Ac, new AcInternalQuantities
             {
                 Connection = _deviceConfig.AcConnection,
-                LineVoltageV = 0,
+                LineVoltageV = v,
                 LineCurrentA = 0,
-                FrequencyHz = 0
+                FrequencyHz = f
             });
             AcPortHelper.WriteDcOutput(Dc, new DcSnapshot());
+        }
+
+        /// <summary>
+        /// 停机/待机时电压互感器仍接在交流端子（母线侧）：跟母线电压，不向母线注入。
+        /// 构造时 <c>_gridState.Voltage</c> 是额定占位，未带电不得当测量值。
+        /// </summary>
+        private (double VoltageV, double FrequencyHz) MeasureAcTerminal()
+        {
+            var input = AcPortHelper.ReadAcInput(Ac);
+            double v = 0;
+            double f = 0;
+            // 端口入口是本步母线电压（含 0）。不得回落到上一拍 _unitBusVoltageV，
+            // 否则主断分闸、无人构网后停机 PCS 会把自身残留遥测当成电源。
+            if (input.LineVoltageV > 1.0)
+            {
+                v = input.LineVoltageV;
+                f = input.FrequencyHz > 1.0 ? input.FrequencyHz : _config.FrequencyNominal;
+            }
+            else if (_gridState.IsAvailable)
+            {
+                v = Math.Max(0, _gridState.Voltage * (1 - _gridLossCoefficient));
+                f = _gridState.Frequency > 1.0 ? _gridState.Frequency : _config.FrequencyNominal;
+            }
+
+            if (v <= 1.0)
+                return (0, 0);
+            return (v, f);
         }
 
         private static ElectricalPort CreateAcPort(ThreePhaseConnection connection)
@@ -223,6 +359,9 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         // 获取当前状态（返回内部引用，调用方只应读取，不应直接赋值属性）
         public PcsState GetCurrentState() => _currentState;
+
+        /// <summary>当前待爬坡有功设定（kW），供边沿同步测试断言命令是否被覆盖。</summary>
+        internal double PendingActiveSetpoint => _pendingActiveSetpoint;
 
         /// <summary>网侧是否视为带电可用（单元高压分闸或主网失电时为 false）。与 EMS 启停配合时用于避免与主循环 Standby 对打。</summary>
         public bool IsGridElectricallyAvailable => _gridState.IsAvailable;
@@ -412,14 +551,20 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 return;
             }
 
+            double prevP;
+            double prevQ;
             lock (_setpointLock)
             {
+                prevP = _pendingActiveSetpoint;
+                prevQ = _pendingReactiveSetpoint;
                 _rampStopRequested = false;
                 _pendingActiveSetpoint = activePower;
                 _pendingReactiveSetpoint = reactivePower;
                 if (_rampDelayRemainingSec <= 0 && _delay > 0)
                     _rampDelayRemainingSec = _delay / 1000.0;
             }
+
+            SimStateChangeLogger.PcsPowerSetpointChanged(DisplayLabel, prevP, activePower, prevQ, reactivePower);
         }
 
         public void SetControlStrategy(PcsControlStrategy strategy, double setpoint)
@@ -460,25 +605,37 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _currentState.DcVoltage = dcVoltage;
 
             AdvancePowerRamps(timeStep);
-            if (_blackStartEnabled)
-                AdvanceBlackStartPhase(timeStep);
-            UpdateIslandVoltageEffectiveTowardCommand(timeStep);
 
-            // 1) 先确定本步目标功率，再基于该功率计算电气量，避免保护判断滞后一拍
+            // 子步：电压斜坡与暂态同粒度；功率在斜坡推进后再算，避免预充结束第一拍用过时相位
+            int subSteps = Math.Max(1, (int)Math.Round(
+                timeStep.TotalMilliseconds / (_transientSubStepSec * 1000)));
+            TimeSpan subStep = TimeSpan.FromTicks(timeStep.Ticks / Math.Max(subSteps, 1));
+            _inrushPeakThisTick = 0;
+            _inrushExceededDesignPeak = false;
+            for (int i = 0; i < subSteps; i++)
+            {
+                if (_blackStartEnabled)
+                    AdvanceBlackStartPhase(subStep);
+                UpdateIslandVoltageEffectiveTowardCommand(subStep);
+                UpdateTransientVoltage(subStep);
+                UpdateInrushCurrent(subStep);
+            }
+
             if (_blackStartEnabled)
+            {
+                TryAutoCutInAsFormingParallel();
                 ApplyBlackStartPowerControl(timeStep);
+            }
             else
             {
                 _currentState.ActivePower = _loadActivePowerKw;
                 _currentState.ReactivePower = _loadReactivePowerKvar;
             }
-
-            // 高温降额：在电气量计算前限制指令功率
-            if (_thermalPowerDeratingFactor < 0.999 && !_blackStartEnabled)
-            {
-                _currentState.ActivePower *= _thermalPowerDeratingFactor;
-                _currentState.ReactivePower *= _thermalPowerDeratingFactor;
-            }
+            // 发布暂态结果到 PcsState
+            _currentState.DvDt = _dvDt;
+            _currentState.InrushCurrentA = _inrushCurrentA;
+            _currentState.InrushPeakA = _inrushPeakThisTick;
+            _currentState.ProtectionFlags = ComputeProtectionFlags();
 
             // 2) 根据模式更新电气量（过流等保护基于本步 P/Q 与 AcCurrent）
             switch (_currentState.Mode)
@@ -512,6 +669,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             if (_currentState.FaultType != 0)
             {
                 if (_currentState.FaultType == 3 ||
+                    _currentState.FaultType == 4 ||
+                    _currentState.FaultType == 5 ||
                     (_currentState.FaultType == 1 && _currentState.ActivePower < 0) ||
                     (_currentState.FaultType == 2 && _currentState.ActivePower > 0))
                 {
@@ -542,10 +701,11 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         private void UpdateStandbyState()
         {
+            var (v, f) = MeasureAcTerminal();
             _currentState.DcCurrent = 0;
-            _currentState.AcVoltage = 0;
+            _currentState.AcVoltage = v;
             _currentState.AcCurrent = 0;
-            _currentState.Frequency = 0;
+            _currentState.Frequency = f;
             _currentState.ActivePower = 0;
             _currentState.ReactivePower = 0;
         }
@@ -580,8 +740,15 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 _currentState.ReactivePower,
                 _currentState.AcVoltage);
             // 正=从网侧取电（充电），负=向网侧送电（放电）
-            _currentState.AcCurrent = _currentState.ActivePower >= 0 ? -acCurrentMag : acCurrentMag;
+            _currentState.AcCurrent = SignedAcCurrentFromActivePower(
+                _currentState.ActivePower, acCurrentMag);
         }
+
+        /// <summary>
+        /// 交流电流符号：正=从母线取电（充电），负=向母线送电（放电）。并网/离网同一约定。
+        /// </summary>
+        private static double SignedAcCurrentFromActivePower(double activeKw, double magnitude) =>
+            activeKw >= 0 ? -magnitude : magnitude;
 
         private static double ComputeAcCurrentMagnitude(double activeKw, double reactiveKvar, double lineVoltageV)
         {
@@ -592,7 +759,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         private void UpdateIslandedState()
         {
-            // 电流方向约定：正放负充（离网模式作为电压源向负载供电）
+            // 电流方向约定：正放负充（直流）；交流电流符号与并网相同。
             double dcPower = _currentState.ActivePower > 0
                 ? _currentState.ActivePower / _config.Efficiency
                 : _currentState.ActivePower * _config.Efficiency;
@@ -608,22 +775,121 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 return;
             }
 
-            double nom = Math.Max(_config.AcVoltageNominal, 1.0);
-            double acV = _unitBusVoltageV > nom * 0.08
-                ? _unitBusVoltageV
-                : Math.Max(_currentState.IslandVoltageEffectiveV, 1.0);
-            _currentState.AcVoltage = acV;
+            if (_blackStartEnabled && !_liveBusFollower && FormingVoltageRef() < 1.0)
+            {
+                _currentState.AcVoltage = 0;
+                _currentState.Frequency = 0;
+                _currentState.AcCurrent = 0;
+                _currentState.ActivePower = 0;
+                _currentState.ReactivePower = 0;
+                return;
+            }
+
+            if (_liveBusFollower && _blackStartPhase == BlackStartPhase.Following)
+            {
+                _currentState.AcVoltage = Math.Max(_unitBusVoltageV, 1.0);
+                _currentState.Frequency = _pll.Enabled ? _pll.FrequencyHz : _busFrequencyHz;
+                double acCurrentMag = ComputeAcCurrentMagnitude(
+                    _currentState.ActivePower,
+                    _currentState.ReactivePower,
+                    _currentState.AcVoltage);
+                _currentState.AcCurrent = SignedAcCurrentFromActivePower(
+                    _currentState.ActivePower, acCurrentMag);
+                return;
+            }
+
+            double acV = Math.Max(_currentState.IslandVoltageEffectiveV, 1.0);
+            // 暂态建模:优先使用 PI 滞后后的瞬时电压
+            _currentState.AcVoltage = _transientAcVoltageV > 1.0
+                ? _transientAcVoltageV
+                : acV;
             _currentState.Frequency = _blackStartEnabled
                 && EssIslandBusLogic.IsPcsIslandVoltageBuilding(_currentState)
                 ? _blackStartIslandFreqHz
                 : 0;
 
-            // 计算交流电流（带符号，正=放电，负=充电）
-            double acCurrentMag = ComputeAcCurrentMagnitude(
+            // 计算交流电流（并网/离网同一符号：正=充电取电，负=放电送电），叠加涌流电流
+            double uForI = IsBlackStartActive
+                ? Math.Max(_currentState.AcVoltage, FormingVoltageRef())
+                : _currentState.AcVoltage;
+            double acCurrentMagForming = ComputeAcCurrentMagnitude(
                 _currentState.ActivePower,
                 _currentState.ReactivePower,
-                _currentState.AcVoltage);
-            _currentState.AcCurrent = _currentState.ActivePower >= 0 ? acCurrentMag : -acCurrentMag;
+                uForI);
+            double totalCurrentMag = acCurrentMagForming + _inrushCurrentA;
+            _currentState.AcCurrent = SignedAcCurrentFromActivePower(
+                _currentState.ActivePower, totalCurrentMag);
+        }
+
+        /// <summary>子步暂态:电压一阶滞后 + dV/dt 计算。</summary>
+        private void UpdateTransientVoltage(TimeSpan subStep)
+        {
+            double dt = subStep.TotalSeconds;
+            double vTarget = _currentState.IslandVoltageEffectiveV;
+
+            // 一阶滞后:模拟电压环 PI 控制器响应
+            double alpha = 1.0 - Math.Exp(-dt / _voltageControllerTauSec);
+            _transientAcVoltageV += (vTarget - _transientAcVoltageV) * alpha;
+
+            // dV/dt 计算(子步粒度)
+            if (dt > 1e-9)
+                _dvDt = (_transientAcVoltageV - _prevSubStepAcVoltageV) / dt;
+            _prevSubStepAcVoltageV = _transientAcVoltageV;
+
+            // dV/dt 穿越计时
+            if (Math.Abs(_dvDt) > _dvDtTripThresholdVPerSec)
+                _dvDtRideThroughMs += dt * 1000;
+            else
+                _dvDtRideThroughMs = Math.Max(0, _dvDtRideThroughMs - dt * 1000 * 2); // 2倍速衰减
+        }
+
+        /// <summary>
+        /// 子步暂态：涌流由正向 dV/dt 驱动（磁通来不及建立），慢速 V/f 软起不触发。
+        /// 超过设计峰值（额定×InrushPeakMultiplier）记故障 5；未超则只告警。
+        /// </summary>
+        private void UpdateInrushCurrent(TimeSpan subStep)
+        {
+            double dt = subStep.TotalSeconds;
+            _inrushCurrentA *= Math.Exp(-dt / _inrushTauSec);
+
+            double nomV = Math.Max(_config.AcVoltageNominal, 1.0);
+            double ratePuPerSec = _dvDt > 0 ? _dvDt / nomV : 0;
+            if (_transientAcVoltageV > 1.0 && ratePuPerSec > InrushDvDtThresholdPuPerSec)
+            {
+                double denom = Math.Max(InrushDvDtThresholdPuPerSec * 4.0, 1e-9);
+                double intensity = (ratePuPerSec - InrushDvDtThresholdPuPerSec) / denom;
+                double pulse = _inrushPeakA * intensity;
+                if (pulse > _inrushPeakA)
+                    _inrushExceededDesignPeak = true;
+                if (pulse > _inrushCurrentA)
+                    _inrushCurrentA = pulse;
+                double iMax = Math.Max(_inrushPeakA * 2.0, _inrushPeakA);
+                if (_inrushCurrentA > iMax)
+                    _inrushCurrentA = iMax;
+            }
+
+            if (_inrushCurrentA < 1.0)
+            {
+                _inrushTriggered = false;
+                _inrushCurrentA = 0;
+            }
+            else
+            {
+                _inrushTriggered = true;
+            }
+
+            _inrushPeakThisTick = Math.Max(_inrushPeakThisTick, _inrushCurrentA);
+        }
+
+        /// <summary>计算保护标志位(bit0=dV/dt越限, bit1=dV/dt跳闸, bit2=涌流激活, bit3=涌流过流)。</summary>
+        private ushort ComputeProtectionFlags()
+        {
+            ushort flags = 0;
+            if (Math.Abs(_dvDt) > _dvDtTripThresholdVPerSec) flags |= 0x01;
+            if (_dvDtRideThroughMs > _dvDtRideThroughLimitMs) flags |= 0x02;
+            if (_inrushTriggered) flags |= 0x04;
+            if (_inrushCurrentA > _config.MaxCurrent) flags |= 0x08;
+            return flags;
         }
 
         private void UpdateTemperatureModel(TimeSpan timeStep)
@@ -643,12 +909,6 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         /// <inheritdoc />
         public double TemperatureCelsius => _currentState.Temperature;
-
-        /// <summary>高温功率降额因子（0–1），由热反馈写入。</summary>
-        public void ApplyThermalPowerDerating(double factor) =>
-            _thermalPowerDeratingFactor = Math.Clamp(factor, 0, 1);
-
-        public double ThermalPowerDeratingFactor => _thermalPowerDeratingFactor;
 
         /// <inheritdoc />
         public double GetElectricalLossWatts() =>
@@ -673,10 +933,19 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 msg.Append($"DC voltage fault: {_currentState.DcVoltage:F1}V; ");
             }
 
-            if (Math.Abs(_currentState.AcCurrent) > _config.MaxCurrent)
+            // 过流看负荷电流（P/Q 推算），不含设计内涌流；涌流超设计峰值走故障 5。
+            // 构网时用本机 Vref 与实测取大，避免斜坡滞后把 S/U 算爆。
+            double lineV = Math.Max(_currentState.AcVoltage, 1.0);
+            if (IsBlackStartActive)
+                lineV = Math.Max(lineV, FormingVoltageRef());
+            double loadCurrentA = ComputeAcCurrentMagnitude(
+                _currentState.ActivePower,
+                _currentState.ReactivePower,
+                lineV);
+            if (loadCurrentA > _config.MaxCurrent)
             {
                 instantFault = 3;
-                msg.Append($"Over current: {_currentState.AcCurrent:F1}A (limit {_config.MaxCurrent:F0}A); ");
+                msg.Append($"Over current: {loadCurrentA:F1}A (limit {_config.MaxCurrent:F0}A); ");
             }
 
             if (_currentState.Temperature > 70.0)
@@ -695,6 +964,21 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             {
                 instantFault = 3;
                 msg.Append("Black start enabled while utility grid is available; ");
+            }
+
+            // dV/dt 保护(带穿越时间)
+            if (_dvDtRideThroughMs > _dvDtRideThroughLimitMs)
+            {
+                instantFault = 4;
+                msg.Append($"dV/dt protection: {_dvDt:F0}V/s (limit {_dvDtTripThresholdVPerSec:F0}V/s), " +
+                           $"ride-through {_dvDtRideThroughMs:F0}ms; ");
+            }
+
+            if (_inrushExceededDesignPeak)
+            {
+                instantFault = 5;
+                msg.Append($"Inrush overcurrent: {_inrushCurrentA:F0}A " +
+                           $"(limit {_inrushPeakA:F0}A); ");
             }
 
             if (instantFault != 0)

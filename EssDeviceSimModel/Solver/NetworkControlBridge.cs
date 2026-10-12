@@ -52,6 +52,17 @@ namespace EssSimulator.EssDeviceSimModel.Solver
             legacyUnitBreakers[unitIndex].IsClosed = closed;
         }
 
+        public static void ResetUnitBreakerTrip(ElectricalNetwork? network, int unitIndex)
+        {
+            if (network == null || unitIndex < 0 || unitIndex >= network.UnitBreakers.Count)
+                return;
+
+            network.UnitBreakers[unitIndex].ApplyCommand(new DeviceCommand
+            {
+                Kind = DeviceCommandKind.ResetBreakerTrip
+            });
+        }
+
         public static void ProjectBreakersToLegacy(ElectricalNetwork network, EnergyStorageSystem ess)
         {
             ess._breaker.IsClosed = IsBreakerClosed(network.MainBreaker);

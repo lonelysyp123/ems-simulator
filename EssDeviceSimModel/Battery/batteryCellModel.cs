@@ -88,7 +88,8 @@ namespace EssSimulator.EssDeviceSimModel
         }
 
         // 应用充放电条件更新电芯状态
-        public void Update(double current, double ambientTemp, DateTime timeStamp, TimeSpan timeStep)
+        /// <param name="nodeTempC">电池节点温度（°C）：作为电芯热环境；节点温度越高，电芯散热效率越低。</param>
+        public void Update(double current, double nodeTempC, DateTime timeStamp, TimeSpan timeStep)
         {
             bool isCharging = false;
 
@@ -127,15 +128,20 @@ namespace EssSimulator.EssDeviceSimModel
 
 
             // 温度模型（一阶滤波，与步长解耦）
-            // 稳态温升 = P_loss / h_coeff（线性冷却系数，W/°C）
-            // 热时间常数 tau = mass * Cp / h_coeff
+            // 稳态温升 = P_loss / h_eff（线性冷却系数，W/°C）
+            // 热时间常数 tau = mass * Cp / h_eff
             // 一阶滤波：T(t) = T_ss + (T(t-1) - T_ss) * exp(-dt/tau)
+            //
+            // 散热效率受「电池节点温度」影响：节点温度越高，散热越慢（h_eff 越小），
+            // 电芯温度越容易被节点高温带高；电芯热环境即为电池节点温度。
             double powerLoss    = current * current * _specs.InternalResistance; // W
-            const double hCoeff = 0.5;   // 等效散热系数 W/°C（可调）
+            const double hBase  = 0.5;   // 基准等效散热系数 W/°C
             const double Cp     = 900.0; // 比热容 J/(kg·°C)
-            double tau      = _specs.Mass * Cp / hCoeff;                // 热时间常数(s)
+            double coolingFactor = ComputeCoolingFactor(nodeTempC);              // 散热效率系数 0~1
+            double hEff         = hBase * coolingFactor;                          // 有效散热系数 W/°C
+            double tau      = _specs.Mass * Cp / hEff;                 // 热时间常数(s)
             double deltaTimeSec = deltaTimeHours * 3600.0;              // 步长(s)
-            double T_ss     = ambientTemp + powerLoss / hCoeff;         // 稳态温度
+            double T_ss     = nodeTempC + powerLoss / hEff;            // 稳态温度（环境=电池节点温度）
             double alpha    = Math.Exp(-deltaTimeSec / tau);            // 滤波系数
             double newTemp  = T_ss + (_currentState.Temperature - T_ss) * alpha;
 
@@ -168,6 +174,23 @@ namespace EssSimulator.EssDeviceSimModel
                 Age = newAge,
                 Timestamp = timeStamp
             };
+        }
+
+        /// <summary>
+        /// 散热效率系数：电池节点温度越高，电芯散热越慢（1.0 → MinFraction 线性下降）。
+        /// 25°C 及以下散热正常；55°C 及以上散热最差（MinFraction）。
+        /// </summary>
+        private static double ComputeCoolingFactor(double nodeTempC)
+        {
+            const double refC = 25.0;
+            const double fullC = 55.0;
+            const double minFraction = 0.3;
+            if (nodeTempC <= refC)
+                return 1.0;
+            if (nodeTempC >= fullC)
+                return minFraction;
+            double t = (nodeTempC - refC) / (fullC - refC);
+            return 1.0 - t * (1.0 - minFraction);
         }
 
         // 老化模型计算

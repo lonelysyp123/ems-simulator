@@ -3,7 +3,7 @@
     <div class="card">
       <p class="card-title">白盒切片</p>
       <p class="hint">
-        开启采集后，每当 EMS（或 dpc）写入 PCS 有功/无功设定（yt0/yt1/yt4/yt5）时，记录当时电网、电表、PCS、BMS 瞬时状态。
+        开启采集后，每当 EMS（或 dpc）写入 PCS 有功/无功设定（yt0/yt1）时，记录当时电网、电表、PCS、BMS 瞬时状态。
         用于验证下垂调压：先调电网电压 → 观察 EMS 写 Q → 对照切片中的 PCC V 与设定值。
       </p>
       <div class="toolbar">

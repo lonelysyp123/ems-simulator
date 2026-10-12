@@ -29,6 +29,12 @@ namespace EssSimulator.EssDeviceSimModel
         public double MinPackTemp { get; set; }             // 最低模组温度(°C)
         public double AvgPackTemp { get; set; }             // 平均模组温度(°C)
         public double TempDifference { get; set; }           // 最大温差(°C)
+        /// <summary>簇等效运算：未逐芯更新，单体电压/温度取同一等效值。</summary>
+        public bool EquivalentCells { get; set; }
+        /// <summary>等效单体电压 (V)。仅 <see cref="EquivalentCells"/> 时有效。</summary>
+        public double EquivalentCellVoltage { get; set; }
+        /// <summary>等效单体温度 (°C)。仅 <see cref="EquivalentCells"/> 时有效。</summary>
+        public double EquivalentCellTemp { get; set; }
         public double MaxPackSOC { get; set; }              // 最大模组SOC
         public double MinPackSOC { get; set; }              // 最小模组SOC
         public double AvgPackSOC { get; set; }              // 平均模组SOC
@@ -45,6 +51,7 @@ namespace EssSimulator.EssDeviceSimModel
         public readonly List<BatteryPackSimulator> _packs; // 串联的电池模组
         private readonly Random _random = new Random();
         public ClusterState _currentState;
+        private bool _equivalentLatched;
 
         // 构造函数
         public BatteryClusterSimulator(ClusterConfiguration config)
@@ -88,19 +95,76 @@ namespace EssSimulator.EssDeviceSimModel
         }
 
         // 更新簇状态
-        public void Update(double clusterCurrent, double ambientTemp, DateTime timeStamp, TimeSpan timeStep)
+        /// <param name="nodeTempC">电池节点温度（°C），作为电芯热环境。</param>
+        /// <param name="cellPhysicsEnabled">false 时跳过逐芯更新，按单芯等效模型汇总整簇。null 时跟随系统开关。</param>
+        public void Update(double clusterCurrent, double nodeTempC, DateTime timeStamp, TimeSpan timeStep, bool? cellPhysicsEnabled = null)
         {
+            bool useCells = cellPhysicsEnabled ?? BatteryCalcMode.CellPhysicsEnabled;
+            if (!useCells)
+            {
+                UpdateEquivalent(clusterCurrent, nodeTempC, timeStamp, timeStep);
+                return;
+            }
+
+            if (_equivalentLatched)
+            {
+                var rep = _packs[0].GetCellState(0, 0);
+                double soc = rep.SOC;
+                double temp = rep.Temperature;
+                foreach (var pack in _packs)
+                    pack.AlignAllCells(soc, temp);
+                _equivalentLatched = false;
+            }
+
             // 更新所有模组 (串联电流相同)
             foreach (var pack in _packs)
             {
                 // 模拟模组温度环境差异 (如簇中不同位置)
-                double packAmbientTemp = ambientTemp + (_random.NextDouble() - 0.5) * 5; // ±2.5°C差异
+                double packNodeTemp = nodeTempC + (_random.NextDouble() - 0.5) * 5; // ±2.5°C差异
 
-                pack.Update(clusterCurrent, packAmbientTemp, timeStamp, timeStep);
+                pack.Update(clusterCurrent, packNodeTemp, timeStamp, timeStep);
             }
 
             // 更新簇状态
-            UpdateClusterState(clusterCurrent, ambientTemp, timeStamp);
+            UpdateClusterState(clusterCurrent, nodeTempC, timeStamp);
+        }
+
+        /// <summary>
+        /// 簇等效：只积分首节电芯，电压按串联节数 × 包数放大，温度/SOC 写入全部包汇总。
+        /// </summary>
+        private void UpdateEquivalent(double clusterCurrent, double nodeTempC, DateTime timeStamp, TimeSpan timeStep)
+        {
+            var lead = _packs[0];
+            if (!_equivalentLatched)
+            {
+                double soc = _currentState?.AvgPackSOC ?? lead.GetPackSOC();
+                double temp = _currentState?.AvgPackTemp ?? 25.0;
+                lead.SetRepresentative(soc, temp);
+                _equivalentLatched = true;
+            }
+
+            var cfg = lead.GetPackConfiguration();
+            double parallel = Math.Max(1, cfg.ParallelCount);
+            double cellCurrent = clusterCurrent / parallel;
+            var cell = lead.StepRepresentativeCell(cellCurrent, nodeTempC, timeStamp, timeStep);
+            double soh = Math.Clamp(1.0 - cell.Age, 0.0, 1.0);
+
+            foreach (var pack in _packs)
+            {
+                pack.ApplyEquivalentState(
+                    cell.Voltage,
+                    cell.SOC,
+                    cell.Temperature,
+                    soh,
+                    cell.RemainingCapacity,
+                    clusterCurrent,
+                    timeStamp);
+            }
+
+            UpdateClusterState(clusterCurrent, nodeTempC, timeStamp);
+            _currentState.EquivalentCells = true;
+            _currentState.EquivalentCellVoltage = cell.Voltage;
+            _currentState.EquivalentCellTemp = cell.Temperature;
         }
 
         // 计算并更新簇状态

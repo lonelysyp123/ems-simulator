@@ -1,4 +1,5 @@
-﻿using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+﻿using EssSimulator.EssDeviceSimModel.Bms;
+using EssSimulator.EssSimModelApi.BatteryManagementSystem;
 using System;
 using System.Collections.Generic;
 using System.Linq;

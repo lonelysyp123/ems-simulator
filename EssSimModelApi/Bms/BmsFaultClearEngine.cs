@@ -3,6 +3,7 @@ using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssDeviceSimModel.Diagnostics;
 using EssSimulator.EssDeviceSimModel.Devices;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+using EssSimulator.EssSimModelApi.Mappers;
 
 namespace EssSimulator.EssSimModelApi.Bms
 {
@@ -43,14 +44,13 @@ namespace EssSimulator.EssSimModelApi.Bms
             ushort prevFaultSummary = stack.BMSFaultSummary;
             ushort prevRackFault = rackState?.IsFault ?? 0;
 
-            if (!BmsRackProtection.TryClearChargeDischargeFaults(bmsData, bms, out message))
+            if (!BmsMapper.TryClearChargeDischargeFaults(bmsData, bms, out message))
                 return false;
 
             if (rackState == null)
                 return true;
 
             var label = string.IsNullOrEmpty(bms.DisplayLabel) ? $"bms{bmsIndex0 + 1}" : bms.DisplayLabel;
-            BmsStateTracker.ReportProtectionChanges(label, bmsData, rackState);
 
             SimStateChangeLogger.BmsStateChanged(
                 label,

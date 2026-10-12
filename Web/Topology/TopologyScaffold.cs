@@ -1,20 +1,30 @@
 namespace EssSimulator.Web.Topology
 {
-    /// <summary>标准径向拓扑骨架：电网→主断→HV 母线→主变→LV 母线→N×EMU(+DC+双 BMS)。</summary>
+    /// <summary>标准径向拓扑骨架：电网→主断→HV 母线→主变→LV 母线→N×EMU(+DC+双 BMS) 和/或 M×光伏单元。</summary>
     public static class TopologyScaffold
     {
-        public const int MinEmuCount = 1;
+        public const int MinEmuCount = 0;
         public const int MaxEmuCount = 20;
+        public const int MinPvCount = 0;
+        public const int MaxPvCount = 20;
 
-        public static TopologyProject BuildRadial(int emuCount, string? name = null, bool includeLoad = true)
+        public static TopologyProject BuildRadial(
+            int emuCount,
+            string? name = null,
+            bool includeLoad = true,
+            int pvCount = 0)
         {
             if (emuCount < MinEmuCount || emuCount > MaxEmuCount)
                 throw new ArgumentOutOfRangeException(nameof(emuCount), $"EMU 数量须在 {MinEmuCount}–{MaxEmuCount} 之间");
+            if (pvCount < MinPvCount || pvCount > MaxPvCount)
+                throw new ArgumentOutOfRangeException(nameof(pvCount), $"光伏单元数量须在 {MinPvCount}–{MaxPvCount} 之间");
+            if (emuCount + pvCount < 1)
+                throw new ArgumentOutOfRangeException(nameof(emuCount), "至少需要 1 个 EMU 或光伏单元");
 
             var project = new TopologyProject
             {
                 Id = Guid.NewGuid().ToString("N")[..24],
-                Name = string.IsNullOrWhiteSpace(name) ? $"标准径向-{emuCount}单元" : name.Trim(),
+                Name = string.IsNullOrWhiteSpace(name) ? DefaultName(emuCount, pvCount) : name.Trim(),
                 SchemaVersion = "1.0"
             };
 
@@ -50,25 +60,47 @@ namespace EssSimulator.Web.Topology
             if (load != null)
                 MustConnect(project, load, "a", busLv, "a2");
 
+            var feederCount = emuCount + pvCount;
             var unitSpan = 280.0;
-            var startX = cx - (emuCount - 1) * unitSpan / 2.0;
+            var startX = cx - (feederCount - 1) * unitSpan / 2.0;
             for (var i = 0; i < emuCount; i++)
             {
                 var x = startX + i * unitSpan;
-                var emu = Add(project, "emu", $"EMU-{i + 1}", x, 720);
+                // EMU 虚拟节点（画布不显示，仅供 PCS 归属）+ 2 台 PCS + DC 母线 + 2 台 BMS
+                var emu = Add(project, "emu", $"EMU-{i + 1}", x, 640);
+                var pcsA = Add(project, "pcs", $"PCS-{i + 1}A", x - 80, 720,
+                    new Dictionary<string, object?> { ["emuId"] = emu.Id });
+                var pcsB = Add(project, "pcs", $"PCS-{i + 1}B", x + 80, 720,
+                    new Dictionary<string, object?> { ["emuId"] = emu.Id });
                 var dc = Add(project, "dc_bus", $"DC母线-{i + 1}", x - 10, 880);
                 var bmsA = Add(project, "bms", $"BMS-{i + 1}A", x - 70, 1000);
                 var bmsB = Add(project, "bms", $"BMS-{i + 1}B", x + 70, 1000);
 
-                MustConnect(project, emu, "ac_a", busLv, "a2");
-                MustConnect(project, emu, "dc_pos", dc, "pos_t");
+                MustConnect(project, pcsA, "ac_a", busLv, "a2");
+                MustConnect(project, pcsB, "ac_a", busLv, "a2");
+                MustConnect(project, pcsA, "dc_pos", dc, "pos_t");
+                MustConnect(project, pcsB, "dc_pos", dc, "pos_t");
                 MustConnect(project, bmsA, "dc_pos", dc, "pos_b");
                 MustConnect(project, bmsB, "dc_pos", dc, "pos_b");
+            }
+
+            for (var i = 0; i < pvCount; i++)
+            {
+                var x = startX + (emuCount + i) * unitSpan;
+                var pv = Add(project, "pv_unit", $"光伏单元-{i + 1}", x, 720);
+                MustConnect(project, pv, "ac_a", busLv, "a2");
             }
 
             TopologyValidator.RefreshAcBusEnergization(project);
             project.UpdatedAtUtc = DateTime.UtcNow;
             return project;
+        }
+
+        private static string DefaultName(int emuCount, int pvCount)
+        {
+            if (pvCount > 0 && emuCount == 0) return $"标准径向-光伏{pvCount}单元";
+            if (pvCount > 0) return $"标准径向-储能{emuCount}/光伏{pvCount}";
+            return $"标准径向-{emuCount}单元";
         }
 
         private static TopologyNode Add(

@@ -1,7 +1,12 @@
 using EssSimulator.Configuration;
+using EssSimulator.EssDeviceSimModel;
 using EssSimulator.Core;
 using EssSimulator.Display;
+using EssSimulator.EssSimModelApi.Mappers;
+using EssSimulator.LocalControl;
 using EssSimulator.Web.DroopSlices;
+using EssSimulator.Web.EmsStrategy;
+using EssSimulator.Web.ThirdPartyEms;
 using EssSimulator.Web.Topology;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -25,6 +30,23 @@ namespace EssSimulator.Web
             app.MapGet("/api/mainline", (TopologyStore topologyStore) =>
                 Results.Ok(MainLineEnricher.Build(topologyStore)));
 
+            app.MapGet("/api/battery/calc-mode", () =>
+                Results.Ok(new { cellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled }));
+
+            app.MapPost("/api/battery/calc-mode", (BatteryCalcModeRequest req, IOptions<SimulatorConfig> sim) =>
+            {
+                if (!Mw300EssStation.TrySetCellPhysics(sim.Value.StationProfileId, req?.CellPhysicsEnabled ?? true))
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = Mw300EssStation.LockedMessage,
+                        cellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled
+                    });
+                }
+
+                return Results.Ok(new { cellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled });
+            });
+
             app.MapGet("/api/battery/{unit}", (int unit) =>
             {
                 int unitCount = Math.Max(1, GuiSimDataAccess.GetEssUnitCount());
@@ -39,7 +61,7 @@ namespace EssSimulator.Web
                 return Results.Ok(BatterySnapshotReader.ReadCells(idx, cluster - 1));
             });
 
-            // BMS 簇告警门限：点表元数据 + 当前工程值（下发仍走 POST /api/command → dpc）
+            // BMS 簇告警门限：模型层 ClusterThresholds（下发走 POST，不依赖点表写点）
             app.MapGet("/api/bms/{unit:int}/rack-thresholds", (int unit, int? rack) =>
             {
                 int unitCount = Math.Max(1, GuiSimDataAccess.GetEssUnitCount());
@@ -47,8 +69,16 @@ namespace EssSimulator.Web
                 int rackIndex = Math.Max(0, rack ?? 0);
                 var snap = RackThresholdSnapshotReader.Read(unitNum, rackIndex);
                 return snap == null
-                    ? Results.NotFound(new { message = $"未找到设备 simBms{unitNum} 或点表未加载" })
+                    ? Results.NotFound(new { message = $"未找到设备 bms{unitNum}" })
                     : Results.Ok(snap);
+            });
+
+            app.MapPost("/api/bms/{unit:int}/rack-thresholds", (int unit, RackThresholdWriteRequest req) =>
+            {
+                int unitCount = Math.Max(1, GuiSimDataAccess.GetEssUnitCount());
+                int unitNum = Math.Clamp(unit, 1, unitCount);
+                var result = RackThresholdWriter.Apply(unitNum, req ?? new RackThresholdWriteRequest());
+                return Results.Ok(result);
             });
 
             // 设备告警/故障位：绿=未触发，红=已触发
@@ -72,13 +102,15 @@ namespace EssSimulator.Web
                 var devices = simCfg.Value.Devices ?? new List<EssUnitConfig>();
                 // 按舱号（channel / compartment，1-based）展开各 BMS 拓扑，供 3D 详情等使用
                 var bmsTopology = new List<object>();
+                var pcsPerUnit = simCfg.Value.GetPcsCountsPerUnit();
+                int channelBase = 0;
                 for (int ui = 0; ui < devices.Count; ui++)
                 {
                     var bmsList = devices[ui].Bms ?? new List<BmsDeviceConfig>();
                     for (int bi = 0; bi < bmsList.Count; bi++)
                     {
                         var b = bmsList[bi];
-                        int channelIndex0 = ui * 2 + bi;
+                        int channelIndex0 = channelBase + bi;
                         bmsTopology.Add(new
                         {
                             unitIndex = ui,
@@ -92,6 +124,7 @@ namespace EssSimulator.Web
                             cellParallelCount = Math.Max(1, b.CellParallelCount)
                         });
                     }
+                    channelBase += ui < pcsPerUnit.Count ? pcsPerUnit[ui] : 2;
                 }
 
                 return Results.Ok(new
@@ -131,15 +164,47 @@ namespace EssSimulator.Web
 
             app.MapGet("/api/protocol", (IOptions<SimulatorConfig> cfg) =>
             {
+                // 优先从协议层管理器读取实际生效端口（含手动覆盖与 LC）；未就绪时退回配置默认值
+                var snapshot = EssSimulator.Protocol.Modbus.ProtocolLayerManager.Instance.GetSnapshot();
+                if (snapshot.Count > 0)
+                {
+                    return Results.Ok(new
+                    {
+                        em = snapshot.Where(d => d.Type == EssSimulator.Protocol.Modbus.ProtocolDeviceType.Em)
+                            .Select(d => new { name = d.Name, port = d.Port, slaveId = d.SlaveId }).ToArray(),
+                        bms = snapshot.Where(d => d.Type == EssSimulator.Protocol.Modbus.ProtocolDeviceType.Bms)
+                            .Select(d => new { name = d.Name, port = d.Port, slaveId = d.SlaveId }).ToArray(),
+                        emu = snapshot.Where(d => d.Type == EssSimulator.Protocol.Modbus.ProtocolDeviceType.Emu)
+                            .Select(d => new { name = d.Name, port = d.Port, slaveId = d.SlaveId }).ToArray(),
+                        iec61850 = EssSimulator.Protocol.Iec61850.Iec61850LayerManager.Instance.GetSnapshot(),
+                        lc = snapshot.Where(d => d.Type == EssSimulator.Protocol.Modbus.ProtocolDeviceType.Lc)
+                            .Select(d => new { name = d.Name, port = d.Port, slaveId = d.SlaveId }).ToArray(),
+                        pv = snapshot.Where(d => d.Type is EssSimulator.Protocol.Modbus.ProtocolDeviceType.PvLogger
+                                or EssSimulator.Protocol.Modbus.ProtocolDeviceType.PvMeter)
+                            .Select(d => new { name = d.Name, port = d.Port, slaveId = d.SlaveId }).ToArray()
+                    });
+                }
+
                 var c = cfg.Value;
                 var info = new
                 {
                     em = new { name = "simEm", port = c.Protocol.EmModbusPort },
-                    bms = Enumerable.Range(0, Math.Max(1, c.UnitCount))
+                    bms = Enumerable.Range(0, c.UnitCount)
                         .Select(i => new { name = $"simBms{i + 1}", port = c.Protocol.BaseBmsModbusPort + i * c.Protocol.BmsPortStep })
                         .ToArray(),
-                    emu = Enumerable.Range(0, Math.Max(1, c.Devices?.Count ?? 1))
-                        .Select(i => new { name = $"simEmu{i + 1}", port = c.Protocol.BaseEmuModbusPort + i * c.Protocol.EmuPortStep })
+                    emu = EmuProtocolLayout.Enumerate(c)
+                        .Select((ep, i) => new
+                        {
+                            name = ep.ServerName,
+                            port = c.Protocol.BaseEmuModbusPort + i * c.Protocol.EmuPortStep
+                        })
+                        .ToArray(),
+                    pv = Enumerable.Range(0, c.PvUnitCount)
+                        .Select(i => new
+                        {
+                            logger = new { name = $"simPv{i + 1}", port = c.Protocol.BasePvLoggerModbusPort + i * c.Protocol.PvLoggerPortStep },
+                            meter = new { name = $"simPvMeter{i + 1}", port = c.Protocol.BasePvMeterModbusPort + i * c.Protocol.PvMeterPortStep }
+                        })
                         .ToArray()
                 };
                 return Results.Ok(info);
@@ -191,6 +256,30 @@ namespace EssSimulator.Web
                         controlMaps = srv?.ControlMaps
                     });
                 }
+                int pv = 1;
+                while (store.Contains($"simPv{pv}"))
+                {
+                    var srv = store.Get<ModbusSimServer>($"simPv{pv}");
+                    devices.Add(new
+                    {
+                        device = $"simPv{pv}",
+                        dataMaps = srv?.DataMaps,
+                        controlMaps = srv?.ControlMaps
+                    });
+                    pv++;
+                }
+                int pvMeter = 1;
+                while (store.Contains($"simPvMeter{pvMeter}"))
+                {
+                    var srv = store.Get<ModbusSimServer>($"simPvMeter{pvMeter}");
+                    devices.Add(new
+                    {
+                        device = $"simPvMeter{pvMeter}",
+                        dataMaps = srv?.DataMaps,
+                        controlMaps = srv?.ControlMaps
+                    });
+                    pvMeter++;
+                }
                 return Results.Ok(devices);
             });
 
@@ -201,11 +290,12 @@ namespace EssSimulator.Web
                 return FromCommandResult(result);
             });
 
-            // 单元断路器：经 dpc 写 EMU 控制点 yx0（高压断路器开合），unit 从 1 起
-            app.MapPost("/api/breaker/unit/{unit:int}/{closed:bool}", (int unit, bool closed, WebCommandExecutor exec) =>
+            // 单元断路器：直控仿真设备（EMU 级 Breaker.Closed + 电气网络），不经点表写点；unit 从 1 起
+            app.MapPost("/api/breaker/unit/{unit:int}/{closed:bool}", (int unit, bool closed) =>
             {
-                var result = exec.Execute($"dpc simEmu{unit}.yx0 set {(closed ? 1 : 0)}");
-                return FromCommandResult(result);
+                if (!DeviceControlFacade.TrySetUnitBreaker(unit, closed, out var message))
+                    return FromCommandResult(CommandResult.Fail(message));
+                return FromCommandResult(CommandResult.Ok($"执行成功: {message}"));
             });
 
             // 通用命令执行：POST /api/command  body: { "input": "esscmd link status" }
@@ -216,9 +306,23 @@ namespace EssSimulator.Web
                 return Results.Ok(exec.Execute(req.Input));
             });
 
-            // 链路控制：POST /api/link/{target}/{state}  （target: em|bms1|pcs1  state: on|off）
+            // 链路控制：POST /api/link/{target}/{state}  （target: em|bms1|pcs1|iec61850-pcs1  state: on|off）
             app.MapPost("/api/link/{target}/{state}", (string target, string state) =>
             {
+                if (Iec61850Endpoints.ResolveEmuName(target) != null
+                    && (target.Contains("iec61850", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (!EssCommand.TryParseLinkState(state, out var iecEnable, out var iecMsg))
+                        return Results.BadRequest(CommandResult.Fail(iecMsg));
+                    string emuName = Iec61850Endpoints.ResolveEmuName(target)!;
+                    bool iecOk = EssSimulator.Protocol.Iec61850.Iec61850LayerManager.Instance.TrySetOnline(emuName, iecEnable);
+                    if (!iecOk)
+                        return Results.Ok(CommandResult.Fail($"找不到 {emuName} 的 IEC 61850 IED"));
+                    return Results.Ok(CommandResult.Ok(iecEnable
+                        ? $"{emuName} IEC 61850 已上线"
+                        : $"{emuName} IEC 61850 已离线"));
+                }
+
                 if (!EssCommand.TryParseLinkState(state, out var enable, out var msg))
                     return Results.BadRequest(CommandResult.Fail(msg));
                 if (!EssCommand.TryResolveProtocolServer(target, out var server, out var name, out var detail))
@@ -283,6 +387,12 @@ namespace EssSimulator.Web
             app.MapTopologyEndpoints();
             // 系统配置：工程模式 / 应用到仿真
             app.MapSystemConfigEndpoints();
+            // 协议端口：设备端口/从站号配置、热重建
+            app.MapProtocolPortEndpoints();
+            app.MapIec61850Endpoints();
+            // 第三方 EMS：直连数据模型
+            app.MapThirdPartyEmsEndpoints();
+            app.MapEmsStrategyEndpoints();
 
             return app;
         }
@@ -290,7 +400,8 @@ namespace EssSimulator.Web
         private static bool IsSimulatorReady()
         {
             var store = SimulatorHost.Instance;
-            return store.Contains("ess") && store.Contains("simEm") && store.Contains("simBms1");
+            return store.Contains("ess") && store.Contains("simEm")
+                && (store.Contains("simBms1") || store.Contains("simPv1"));
         }
 
         private static IResult FromCommandResult(CommandResult result) =>

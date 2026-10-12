@@ -1,0 +1,6 @@
+{
+  "id": "emu",
+  "name": "EMU 直控点表",
+  "description": "原 EMU 两路 PCS + 断路器点表，与拼装 LC 互斥；选中后按 ModelSim 绑定走 DataExchange",
+  "role": "exclusive"
+}

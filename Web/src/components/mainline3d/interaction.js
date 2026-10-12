@@ -4,9 +4,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 const CLICK_SLOP_PX = 6
 
 /**
- * OrbitControls + Raycaster：单击断路器、双击 BMS 进入设备详情
+ * OrbitControls + Raycaster：单击断路器/设备面板，双击 BMS 进入设备详情
  */
-export function createInteraction(camera, domElement, scene, { onBreakerClick, onDeviceDblClick, onPointerMove, onClick }) {
+export function createInteraction(camera, domElement, scene, { onBreakerClick, onDeviceClick, onDeviceDblClick, onPointerMove, onClick }) {
   const controls = new OrbitControls(camera, domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
@@ -61,7 +61,18 @@ export function createInteraction(camera, domElement, scene, { onBreakerClick, o
       const id = hit.object?.userData?.pickId
       if (!id) continue
       const unitIndex = hit.object.userData.unitIndex
-      onBreakerClick?.({ pickId: id, unitIndex })
+      onBreakerClick?.({
+        pickId: id,
+        unitIndex,
+        layoutItem: hit.object.userData.layoutItem
+      })
+      return
+    }
+
+    for (const hit of hits) {
+      const panelKey = hit.object?.userData?.panelKey
+      if (!panelKey) continue
+      onDeviceClick?.(panelKey)
       break
     }
   }

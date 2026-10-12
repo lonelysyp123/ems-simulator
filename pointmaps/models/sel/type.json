@@ -1,0 +1,6 @@
+{
+  "id": "sel",
+  "name": "SEL",
+  "description": "工程级储能 PCS 电压与频率控制协议",
+  "files": [ "sel.csv" ]
+}

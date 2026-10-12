@@ -24,6 +24,37 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         public IReadOnlyList<ElectricalPort> Ports => new[] { Primary, Secondary };
         public BreakerState SwitchState { get; private set; }
         public DeviceFaultState Fault => _fault;
+        public double RatedLineVoltageV => _config.RatedVoltageKv * 1000.0;
+
+        /// <summary>把另一电压等级下的线电流折到本断路器额定电压（功率不变）。失电入口不伪造额定电压。</summary>
+        public AcInternalQuantities ReferToRated(AcInternalQuantities from)
+        {
+            double ratedV = RatedLineVoltageV;
+            if (ratedV <= 1.0)
+                return from;
+
+            if (from.LineVoltageV <= 1.0 && Math.Abs(from.LineCurrentA) <= 1e-9)
+            {
+                return new AcInternalQuantities
+                {
+                    Connection = from.Connection,
+                    LineVoltageV = 0,
+                    LineCurrentA = 0,
+                    PhaseAngleDeg = 0,
+                    FrequencyHz = from.FrequencyHz
+                };
+            }
+
+            double fromV = from.LineVoltageV > 1.0 ? from.LineVoltageV : ratedV;
+            return new AcInternalQuantities
+            {
+                Connection = from.Connection,
+                LineVoltageV = ratedV,
+                LineCurrentA = AcQuantityConverter.ReferLineCurrent(from.LineCurrentA, fromV, ratedV),
+                PhaseAngleDeg = from.PhaseAngleDeg,
+                FrequencyHz = from.FrequencyHz
+            };
+        }
 
         public void ApplyCommand(DeviceCommand command)
         {
@@ -50,7 +81,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
             if (SwitchState.IsClosed && !SwitchState.IsTripped)
             {
-                double current = Math.Abs(secIn.LineCurrentA);
+                double current = ProtectionCurrentA(priIn, secIn);
                 if (current > _config.FaultThresholdA)
                 {
                     SwitchState.IsTripped = true;
@@ -65,11 +96,12 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
             if (SwitchState.IsClosed && !SwitchState.IsTripped)
             {
+                double iRated = ProtectionCurrentA(priIn, secIn);
                 var passed = new AcInternalQuantities
                 {
                     Connection = priIn.Connection,
                     LineVoltageV = priIn.LineVoltageV,
-                    LineCurrentA = secIn.LineCurrentA,
+                    LineCurrentA = iRated,
                     PhaseAngleDeg = secIn.PhaseAngleDeg,
                     FrequencyHz = priIn.FrequencyHz
                 };
@@ -95,6 +127,18 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 PhaseAngleDeg = 0,
                 FrequencyHz = secIn.FrequencyHz
             });
+        }
+
+        private double ProtectionCurrentA(AcInternalQuantities priIn, AcInternalQuantities secIn)
+        {
+            double ratedV = RatedLineVoltageV;
+            if (ratedV <= 1.0)
+                return Math.Abs(secIn.LineCurrentA);
+
+            double fromV = secIn.LineVoltageV > 1.0
+                ? secIn.LineVoltageV
+                : (priIn.LineVoltageV > 1.0 ? priIn.LineVoltageV : ratedV);
+            return Math.Abs(AcQuantityConverter.ReferLineCurrent(secIn.LineCurrentA, fromV, ratedV));
         }
 
         private static ElectricalPort CreatePort(

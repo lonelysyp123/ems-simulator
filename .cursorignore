@@ -1,0 +1,19 @@
+# Build / package outputs — never useful as Agent context
+wwwroot/
+**/bin/
+**/obj/
+**/node_modules/
+Web/.vite/
+web/.vite/
+publish/
+.vs/
+
+# Generated topology overlay and archived point maps
+configs/topology/generated/
+pointmaps/archive/
+
+# Spreadsheets are huge when ingested; @ a specific xlsx only when mapping IO
+*.xlsx
+
+# Historical design notes (old console TUI); current docs stay indexed
+docs/blog/

@@ -1,9 +1,7 @@
 using EssSimulator.Core;
 using EssSimulator.DataExchange.Catalog;
-using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi.EnergyManagementSystem;
 using EssSimulator.EssSimModelApi.Mappers;
-using EssSimulator.Web;
 
 namespace EssSimulator.DataExchange.Effects
 {
@@ -19,19 +17,32 @@ namespace EssSimulator.DataExchange.Effects
 
         public void OnControlChanged(ControlEffectContext context)
         {
-            if (!TryParseEmuUnit(context.ServerName, out int unit1Based))
+            if (!TryResolveEmuUnit(context, out int unit1Based))
                 return;
 
-            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
-            var emu = SimulatorHost.Instance.Get<EnergyManagementData>($"emu{unit1Based}");
-            if (ess == null || emu == null)
-                return;
+            EmuCommandPipeline.TryApplyUnit(unit1Based, _refreshTelemetry);
+        }
 
-            int pcsBase = (unit1Based - 1) * 2;
-            PcsMapper.ApplyEmuCommands(emu, ess, pcsBase);
-            PcsEmuSynchronizer.SyncPcsStateFromModel(ess, emu, pcsBase);
-            _refreshTelemetry?.Invoke();
-            SnapshotService.RequestImmediatePush();
+        /// <summary>
+        /// 解析控制点作用的机组号：优先绑定根路径 emu{n}（一台 PCS 一路时 simEmu 号与机组号不必 1:1）；
+        /// 无绑定时再从 simEmu{n} 设备号回退。
+        /// </summary>
+        internal static bool TryResolveEmuUnit(ControlEffectContext context, out int unit1Based)
+        {
+            if (TryParseEmuRoot(context.Binding.Target.RootKey, out unit1Based))
+                return true;
+
+            return TryParseEmuUnit(context.ServerName, out unit1Based);
+        }
+
+        internal static bool TryParseEmuRoot(string? rootKey, out int unit1Based)
+        {
+            unit1Based = 0;
+            if (string.IsNullOrWhiteSpace(rootKey) ||
+                !rootKey.StartsWith("emu", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return int.TryParse(rootKey.AsSpan(3), out unit1Based) && unit1Based >= 1;
         }
 
         internal static bool TryParseEmuUnit(string serverName, out int unit1Based)
@@ -45,23 +56,27 @@ namespace EssSimulator.DataExchange.Effects
         }
     }
 
-    /// <summary>EMU 单元高压断路器（emu.Emu.PowerOnOff → 电气网络单元断路器）。</summary>
+    /// <summary>EMU 单元高压断路器（Breaker.Closed / Emu.PowerOnOff → 电气网络单元断路器）。</summary>
     public sealed class EmuUnitBreakerEffect : IControlEffect
     {
         public ControlEffectId Id => ControlEffectId.UnitHighVoltageBreaker;
 
         public void OnControlChanged(ControlEffectContext context)
         {
-            if (!EmuPcsControlEffect.TryParseEmuUnit(context.ServerName, out int unit1Based))
+            if (!EmuPcsControlEffect.TryResolveEmuUnit(context, out int unit1Based))
                 return;
 
-            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
-            var emu = SimulatorHost.Instance.Get<EnergyManagementData>($"emu{unit1Based}");
-            if (ess == null || emu == null)
+            var emu = SimulatorHost.Instance.TryGetEmu(unit1Based);
+            if (emu == null)
                 return;
 
-            ess.SetUnitBreakerClosed(unit1Based - 1, emu.Emu.PowerOnOff != 0);
-            SnapshotService.RequestImmediatePush();
+            bool closed = IsEmuLevelBreakerClosed(context.Binding.Target.PropertyPath)
+                ? emu.Breaker.Closed != 0
+                : emu.Emu.PowerOnOff != 0;
+            DeviceControlFacade.TrySetUnitBreaker(unit1Based, closed, out _);
         }
+
+        internal static bool IsEmuLevelBreakerClosed(string? propertyPath) =>
+            string.Equals(propertyPath, "Breaker.Closed", StringComparison.OrdinalIgnoreCase);
     }
 }

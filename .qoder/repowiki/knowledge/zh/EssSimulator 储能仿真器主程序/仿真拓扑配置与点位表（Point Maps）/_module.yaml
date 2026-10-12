@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: configs_pointmaps
+title: 仿真拓扑配置与点位表（Point Maps）
+scope:
+    - configs/
+    - pointmaps/
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/backend_topology

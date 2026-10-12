@@ -6,8 +6,8 @@ namespace EssSimulator.Tests.LocalControl;
 public class ModbusValueConverterTests
 {
     [Theory]
-    [InlineData(0xAA, false)]
-    [InlineData(0xEE, true)]
+    [InlineData(0xAA, true)]
+    [InlineData(0xEE, false)]
     public void TryNormalizeHvBreakerCommand_accepts_valid_codes(int raw, bool expectClosed)
     {
         Assert.True(ModbusValueConverter.TryNormalizeHvBreakerCommand(raw, out var normalized, out var closed));

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "id": "0de8451277cd4b28b5061d18485c3cd3",
+  "name": "\u4F4E\u538B\u4E09\u76F8\u65AD\u8DEF\u5668",
+  "templateId": "ac_breaker",
+  "updatedAtUtc": "2026-08-17T05:23:59.652708Z",
+  "parameters": {
+    "ratedVoltage": 690,
+    "closed": true,
+    "isMainBreaker": false,
+    "name": "\u65AD\u8DEF\u5668"
+  }
+}

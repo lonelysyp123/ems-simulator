@@ -1,0 +1,57 @@
+FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
+4,8021,u32,32,yc0,1,Logger数字输入DIN位图(低16位有效 Device ID 247): Bit1:低压开关室门禁状态(1:关门 0:开门) Din1; Bit2:低压开关室烟雾报警(1:正常 0:报警) Din2; Bit3:低压配电柜QFA/QSA开关状态(1:合闸 0:分闸) Din3; Bit4:低压配电柜SPD1防雷故障(1:正常 0:故障) Din4; Bit5:DIN5 预留 Din5; Bit6:瓦斯报警(1:报警 0:正常) Din6; Bit7:瓦斯跳闸(1:跳闸 0:正常) Din7; Bit8:油温报警(1:报警 0:正常) Din8; Bit9:油温跳闸(1:跳闸 0:正常) Din9; Bit10:油位跳闸(1:跳闸 0:正常) Din10; Bit11:压力释放跳闸(1:跳闸 0:正常) Din11; Bit12:绕组温度报警(1:报警 0:正常) Din12; Bit13:绕组温度跳闸(1:跳闸 0:正常) Din13; Bit14:环网柜室烟雾报警(1:正常 0:报警) Din14; Bit15:环网柜室门禁状态(1:关门 0:开门) Din15; Bit16:辅助变压器室门禁状态(1:关门 0:开门) Din16,model=4|arg1=pvDeviceId.Logger.DigitalInputBitmap|arg2=|arg3=|arg4=1000
+4,8021,bool,1,yx0,1,Logger DIN Bit1: 低压开关室门禁状态(1:关门 0:开门) Din1,0
+4,8021,bool,1,yx1,1,Logger DIN Bit2: 低压开关室烟雾报警(1:正常 0:报警) Din2,0
+4,8021,bool,1,yx2,1,Logger DIN Bit3: 低压配电柜QFA/QSA开关状态(1:合闸 0:分闸) Din3,0
+4,8021,bool,1,yx3,1,Logger DIN Bit4: 低压配电柜SPD1防雷故障(1:正常 0:故障) Din4,0
+4,8021,bool,1,yx4,1,Logger DIN Bit5: DIN5 预留 Din5,0
+4,8021,bool,1,yx5,1,Logger DIN Bit6: 瓦斯报警(1:报警 0:正常) Din6,0
+4,8021,bool,1,yx6,1,Logger DIN Bit7: 瓦斯跳闸(1:跳闸 0:正常) Din7,0
+4,8021,bool,1,yx7,1,Logger DIN Bit8: 油温报警(1:报警 0:正常) Din8,model=4|arg1=pvDeviceId.Logger.OilTemperatureAlarm|arg2=|arg3=|arg4=1000
+4,8021,bool,1,yx8,1,Logger DIN Bit9: 油温跳闸(1:跳闸 0:正常) Din9,model=4|arg1=pvDeviceId.Logger.OilTemperatureTrip|arg2=|arg3=|arg4=1000
+4,8021,bool,1,yx9,1,Logger DIN Bit10: 油位跳闸(1:跳闸 0:正常) Din10,0
+4,8021,bool,1,yx10,1,Logger DIN Bit11: 压力释放跳闸(1:跳闸 0:正常) Din11,0
+4,8021,bool,1,yx11,1,Logger DIN Bit12: 绕组温度报警(1:报警 0:正常) Din12,model=4|arg1=pvDeviceId.Logger.WindingTemperatureAlarm|arg2=|arg3=|arg4=1000
+4,8021,bool,1,yx12,1,Logger DIN Bit13: 绕组温度跳闸(1:跳闸 0:正常) Din13,model=4|arg1=pvDeviceId.Logger.WindingTemperatureTrip|arg2=|arg3=|arg4=1000
+4,8021,bool,1,yx13,1,Logger DIN Bit14: 环网柜室烟雾报警(1:正常 0:报警) Din14,0
+4,8021,bool,1,yx14,1,Logger DIN Bit15: 环网柜室门禁状态(1:关门 0:开门) Din15,0
+4,8021,bool,1,yx15,1,Logger DIN Bit16: 辅助变压器室门禁状态(1:关门 0:开门) Din16,0
+4,8027,int16,16,yc1,10,"Logger PT100-1温度(℃)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Pt100_1C|arg2=|arg3=|arg4=1000
+4,8028,int16,16,yc2,10,"Logger PT100-2温度(℃)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Pt100_2C|arg2=|arg3=|arg4=1000
+4,8029,int16,16,yc3,100,"Logger ADC1电压(V)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc1Voltage|arg2=|arg3=|arg4=1000
+4,8030,int16,16,yc4,100,"Logger ADC1电流(mA)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc1CurrentMa|arg2=|arg3=|arg4=1000
+4,8031,int16,16,yc5,100,"Logger ADC2电压(V)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc2Voltage|arg2=|arg3=|arg4=1000
+4,8032,int16,16,yc6,100,"Logger ADC2电流(mA)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc2CurrentMa|arg2=|arg3=|arg4=1000
+4,8033,int16,16,yc7,100,"Logger ADC3电压(V)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc3Voltage|arg2=|arg3=|arg4=1000
+4,8034,int16,16,yc8,100,"Logger ADC4电压(V)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc4Voltage|arg2=|arg3=|arg4=1000
+4,8035,int16,16,yc9,100,"Logger ADC3电流(mA)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc3CurrentMa|arg2=|arg3=|arg4=1000
+4,8036,int16,16,yc10,100,"Logger ADC4电流(mA)(Device ID 247, FC 0x04)",model=4|arg1=pvDeviceId.Logger.Adc4CurrentMa|arg2=|arg3=|arg4=1000
+3,8005,u16,16,yc11,1,"Logger已连接设备总数(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.ConnectedDeviceCount|arg2=|arg3=|arg4=1000
+3,8006,u16,16,yc12,1,"Logger故障设备总数(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.FaultDeviceCount|arg2=|arg3=|arg4=1000
+3,8068,u16,16,yc13,1,"Logger运行状态(1:On 0:Off)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.RunState|arg2=|arg3=|arg4=1000
+3,8069,u16,16,yc14,1,"Logger故障复归状态(0:latched 1:unlatched)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.UnlatchState|arg2=|arg3=|arg4=1000
+3,8070,u64,64,yc15,1,"Logger总有功功率(W)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.TotalActivePowerW|arg2=|arg3=|arg4=1000
+3,8074,u32,32,yc16,10,"Logger日发电量(kWh) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.DailyYieldKwh|arg2=|arg3=|arg4=1000
+3,8076,int64,64,yc17,1,"Logger总无功功率(var)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.TotalReactivePowerVar|arg2=|arg3=|arg4=1000
+3,8080,u64,64,yc18,10,"Logger累计发电量(kWh) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.TotalYieldKwh|arg2=|arg3=|arg4=1000
+3,8084,u32,32,yc19,10,"Logger最小可调有功功率(kW) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MinAdjustableActivePowerKw|arg2=|arg3=|arg4=1000
+3,8086,u32,32,yc20,10,"Logger最大可调有功功率(kW) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MaxAdjustableActivePowerKw|arg2=|arg3=|arg4=1000
+3,8088,int32,32,yc21,10,"Logger最小可调无功功率(kVar) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MinAdjustableReactivePowerKvar|arg2=|arg3=|arg4=1000
+3,8090,int32,32,yc22,10,"Logger最大可调无功功率(kVar) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MaxAdjustableReactivePowerKvar|arg2=|arg3=|arg4=1000
+3,8092,u32,32,yc23,10,"Logger额定有功功率(kW) 系数0.1(协议单位误写为KVAR)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.NominalActivePowerKw|arg2=|arg3=|arg4=1000
+3,8094,u32,32,yc24,10,"Logger额定无功功率(kVar) 系数0.1(协议类型误写为U33,按U32)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.NominalReactivePowerKvar|arg2=|arg3=|arg4=1000
+3,8096,u16,16,yc25,1,"Logger并网设备数量(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.GridConnectedDeviceCount|arg2=|arg3=|arg4=1000
+3,8097,u16,16,yc26,1,"Logger离网设备数量(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.OffGridDeviceCount|arg2=|arg3=|arg4=1000
+3,8098,u64,64,yc27,10,"Logger阵列月发电量(kWh) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MonthlyYieldKwh|arg2=|arg3=|arg4=1000
+3,8102,u64,64,yc28,10,"Logger阵列年发电量(kWh) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.AnnualYieldKwh|arg2=|arg3=|arg4=1000
+3,8106,u64,64,yc29,1,"Logger阵列视在功率(VA)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.ApparentPowerVa|arg2=|arg3=|arg4=1000
+6,8013,u16,16,yt0,1,"Logger DO: 环网柜外部跳闸(1:动作 0:复归) DO1(Device ID 247, 读0x03 写0x06/0x10)",model=4|arg1=pvDeviceId.Logger.DoRmuTrip|arg2=|arg3=|arg4=1000
+6,8014,u16,16,yt1,1,"Logger DO: 低压开关室风机控制(1:动作 0:复归) DO2(Device ID 247, 读0x03 写0x06/0x10)",model=4|arg1=pvDeviceId.Logger.DoLvFan|arg2=|arg3=|arg4=1000
+6,8015,u16,16,yt2,1,"Logger DO: DO3 预留(Device ID 247, 读0x03 写0x06/0x10)",model=4|arg1=pvDeviceId.Logger.Do3|arg2=|arg3=|arg4=1000
+6,8016,u16,16,yt3,1,"Logger DO: DO4 预留(Device ID 247, 读0x03 写0x06/0x10)",model=4|arg1=pvDeviceId.Logger.Do4|arg2=|arg3=|arg4=1000
+6,8002,u16,16,yt4,1,"设置子阵列逆变器启停(0:Off 1:On)(Device ID 247, 保持寄存器4X, 广播0透传至逆变器)",model=4|arg1=pvDeviceId.Logger.SubarrayOnOff|arg2=|arg3=|arg4=1000
+6,8003,u32,32,yt5,10,"设置子阵列逆变器有功功率(kW) 系数0.1(Device ID 247, 保持寄存器4X, 广播0透传至逆变器)",model=4|arg1=pvDeviceId.Logger.SubarrayActivePowerKw|arg2=|arg3=|arg4=1000
+6,8005,u32,32,yt6,10,"设置子阵列逆变器有功功率百分比(%) 系数0.1(Device ID 247, 保持寄存器4X, 广播0透传至逆变器)",model=4|arg1=pvDeviceId.Logger.SubarrayActivePowerPercent|arg2=|arg3=|arg4=1000
+6,8007,int32,32,yt7,10,"设置子阵列逆变器无功功率(kVar) 系数0.1(Device ID 247, 保持寄存器4X, 广播0透传至逆变器)",model=4|arg1=pvDeviceId.Logger.SubarrayReactivePowerKvar|arg2=|arg3=|arg4=1000
+6,8009,int32,32,yt8,10,"设置子阵列逆变器无功功率百分比(%) 系数0.1(Device ID 247, 保持寄存器4X, 广播0透传至逆变器)",model=4|arg1=pvDeviceId.Logger.SubarrayReactivePowerPercent|arg2=|arg3=|arg4=1000
+6,8011,int32,32,yt9,1000,"设置子阵列功率因数 系数0.001(Device ID 247, 保持寄存器4X, 广播0透传至逆变器)",model=4|arg1=pvDeviceId.Logger.SubarrayPowerFactor|arg2=|arg3=|arg4=1000

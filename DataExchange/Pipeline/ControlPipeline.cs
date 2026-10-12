@@ -1,7 +1,8 @@
+using EssSimulator.Core;
 using EssSimulator.DataExchange.Adapters;
 using EssSimulator.DataExchange.Catalog;
 using EssSimulator.DataExchange.Effects;
-using EssSimulator.Web.DroopSlices;
+using EssSimulator.EssDeviceSimModel;
 using log4net;
 
 namespace EssSimulator.DataExchange.Pipeline
@@ -41,6 +42,8 @@ namespace EssSimulator.DataExchange.Pipeline
 
         public void RunOnce()
         {
+            if (ExternalControlGate.IsBlocked)
+                return;
             if (_catalog.ControlPoints.Count == 0)
                 return;
 
@@ -61,7 +64,7 @@ namespace EssSimulator.DataExchange.Pipeline
                 object applied;
                 if (binding.Semantics == ControlSemantics.Edge)
                 {
-                    if (!TryResolveEdgeTransition(previous, newValue, out var edgeApplied))
+                    if (!TryResolveEdgeTransition(previous, newValue, out var edgeApplied) || edgeApplied == null)
                         continue;
                     applied = edgeApplied;
                 }
@@ -69,33 +72,53 @@ namespace EssSimulator.DataExchange.Pipeline
                 {
                     applied = CoerceControlValue(binding, newValue);
                 }
-                if (!_simulation.Write(binding.Target.FullPath, applied))
+
+                Accept(binding, applied, previous);
+            }
+        }
+
+        /// <summary>
+        /// 先收下设定（shadow），模型写入放到电站步进开头。
+        /// 两套 EMS 在同一拍里改同一点时，只保留最后一次。
+        /// </summary>
+        private void Accept(PointBinding binding, object applied, object? previous)
+        {
+            string path = binding.Target.FullPath;
+            string name = binding.ParamName;
+            _shadow.CommitControl(name, applied);
+            PlantControlMailbox.Submit(path, () => ApplyToModel(binding, path, name, applied, previous));
+        }
+
+        private void ApplyToModel(PointBinding binding, string path, string name, object applied, object? previous)
+        {
+            if (PlantControlMailbox.IsSuperseded(path))
+                return;
+
+            if (!_simulation.Write(path, applied))
+            {
+                if (!PlantControlMailbox.IsSuperseded(path))
+                    _shadow.CommitControl(name, previous);
+                _log.Warn($"Control write failed: {path} <= {applied}");
+                return;
+            }
+
+            ControlPointCapture.Current.OnControlApplied(_serverName, binding, applied, previous);
+
+            if (_logControlChanges)
+            {
+                _log.Info(
+                    $"[{ControlLogPrefix}-Control:change] {_serverName}.{name}: -> {FormatValue(applied)}");
+            }
+
+            if (binding.Effect != ControlEffectId.None)
+            {
+                _effects.Dispatch(binding.Effect, new ControlEffectContext
                 {
-                    _log.Warn($"Control write failed: {binding.Target.FullPath} <= {applied}");
-                    continue;
-                }
-
-                _shadow.CommitControl(binding.ParamName, applied);
-
-                // 白盒切片：EMS 写有功/无功设定瞬间采集
-                DroopSliceStore.TryCapture(_serverName, binding, applied, previous);
-
-                if (_logControlChanges)
-                {
-                    _log.Info(
-                        $"[{ControlLogPrefix}-Control:change] {_serverName}.{binding.ParamName}: -> {FormatValue(applied)}");
-                }
-
-                if (binding.Effect != ControlEffectId.None)
-                {
-                    _effects.Dispatch(binding.Effect, new ControlEffectContext
-                    {
-                        ServerName = _serverName,
-                        Binding = binding,
-                        AppliedValue = applied,
-                        PreviousValue = previous
-                    });
-                }
+                    ServerName = _serverName,
+                    Binding = binding,
+                    AppliedValue = applied,
+                    PreviousValue = previous
+                });
             }
         }
 
@@ -167,6 +190,7 @@ namespace EssSimulator.DataExchange.Pipeline
         }
 
         private string ControlLogPrefix =>
+            _serverName.StartsWith("simPvInv", StringComparison.OrdinalIgnoreCase) ? "PV-Inverter" :
             _serverName.StartsWith("simBms", StringComparison.OrdinalIgnoreCase) ? "BMS" : "EMU";
 
         private static string FormatValue(object? value) =>

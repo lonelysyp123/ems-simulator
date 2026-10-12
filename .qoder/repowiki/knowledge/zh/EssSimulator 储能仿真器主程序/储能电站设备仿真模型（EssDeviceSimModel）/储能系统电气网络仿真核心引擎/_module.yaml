@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: device_sim_model/core_engine
+title: 储能系统电气网络仿真核心引擎
+scope:
+    - EssDeviceSimModel/Solver/
+    - EssDeviceSimModel/Propagation/
+    - EssDeviceSimModel/Model/
+source_files: []
+depends_on: []
+related_to:
+    - path: data_exchange
+    - path: display_commands

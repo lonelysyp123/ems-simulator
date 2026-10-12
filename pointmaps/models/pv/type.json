@@ -1,0 +1,6 @@
+{
+  "id": "pv",
+  "name": "Photovoltaic",
+  "description": "Photovoltaic 光伏协议",
+  "files": [ "pv_logger.csv", "pv_apm810.csv", "pv_inverter.csv" ]
+}

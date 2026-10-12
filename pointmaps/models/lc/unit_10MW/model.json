@@ -1,0 +1,6 @@
+{
+  "id": "unit_10MW",
+  "name": "中压系统-pcs unit部分（10MW）",
+  "description": "LC 片段：EMU 内 PCS 组窗口。n=PCS 组号（1、2）；模块1/2=该组第一台 PCS 的两条支路。与 unit_5.5MW 共存。",
+  "pairCount": 2
+}

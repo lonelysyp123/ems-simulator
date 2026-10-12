@@ -1,0 +1,5 @@
+{
+  "id": "bms",
+  "name": "中压系统-bms部分",
+  "description": "天合中压对外 Modbus TCP 协议 Battery System（电池堆系统）工作表：按电池堆序号 n 展开的输入寄存器。"
+}

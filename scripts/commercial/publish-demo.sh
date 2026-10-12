@@ -58,7 +58,7 @@ for f in log4net.config autotest.json; do
   cp -f "$ROOT/$f" "$OUT/$f"
   echo "    $f"
 done
-copy_pointmaps_to "$OUT" "$DEFAULT_COMMERCIAL_POINTMAP_VERSION"
+copy_pointmaps_to "$OUT"
 if [[ -d "$ROOT/docs" ]]; then
   rm -rf "$OUT/docs"
   cp -R "$ROOT/docs" "$OUT/docs"
@@ -68,6 +68,10 @@ fi
 echo "==> Copying topology data (组态编辑器预设工程/设备库)..."
 rm -rf "$OUT/configs"
 mkdir -p "$OUT/configs"
+if [[ -f "$ROOT/configs/protocol-bindings.json" ]]; then
+  cp -f "$ROOT/configs/protocol-bindings.json" "$OUT/configs/protocol-bindings.json"
+  echo "    configs/protocol-bindings.json"
+fi
 if [[ -d "$ROOT/configs/topology" ]]; then
   cp -R "$ROOT/configs/topology" "$OUT/configs/topology"
   echo "    configs/topology/"
@@ -93,6 +97,7 @@ case "$PLATFORM" in
   windows)
     cp -f "$ROOT/scripts/windows/start.bat" "$OUT/start.bat"
     cp -f "$ROOT/scripts/windows/README-Windows.txt" "$OUT/README-Windows.txt"
+    copy_iec61850_windows_native "$OUT"
     ;;
   linux)
     cp -f "$ROOT/scripts/linux/start.sh" "$OUT/start.sh"

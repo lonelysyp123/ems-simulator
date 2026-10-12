@@ -21,8 +21,8 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             BusId = busId;
             NominalLineVoltageV = nominalLineVoltageV;
             Connection = connection;
-            LineVoltageV = nominalLineVoltageV;
-            FrequencyHz = 50;
+            LineVoltageV = 0;
+            FrequencyHz = 0;
         }
 
         public string BusId { get; }
@@ -35,16 +35,21 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         public double TotalLineCurrentA =>
             Math.Sqrt(_sumCurrentReal * _sumCurrentReal + _sumCurrentImag * _sumCurrentImag);
 
+        /// <summary>
+        /// 汇总 P/Q 用的电压：已带电用本步母线电压；尚未定压时用额定，避免构造初值 0 把意图功率算成 0。
+        /// </summary>
+        private double AggregationVoltageV => LineVoltageV > 1.0 ? LineVoltageV : NominalLineVoltageV;
+
         public double TotalPhaseAngleDeg =>
             Math.Abs(TotalLineCurrentA) > 1e-9
                 ? Math.Atan2(_sumCurrentImag, _sumCurrentReal) * 180.0 / Math.PI
                 : 0;
 
         public double TotalActivePowerKw =>
-            AcQuantityConverter.ComputeActivePowerKw(LineVoltageV, TotalLineCurrentA, TotalPhaseAngleDeg);
+            AcQuantityConverter.ComputeActivePowerKw(AggregationVoltageV, TotalLineCurrentA, TotalPhaseAngleDeg);
 
         public double TotalReactivePowerKvar =>
-            AcQuantityConverter.ComputeReactivePowerKvar(LineVoltageV, TotalLineCurrentA, TotalPhaseAngleDeg);
+            AcQuantityConverter.ComputeReactivePowerKvar(AggregationVoltageV, TotalLineCurrentA, TotalPhaseAngleDeg);
 
         public IReadOnlyList<IBusPowerContributor> Contributors => _contributors;
 
@@ -58,16 +63,16 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
             _voltageSources.Add(source);
 
         /// <summary>
-        /// 合并本地电压源（如黑启动 PCS）注入：取最高线电压写入母线。
+        /// 合并本地电压源（如构网 PCS）注入：下垂后取各源电压/频率算术平均，作为公共母线量。
         /// </summary>
         public bool ApplyLocalVoltageSources(PropagationSweepContext sweep)
         {
             if (_voltageSources.Count == 0)
                 return false;
 
-            double maxV = LineVoltageV;
-            double freq = FrequencyHz;
-            bool any = false;
+            double sumV = 0;
+            double sumF = 0;
+            int n = 0;
 
             foreach (var source in _voltageSources)
             {
@@ -75,18 +80,23 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
                     continue;
 
                 var (v, f) = source.GetInjection(sweep.DeviceContext);
-                if (v <= maxV)
+                if (v <= 1.0)
                     continue;
 
-                maxV = v;
-                freq = f;
-                any = true;
+                sumV += v;
+                sumF += f > 1.0 ? f : sweep.SystemFrequencyHz;
+                n++;
             }
 
-            if (!any || maxV <= LineVoltageV + 1e-6)
+            if (n == 0)
                 return false;
 
-            SetVoltage(maxV, freq, sweep, notifyCouplers: false);
+            double commonV = sumV / n;
+            double commonF = sumF / n;
+            if (Math.Abs(commonV - LineVoltageV) <= 1e-6 && Math.Abs(commonF - FrequencyHz) <= 1e-9)
+                return false;
+
+            SetVoltage(commonV, commonF, sweep, notifyCouplers: false);
             return true;
         }
 

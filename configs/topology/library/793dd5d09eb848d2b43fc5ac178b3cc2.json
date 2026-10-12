@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "id": "793dd5d09eb848d2b43fc5ac178b3cc2",
+  "name": "\u4F4E\u538B\u4E09\u76F8\u7535\u8868",
+  "templateId": "ac_meter",
+  "updatedAtUtc": "2026-08-27T06:31:34.014411Z",
+  "parameters": {
+    "ptPrimaryVoltage": 690,
+    "ctPrimaryCurrent": 2000,
+    "accuracyClass": "0.2S",
+    "isPccMeter": false
+  }
+}

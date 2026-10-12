@@ -1,73 +1,24 @@
-using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+using EssSimulator.EssDeviceSimModel.Bms;
 
 namespace EssSimulator.EssDeviceSimModel.Devices
 {
+    /// <summary>堆级保护汇总输入（由 Mapper 从协议 DTO 抽出，模型侧不引用 Api）。</summary>
+    public readonly struct BmsStackProtectionSnapshot
+    {
+        public ushort FaultSummary { get; init; }
+        public ushort AlarmSummary { get; init; }
+        public ushort ProtectionSummary { get; init; }
+        public bool IsChargeFault { get; init; }
+        public bool IsDischargeFault { get; init; }
+        public float Soc { get; init; }
+        public float Soh { get; init; }
+    }
+
     /// <summary>
     /// BMS 保护逻辑：簇级阈值评估 + Rack 级告警汇总回写物理状态。
     /// </summary>
     public static class BmsRackProtection
     {
-        public static void EvaluateAllClusters(BatteryRackSimulator rackSim, BatteryManagementSystemData bmsData)
-        {
-            var clusterStates = rackSim.GetRackState().ClusterStates;
-            var clusterConfig = rackSim.GetRackConfig().ClusterConfig;
-            int packSerial = rackSim._clusters[0]._packs[0].GetPackConfiguration().SeriesCount;
-            var stack = bmsData.BatteryStacks[0];
-
-            for (int i = 0; i < clusterStates.Count; i++)
-            {
-                var cs = clusterStates[i];
-                var clu = stack.Cluseter[i];
-                float busbarTempC = ResolveBusbarTempC(clu.Measurements);
-                float poleTempC = ResolvePoleTempC(clu);
-                EvaluateCluster(
-                    cs,
-                    clusterConfig.PackCount,
-                    packSerial,
-                    clu.Thresholds,
-                    clu.Alarms,
-                    clu.Measurements.Insulation ?? 0f,
-                    busbarTempC,
-                    poleTempC);
-            }
-        }
-
-        private static float ResolveBusbarTempC(ClusterBasicMeasurements m)
-        {
-            if (m == null)
-                return 26f;
-            float? t1 = m.HVB1Temp;
-            float? t2 = m.HVB2Temp;
-            if (t1.HasValue && t2.HasValue)
-                return Math.Max(t1.Value, t2.Value);
-            return t1 ?? t2 ?? 26f;
-        }
-
-        private static float ResolvePoleTempC(BatteryCluster clu)
-        {
-            var temps = clu?.ClusterCellTemperatures;
-            if (temps == null)
-                return 26f;
-
-            float max = float.NegativeInfinity;
-            bool any = false;
-            void consider(Dictionary<int, float?>? dict)
-            {
-                if (dict == null) return;
-                foreach (var kv in dict)
-                {
-                    if (!kv.Value.HasValue) continue;
-                    any = true;
-                    if (kv.Value.Value > max)
-                        max = kv.Value.Value;
-                }
-            }
-
-            consider(temps.PositivePoleTemperatures);
-            consider(temps.NegativePoleTemperatures);
-            return any ? max : 26f;
-        }
-
         public static void EvaluateCluster(
             ClusterState clusterState,
             int packCount,
@@ -86,6 +37,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 .Select(j => (float)clusterState.PackStates[j].MinCellTemp).ToList();
             var maxTempList = Enumerable.Range(0, packCount)
                 .Select(j => (float)clusterState.PackStates[j].MaxCellTemp).ToList();
+
+            // 充/放电高温与低温保护以「电芯温度」为判据（每芯独立温度，由热环境/节点温度影响散热得到）。
 
             var thr = thresholds;
             var alm = alarms;
@@ -176,18 +129,16 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         /// Rack 级汇总：读取各簇告警汇总与 stack 级 SOC/SOH 规则，写回 <see cref="RackState"/> 故障态。
         /// </summary>
         public static void ApplyRackFaultSummary(
-            BatteryManagementSystemData bmsData,
-            RackState rack,
-            int stackIndex = 0)
+            BmsStackProtectionSnapshot stack,
+            RackState rack)
         {
-            var stack = bmsData.BatteryStacks[stackIndex];
             double current = rack.TotalCurrent;
             bool isCharging = IsCharging(current);
             bool isDischarging = IsDischarging(current);
             bool chargeFault = stack.IsChargeFault && isCharging;
             bool dischargeFault = stack.IsDischargeFault && isDischarging;
 
-            if (stack.BMSFaultSummary != 0 && (chargeFault || dischargeFault))
+            if (stack.FaultSummary != 0 && (chargeFault || dischargeFault))
             {
                 rack.IsFault = (ushort)((chargeFault, dischargeFault) switch
                 {
@@ -202,64 +153,25 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 rack.IsFault = 0;
             }
 
-            if (isCharging && stack.SOC >= 0.95f)
+            if (isCharging && stack.Soc >= 0.95f)
             {
                 rack.IsFault = (ushort)(rack.IsFault == 0 ? 1
                                       : rack.IsFault == 2 ? 3
                                       : rack.IsFault);
             }
 
-            if (isDischarging && stack.SOC <= 0.05f)
+            if (isDischarging && stack.Soc <= 0.05f)
             {
                 rack.IsFault = (ushort)(rack.IsFault == 0 ? 2
                                       : rack.IsFault == 1 ? 3
                                       : rack.IsFault);
             }
 
-            if (stack.SOH <= 0.05f)
+            if (stack.Soh <= 0.05f)
                 rack.IsFault = 3;
 
-            rack.IsAlarm = stack.BMSAlarmSummary != 0;
-            rack.IsProtection = stack.BMSProtectionSummary != 0;
-        }
-
-        /// <summary>
-        /// 待机时清除充放电方向故障并刷新 Rack 故障态（一次性复位，不抑制后续再触发）。
-        /// </summary>
-        public static bool TryClearChargeDischargeFaults(
-            BatteryManagementSystemData bmsData,
-            BmsRackDevice device,
-            out string message)
-        {
-            message = string.Empty;
-            var rackState = device.Rack.GetRackState();
-            if (rackState == null || bmsData?.BatteryStacks == null || bmsData.BatteryStacks.Count == 0)
-            {
-                message = "BMS 数据或 Rack 状态不可用";
-                return false;
-            }
-
-            if (IsCharging(rackState.TotalCurrent) || IsDischarging(rackState.TotalCurrent))
-            {
-                message = "当前仍在充/放电，请先待机后再清除故障";
-                return false;
-            }
-
-            var stack = bmsData.BatteryStacks[0];
-            foreach (var cluster in stack.Cluseter)
-                cluster.Alarms.ClearChargeDischargeAlarms();
-
-            stack.IsPcsLinked = device.IsLinked;
-            if (stack.GridConnectStatus == 3)
-                stack.GridConnectStatus = 0;
-
-            // 待机时充/放电方向阈值不评估，不会因 SOC 边界立即再置障；
-            // 再次进入充/放电且仍超限时，UpdateUnder/Over 会按当前值一次性落入对应等级。
-            device.SyncTelemetryAndProtection(bmsData);
-            message = stack.BMSFaultSummary == 0 && rackState.IsFault == 0
-                ? "充放电方向故障已清除（一次性）；再次充/放电若仍超限将重新触发"
-                : "充放电方向故障已清除；部分非方向故障仍在，可重新并网后观察";
-            return true;
+            rack.IsAlarm = stack.AlarmSummary != 0;
+            rack.IsProtection = stack.ProtectionSummary != 0;
         }
 
         /// <summary>电流 &gt; 0 为充电（与物理模型 rack/电芯一致）。</summary>

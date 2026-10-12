@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model
+title: 储能电站设备仿真模型（EssDeviceSimModel）
+scope:
+    - EssDeviceSimModel/
+source_files: []
+depends_on: []
+related_to: []

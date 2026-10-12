@@ -14,6 +14,9 @@ namespace EssSimulator.Display
             if (args.Length != 2)
                 return CommandResult.Fail("用法: breaker <operation> <state>");
 
+            if (!ExternalControlGate.TryAllow(out var blocked))
+                return CommandResult.Fail(blocked);
+
             if (!bool.TryParse(args[1], out var flag))
                 return CommandResult.Fail("请输入有效的布尔值 (true/false)");
 
@@ -25,6 +28,7 @@ namespace EssSimulator.Display
             if (args[0] == "set")
             {
                 ess.SetMainBreakerClosed(flag);
+                UiSnapshotNotifier.RequestImmediatePush();
                 return CommandResult.Ok($"执行成功: 主断路器 {(flag ? "合闸" : "分闸")}");
             }
 

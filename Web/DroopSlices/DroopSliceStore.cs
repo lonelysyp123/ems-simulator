@@ -1,13 +1,14 @@
 using EssSimulator.Configuration;
+using EssSimulator.DataExchange;
 using EssSimulator.DataExchange.Catalog;
 using Microsoft.Extensions.Options;
 
 namespace EssSimulator.Web.DroopSlices
 {
     /// <summary>
-    /// 白盒切片内存环缓冲。ControlPipeline 在写 PCS 有功/无功设定后调用 <see cref="TryCapture"/>。
+    /// 白盒切片内存环缓冲。经 <see cref="IControlPointCapture"/> 在控制点写入后采集。
     /// </summary>
-    public sealed class DroopSliceStore
+    public sealed class DroopSliceStore : IControlPointCapture
     {
         private static DroopSliceStore? _current;
         private readonly object _gate = new();
@@ -26,6 +27,7 @@ namespace EssSimulator.Web.DroopSlices
             _enabled = _allowFeature && cfg.DroopSliceCaptureEnabled;
             _maxCount = Math.Clamp(cfg.DroopSliceMaxCount, 10, 5000);
             _current = this;
+            ControlPointCapture.Current = this;
         }
 
         public static DroopSliceStore? Current => _current;
@@ -59,6 +61,18 @@ namespace EssSimulator.Web.DroopSlices
         public int Count
         {
             get { lock (_gate) return _items.Count; }
+        }
+
+        /// <summary>
+        /// 若启用且绑定为 PCS 有功/无功设定，则采集一切片。
+        /// </summary>
+        public void OnControlApplied(
+            string serverName,
+            PointBinding binding,
+            object appliedValue,
+            object? previousValue)
+        {
+            TryCapture(serverName, binding, appliedValue, previousValue);
         }
 
         /// <summary>

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: protocol_modbus
+title: Modbus 协议从站与数据同步层
+scope:
+    - Protocol/
+source_files: []
+depends_on: []
+related_to:
+    - path: data_exchange
+    - path: data_exchange/pipeline
+    - path: display_commands
+    - path: local_control

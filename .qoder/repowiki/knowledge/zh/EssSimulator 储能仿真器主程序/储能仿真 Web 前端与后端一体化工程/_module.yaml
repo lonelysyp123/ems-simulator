@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: web_frontend_backend
+title: 储能仿真 Web 前端与后端一体化工程
+scope:
+    - Web/
+source_files: []
+depends_on: []
+related_to: []

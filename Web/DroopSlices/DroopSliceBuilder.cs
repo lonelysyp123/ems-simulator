@@ -1,5 +1,6 @@
 using EssSimulator.Core;
 using EssSimulator.DataExchange.Catalog;
+using EssSimulator.DataExchange.Effects;
 using EssSimulator.Display;
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
@@ -18,12 +19,15 @@ namespace EssSimulator.Web.DroopSlices
             long sequence)
         {
             ParsePcsTarget(binding.Target.PropertyPath, out int unitIndex0, out int slotInUnit, out bool isActive);
-            ApplyUnitFromServer(serverName, ref unitIndex0);
-            int channelIndex = unitIndex0 * 2 + slotInUnit;
+            if (EmuPcsControlEffect.TryParseEmuRoot(binding.Target.RootKey, out int unit1Based))
+                unitIndex0 = unit1Based - 1;
+            else
+                ApplyUnitFromServer(serverName, ref unitIndex0);
+            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
+            int channelIndex = (ess?.PcsBaseIndexOfUnit(unitIndex0) ?? unitIndex0 * 2) + slotInUnit;
             double applied = ToDouble(appliedValue);
             double? previous = previousValue == null ? null : ToDouble(previousValue);
 
-            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
             var emu = SimulatorHost.Instance.Get<EnergyManagementData>($"emu{unitIndex0 + 1}");
             var bms = SimulatorHost.Instance.Get<BatteryManagementSystemData>($"bms{channelIndex + 1}");
 

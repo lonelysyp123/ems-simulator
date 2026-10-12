@@ -29,6 +29,11 @@ namespace EssSimulator.EssDeviceSimModel.Model
         public MeterReportedQuantity ReportedQuantity { get; set; } = MeterReportedQuantity.Primary;
         public double BurdenVa { get; set; } = 5;
         public string AccuracyClass { get; set; } = "0.2S";
+        /// <summary>
+        /// 组态连线解析出的运行时母线 Id（如 BUS_AFTER_MAIN_BRK）。
+        /// 空则按默认并网点抽头（主断下游）。
+        /// </summary>
+        public string? SourceBusId { get; set; }
     }
 
     public sealed class MeterConfig

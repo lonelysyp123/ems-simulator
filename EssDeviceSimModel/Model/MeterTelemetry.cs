@@ -7,6 +7,8 @@ namespace EssSimulator.EssDeviceSimModel.Model
         public AcTerminalQuantities ReportedTerminal { get; init; } = new();
         public double ForwardActiveEnergyKwh { get; init; }
         public double ReverseActiveEnergyKwh { get; init; }
+        public double ForwardReactiveEnergyKvarh { get; init; }
+        public double ReverseReactiveEnergyKvarh { get; init; }
     }
 
     public static class MeterQuantityConverter

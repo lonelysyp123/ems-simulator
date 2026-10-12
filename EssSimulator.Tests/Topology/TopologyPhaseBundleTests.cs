@@ -78,15 +78,90 @@ public class TopologyPhaseBundleTests
         {
             Nodes =
             {
-                Node("emu1", "emu", "EMU"),
+                Node("pcs1", "pcs", "PCS"),
                 Node("dc1", "dc_bus", "DC")
             }
         };
 
-        var edges = TopologyValidator.ExpandBundle(p, Edge("emu1", "dc_pos", "dc1", "pos_t"));
+        var edges = TopologyValidator.ExpandBundle(p, Edge("pcs1", "dc_pos", "dc1", "pos_t"));
         Assert.Equal(2, edges.Count);
         Assert.Contains(edges, e => e.FromPortId == "dc_pos" && e.ToPortId == "pos_t");
         Assert.Contains(edges, e => e.FromPortId == "dc_neg" && e.ToPortId == "neg_t");
+    }
+
+    [Fact]
+    public void ExpandBundle_split_transformer_left_ear_does_not_include_right_ear()
+    {
+        var p = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("split1", "split_transformer", "双耳"),
+                Node("busL", "ac_bus", "左690")
+            }
+        };
+
+        var edges = TopologyValidator.ExpandBundle(p, Edge("split1", "ear_l_a", "busL", "a"));
+        Assert.Equal(3, edges.Count);
+        Assert.Contains(edges, e => e.FromPortId == "ear_l_a" && e.ToPortId == "a");
+        Assert.Contains(edges, e => e.FromPortId == "ear_l_b" && e.ToPortId == "b");
+        Assert.Contains(edges, e => e.FromPortId == "ear_l_c" && e.ToPortId == "c");
+        Assert.DoesNotContain(edges, e => e.FromPortId.StartsWith("ear_r_"));
+    }
+
+    [Fact]
+    public void ExpandBundle_split_transformer_right_ear_pairs_independently()
+    {
+        var p = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("split1", "split_transformer", "双耳"),
+                Node("busR", "ac_bus", "右690")
+            }
+        };
+
+        var fromEar = TopologyValidator.ExpandBundle(p, Edge("split1", "ear_r_b", "busR", "b"));
+        Assert.Equal(3, fromEar.Count);
+        Assert.Contains(fromEar, e => e.FromPortId == "ear_r_a" && e.ToPortId == "a");
+        Assert.Contains(fromEar, e => e.FromPortId == "ear_r_b" && e.ToPortId == "b");
+        Assert.Contains(fromEar, e => e.FromPortId == "ear_r_c" && e.ToPortId == "c");
+        Assert.DoesNotContain(fromEar, e => e.FromPortId.StartsWith("ear_l_"));
+
+        var fromBus = TopologyValidator.ExpandBundle(p, Edge("busR", "a", "split1", "ear_r_a"));
+        Assert.Equal(3, fromBus.Count);
+        Assert.Contains(fromBus, e => e.FromPortId == "a" && e.ToPortId == "ear_r_a");
+        Assert.Contains(fromBus, e => e.FromPortId == "b" && e.ToPortId == "ear_r_b");
+        Assert.Contains(fromBus, e => e.FromPortId == "c" && e.ToPortId == "ear_r_c");
+        Assert.DoesNotContain(fromBus, e => e.ToPortId.StartsWith("ear_l_"));
+    }
+
+    [Fact]
+    public void TryConnectBundle_split_transformer_left_ear_does_not_wire_right_ear()
+    {
+        var p = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("split1", "split_transformer", "双耳"),
+                Node("busL", "ac_bus", "左690"),
+                Node("busR", "ac_bus", "右690")
+            }
+        };
+
+        var r = TopologyValidator.TryConnectBundle(p, Edge("split1", "ear_l_a", "busL", "a"), out var afterLeft);
+        Assert.True(r.Ok, r.Message);
+        Assert.NotNull(afterLeft);
+        Assert.Equal(3, afterLeft!.Edges.Count);
+        Assert.All(afterLeft.Edges, e => Assert.StartsWith("ear_l_", e.FromPortId));
+        Assert.DoesNotContain(afterLeft.Edges, e => e.FromPortId.StartsWith("ear_r_"));
+
+        r = TopologyValidator.TryConnectBundle(afterLeft, Edge("split1", "ear_r_a", "busR", "a"), out var afterRight);
+        Assert.True(r.Ok, r.Message);
+        Assert.NotNull(afterRight);
+        Assert.Equal(6, afterRight!.Edges.Count);
+        Assert.Equal(3, afterRight.Edges.Count(e => e.FromPortId.StartsWith("ear_l_")));
+        Assert.Equal(3, afterRight.Edges.Count(e => e.FromPortId.StartsWith("ear_r_")));
     }
 
     [Fact]
@@ -118,21 +193,21 @@ public class TopologyPhaseBundleTests
     }
 
     [Fact]
-    public void TryConnectBundle_rolls_back_when_any_phase_fails()
+    public void TryConnectBundle_allows_electrical_invalid_during_edit()
     {
         var p = new TopologyProject
         {
             Nodes =
             {
-                Node("emu1", "emu", "EMU"),
+                Node("pcs1", "pcs", "PCS"),
                 Node("bus1", "ac_bus", "未带电母线")
             }
         };
 
-        // 母线下侧无源拒绝
-        var r = TopologyValidator.TryConnectBundle(p, Edge("emu1", "ac_a", "bus1", "a2"), out var updated);
-        Assert.False(r.Ok);
-        Assert.Null(updated);
+        var r = TopologyValidator.TryConnectBundle(p, Edge("pcs1", "ac_a", "bus1", "a"), out var updated);
+        Assert.True(r.Ok, r.Message);
+        Assert.NotNull(updated);
+        Assert.NotEmpty(updated!.Edges);
         Assert.Empty(p.Edges);
     }
 

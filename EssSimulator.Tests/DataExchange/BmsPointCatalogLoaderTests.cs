@@ -6,10 +6,30 @@ namespace EssSimulator.Tests.DataExchange;
 
 public class BmsPointCatalogLoaderTests
 {
+    /// <summary>
+    /// common 版点表绝对路径。根目录 bms_bank.csv 可能随交付版本切换（如 LC 版），
+    /// 本测试固定验证 pointmaps/models/bms/standard 版本（原 pointmaps/common），不能依赖复制到 bin 的运行时点表。
+    /// </summary>
+    private static string CommonBankCsvPath
+    {
+        get
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "EssSimulator.sln")))
+                    return Path.Combine(dir.FullName, "pointmaps", "models", "bms", "standard", "bms_bank.csv");
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException("找不到仓库根目录");
+        }
+    }
+
     [Fact]
     public void FromPointMap_simBms1_HasGridConnectControlForYt0()
     {
-        var pointMap = new ModbusPointMap("bms_bank.csv", "simBms1", clusterCount: 12);
+        var pointMap = new ModbusPointMap(CommonBankCsvPath, "simBms1", clusterCount: 12);
         var catalog = PointCatalogLoader.FromPointMap(pointMap, "simBms1", new DataExchangeOptions());
 
         var yt0 = catalog.ControlPoints.First(p => p.ParamName == "yt0");
@@ -28,15 +48,16 @@ public class BmsPointCatalogLoaderTests
     [Fact]
     public void FromPointMap_IncludesRackControlThresholds()
     {
-        var pointMap = new ModbusPointMap("bms_bank.csv", "simBms1", clusterCount: 12);
+        var pointMap = new ModbusPointMap(CommonBankCsvPath, "simBms1", clusterCount: 12);
         var catalog = PointCatalogLoader.FromPointMap(pointMap, "simBms1");
 
         Assert.NotEmpty(catalog.RackControlPoints);
-        var yc1322 = catalog.FindRackControl("yc1322");
-        Assert.NotNull(yc1322);
-        Assert.Contains("Thresholds.CellOvervoltageThreshold1", yc1322!.BindingPathTemplate);
+        // standard 完整版 rack 点表中，单体过压三级报警门限为 yt0（地址 40000）
+        var threshold = catalog.FindRackControl("yt0");
+        Assert.NotNull(threshold);
+        Assert.Contains("Thresholds.CellOvervoltageThreshold1", threshold!.BindingPathTemplate);
         Assert.Equal(
             "bms1.BatteryStacks[0].Cluseter[0].Thresholds.CellOvervoltageThreshold1",
-            yc1322.ResolvePath(0));
+            threshold.ResolvePath(0));
     }
 }

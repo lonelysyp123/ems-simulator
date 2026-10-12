@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "id": "5fc2d6d7e23d4345b77acb332b74542d",
+  "name": "2\u7EA7\u53D8\u538B\u5668",
+  "templateId": "transformer",
+  "updatedAtUtc": "2026-08-17T03:41:37.471296Z",
+  "parameters": {
+    "primaryVoltage": 35000,
+    "secondaryVoltage": 690,
+    "ratedPowerKva": 5000,
+    "impedancePercent": 4,
+    "noLoadLossW": 100,
+    "loadLossW": 200
+  }
+}

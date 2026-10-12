@@ -1,9 +1,11 @@
 using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel;
+using EssSimulator.EssDeviceSimModel.Bms;
 using EssSimulator.EssDeviceSimModel.Battery;
 using EssSimulator.EssDeviceSimModel.Devices;
 using EssSimulator.EssSimModelApi;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+using EssSimulator.EssSimModelApi.Mappers;
 
 namespace EssSimulator.Tests.Devices;
 
@@ -24,11 +26,11 @@ public class BmsFaultClearTests
         foreach (var cluster in rackState.ClusterStates!)
             cluster.MinPackSOC = 0.05;
 
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
         Assert.Equal((ushort)2, device.FaultCode);
 
         SetRackCurrent(rackState, 0);
-        Assert.True(BmsRackProtection.TryClearChargeDischargeFaults(bmsData, device, out var message), message);
+        Assert.True(BmsMapper.TryClearChargeDischargeFaults(bmsData, device, out var message), message);
 
         Assert.Equal((ushort)0, device.FaultCode);
         Assert.Equal((ushort)0, bmsData.BatteryStacks[0].BMSFaultSummary);
@@ -36,7 +38,7 @@ public class BmsFaultClearTests
 
         // 再次放电且 SOC 仍低：应重新落入三级并置 Rack 放电故障
         SetRackCurrent(rackState, -50);
-        device.SyncTelemetryAndProtection(bmsData);
+        BmsMapper.SyncTelemetryAndProtection(device, bmsData);
         Assert.Equal(true, bmsData.BatteryStacks[0].SystemAlarms.LowSOCFault);
         Assert.Equal((ushort)2, device.FaultCode);
     }
@@ -49,7 +51,7 @@ public class BmsFaultClearTests
         var bmsData = BmsDataGenerator.GenerateSampleData(1, 1);
         SetRackCurrent(rack.GetRackState()!, -50);
 
-        Assert.False(BmsRackProtection.TryClearChargeDischargeFaults(bmsData, device, out var message));
+        Assert.False(BmsMapper.TryClearChargeDischargeFaults(bmsData, device, out var message));
         Assert.Contains("待机", message);
     }
 
@@ -62,7 +64,7 @@ public class BmsFaultClearTests
         var stack = bmsData.BatteryStacks[0];
         stack.GridConnectStatus = 3;
 
-        Assert.True(BmsRackProtection.TryClearChargeDischargeFaults(bmsData, device, out _));
+        Assert.True(BmsMapper.TryClearChargeDischargeFaults(bmsData, device, out _));
         Assert.Equal((ushort)0, stack.GridConnectStatus);
     }
 

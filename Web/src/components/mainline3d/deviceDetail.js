@@ -302,9 +302,9 @@ export function buildBmsDetail(channel, topology = {}, batteryOverview = null) {
   g.userData.kind = 'bms-detail'
   g.userData.detailType = 'bms'
 
-  const clusterCount = Math.max(1, Number(topology.clusterCount) || 12)
-  const packCount = Math.max(1, Number(topology.packCount) || 4)
-  const cellSeries = Math.max(1, Number(topology.cellSeriesCount) || 104)
+  const clusterCount = Math.max(0, Number(topology.clusterCount) || 0)
+  const packCount = Math.max(0, Number(topology.packCount) || 0)
+  const cellSeries = Math.max(0, Number(topology.cellSeriesCount) || 0)
   const cellParallel = Math.max(1, Number(topology.cellParallelCount) || 1)
 
   const SCALE = 0.58

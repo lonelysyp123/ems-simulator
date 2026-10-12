@@ -17,6 +17,7 @@ namespace EssSimulator.EssDeviceSimModel
             IReadOnlyList<PcsDevice> pcsList,
             Func<int, bool> isUnitBreakerClosed,
             PcsPhysicalConfig pcsCfg,
+            IReadOnlyList<int>? pcsPerUnit,
             DateTime simTime,
             TimeSpan simStep)
         {
@@ -34,24 +35,28 @@ namespace EssSimulator.EssDeviceSimModel
 
             for (int u = 0; u < unitCount; u++)
             {
-                int a = u * 2;
-                int b = u * 2 + 1;
+                var (baseIdx, pcsCount) = PcsUnitLayout.RangeOfUnit(pcsPerUnit, u);
                 unitHvClosed[u] = isUnitBreakerClosed(u);
                 if (!unitHvClosed[u])
                     continue;
 
+                double sum690 = 0;
+                int forming = 0;
                 void Accumulate(int pcsIdx)
                 {
                     if (pcsIdx < 0 || pcsIdx >= pcsList.Count) return;
                     var st = pcsList[pcsIdx].GetCurrentState();
-                    if (!EssIslandBusLogic.IsPcsIslandVoltageBuilding(st)) return;
-                    localLv690[u] = Math.Max(localLv690[u], st.AcVoltage);
+                    if (!EssIslandBusLogic.IsPcsIslandVoltageBuilding(st) || st.AcVoltage <= 1.0) return;
+                    sum690 += st.AcVoltage;
+                    forming++;
                     localUnitP[u] += pcsList[pcsIdx].GetGridSideActivePower();
                     localUnitQ[u] += st.ReactivePower;
                 }
 
-                Accumulate(a);
-                Accumulate(b);
+                for (int ch = 0; ch < pcsCount; ch++)
+                    Accumulate(baseIdx + ch);
+                if (forming > 0)
+                    localLv690[u] = sum690 / forming;
 
                 if (mainBreakerClosed || localLv690[u] <= 0)
                     continue;
@@ -90,12 +95,12 @@ namespace EssSimulator.EssDeviceSimModel
 
                 unitTransformers[u].Update(
                     unitPrimaryV[u], unitSecCurrent, unitPf, unitS, localUnitQ[u], simTime, simStep,
-                    applyReactiveVoltageShift: false);
+                    applyReactiveVoltageShift: true);
             }
 
             ApplyBlackStartStationElectricalLoadAcrossBus(
                 unitTransformers, mainTransformer, pcsList, pcsCfg,
-                localUnitP, unitPrimaryV, mainBreakerClosed, stationBus35LineVoltageV);
+                localUnitP, unitPrimaryV, mainBreakerClosed, stationBus35LineVoltageV, pcsPerUnit);
         }
 
         private static void ApplyBlackStartStationElectricalLoadAcrossBus(
@@ -106,7 +111,8 @@ namespace EssSimulator.EssDeviceSimModel
             double[] localUnitP,
             double[] unitPrimaryV,
             bool mainBreakerClosed,
-            double stationBus35LineVoltageV)
+            double stationBus35LineVoltageV,
+            IReadOnlyList<int>? pcsPerUnit)
         {
             double totalMagQ = 0;
             double totalLossP = 0;
@@ -126,14 +132,6 @@ namespace EssSimulator.EssDeviceSimModel
             if (!mainBreakerClosed && stationBus35LineVoltageV > 1.0)
                 totalMagQ += mainTransformer.GetSecondaryMagnetizingReactiveKvar();
 
-            var participants = new List<int>();
-            for (int i = 0; i < pcsList.Count; i++)
-            {
-                var st = pcsList[i].GetCurrentState();
-                if (st.BlackStartEnabled && EssIslandBusLogic.IsPcsIslandVoltageBuilding(st))
-                    participants.Add(i);
-            }
-
             for (int i = 0; i < pcsList.Count; i++)
             {
                 pcsList[i].SetTransformerMagnetizingReactiveKvar(0);
@@ -141,17 +139,50 @@ namespace EssSimulator.EssDeviceSimModel
                 pcsList[i].SetBlackStartInrushDemand(0, 0);
             }
 
-            if (participants.Count == 0)
+            var weights = new double[pcsList.Count];
+            bool leaderOnly = string.Equals(
+                pcsCfg.BlackStartSteadyLossShareMode, "LeaderOnly", StringComparison.OrdinalIgnoreCase);
+
+            int leaderIdx = -1;
+            double leaderV = -1;
+            for (int i = 0; i < pcsList.Count; i++)
+            {
+                if (!pcsList[i].TakesIslandStationLoad)
+                    continue;
+                if (leaderOnly)
+                {
+                    double v = pcsList[i].GetCurrentState().AcVoltage;
+                    if (!pcsList[i].TryGetIslandBusVoltageInjection(out var inj, out _) || inj <= 1.0)
+                        inj = v;
+                    if (inj > leaderV)
+                    {
+                        leaderV = inj;
+                        leaderIdx = i;
+                    }
+                }
+                else
+                    weights[i] = pcsList[i].BlackStartStationLoadShare;
+            }
+
+            if (leaderOnly && leaderIdx >= 0)
+                weights[leaderIdx] = 1.0;
+
+            double weightSum = 0;
+            for (int i = 0; i < weights.Length; i++)
+                weightSum += Math.Max(0, weights[i]);
+
+            if (weightSum <= 1e-9)
                 return;
 
-            ApplyUnitTransformerInrushDemand(unitTransformers, unitPrimaryV, pcsList, participants);
+            ApplyUnitTransformerInrushDemand(unitTransformers, unitPrimaryV, pcsList, weights, pcsPerUnit);
 
-            double qEach = totalMagQ / participants.Count;
-            double pEach = totalLossP / participants.Count;
-            foreach (var idx in participants)
+            for (int i = 0; i < pcsList.Count; i++)
             {
-                pcsList[idx].SetTransformerMagnetizingReactiveKvar(qEach);
-                pcsList[idx].SetBlackStartSharedLossActivePowerKw(pEach);
+                double w = Math.Max(0, weights[i]);
+                if (w <= 1e-12)
+                    continue;
+                pcsList[i].SetTransformerMagnetizingReactiveKvar(totalMagQ * w / weightSum);
+                pcsList[i].SetBlackStartSharedLossActivePowerKw(totalLossP * w / weightSum);
             }
         }
 
@@ -159,9 +190,17 @@ namespace EssSimulator.EssDeviceSimModel
             IReadOnlyList<TransformerDevice> unitTransformers,
             double[] unitPrimaryV,
             IReadOnlyList<PcsDevice> pcsList,
-            List<int> participants)
+            double[] weights,
+            IReadOnlyList<int>? pcsPerUnit)
         {
-            var participantSet = participants.ToHashSet();
+            var inrushP = new double[pcsList.Count];
+            var inrushQ = new double[pcsList.Count];
+            double globalW = 0;
+            for (int i = 0; i < weights.Length; i++)
+                globalW += Math.Max(0, weights[i]);
+            if (globalW <= 1e-9)
+                return;
+
             for (int u = 0; u < unitTransformers.Count; u++)
             {
                 if (u >= unitPrimaryV.Length || unitPrimaryV[u] <= 0)
@@ -171,20 +210,38 @@ namespace EssSimulator.EssDeviceSimModel
                 if (pInrush <= 1e-6 && qInrush <= 1e-6)
                     continue;
 
-                var unitPcs = new List<int>();
-                int a = u * 2;
-                int b = u * 2 + 1;
-                if (a >= 0 && a < pcsList.Count && participantSet.Contains(a))
-                    unitPcs.Add(a);
-                if (b >= 0 && b < pcsList.Count && participantSet.Contains(b))
-                    unitPcs.Add(b);
-                if (unitPcs.Count == 0)
-                    continue;
+                var unitWeights = new double[pcsList.Count];
+                double unitW = 0;
+                var (baseIdx, pcsCount) = PcsUnitLayout.RangeOfUnit(pcsPerUnit, u);
+                for (int ch = 0; ch < pcsCount; ch++)
+                {
+                    int idx = baseIdx + ch;
+                    if (idx < 0 || idx >= pcsList.Count)
+                        continue;
+                    double w = Math.Max(0, weights[idx]);
+                    unitWeights[idx] = w;
+                    unitW += w;
+                }
 
-                double pEach = pInrush / unitPcs.Count;
-                double qEach = qInrush / unitPcs.Count;
-                foreach (int idx in unitPcs)
-                    pcsList[idx].SetBlackStartInrushDemand(pEach, qEach);
+        // 本单元尚无构网 PCS 时，空载变涌流不派给其他单元（由稳态励磁 MagQ 承接）。
+                if (unitW <= 1e-9)
+                    continue;
+                double denom = unitW;
+
+                for (int i = 0; i < pcsList.Count; i++)
+                {
+                    double w = unitWeights[i];
+                    if (w <= 1e-12)
+                        continue;
+                    inrushP[i] += pInrush * w / denom;
+                    inrushQ[i] += qInrush * w / denom;
+                }
+            }
+
+            for (int i = 0; i < pcsList.Count; i++)
+            {
+                if (inrushP[i] > 0 || inrushQ[i] > 0)
+                    pcsList[i].SetBlackStartInrushDemand(inrushP[i], inrushQ[i]);
             }
         }
     }

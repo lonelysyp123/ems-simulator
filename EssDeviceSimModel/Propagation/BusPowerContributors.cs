@@ -1,5 +1,6 @@
 using EssSimulator.EssDeviceSimModel.Devices;
 using EssSimulator.EssDeviceSimModel.Model;
+using EssSimulator.EssDeviceSimModel.Svg;
 
 namespace EssSimulator.EssDeviceSimModel.Propagation
 {
@@ -30,6 +31,41 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         {
             var st = _pcs.GetCurrentState();
             return new BusPowerContribution(_pcs.GetGridSideActivePower(), st.ReactivePower);
+        }
+    }
+
+    internal sealed class PvUnitBusContributor : IBusPowerContributor
+    {
+        private readonly Pv.PvUnitDevice _unit;
+
+        public PvUnitBusContributor(Pv.PvUnitDevice unit) => _unit = unit;
+
+        public string ContributorId => _unit.DeviceId;
+
+        public BusPowerContribution GetBusPowerContribution(DeviceStepContext context) =>
+            new(_unit.HvActivePowerKw, _unit.HvReactivePowerKvar);
+    }
+
+    /// <summary>
+    /// 用本步收集前母线上已有的电压和频率步进 SVG。电压在功率收集之后才更新，因此首步看到的是上一步的母线量。
+    /// </summary>
+    internal sealed class SvgBusContributor : IBusPowerContributor
+    {
+        private readonly SvgDevice _svg;
+        private readonly ElectricalBusNode _bus;
+
+        public SvgBusContributor(SvgDevice svg, ElectricalBusNode bus)
+        {
+            _svg = svg;
+            _bus = bus;
+        }
+
+        public string ContributorId => _svg.DeviceId;
+
+        public BusPowerContribution GetBusPowerContribution(DeviceStepContext context)
+        {
+            _svg.ApplyMeasurement(_bus.LineVoltageV, _bus.FrequencyHz, context.Step);
+            return new BusPowerContribution(_svg.ActivePowerKw, _svg.ReactivePowerKvar);
         }
     }
 }

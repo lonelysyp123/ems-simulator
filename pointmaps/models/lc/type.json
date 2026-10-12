@@ -1,0 +1,6 @@
+{
+  "id": "lc",
+  "name": "LocalControl",
+  "description": "LocalControl 聚合协议（LC）。默认由 models/lc 下互补片段按组拼装；也可选择互斥型号（如 EMU 直控点表）替代拼装。",
+  "files": [ "lc.csv" ]
+}

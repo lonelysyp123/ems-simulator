@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: web_frontend_backend/backend_snapshot_readers
+title: Web 端设备快照读取器（告警/电池/连接/门限）
+scope:
+    - Web/AlarmSnapshotReader.cs
+    - Web/BatterySnapshotReader.cs
+    - Web/ConnectionSnapshotReader.cs
+    - Web/RackThresholdSnapshotReader.cs
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/frontend_app/battery_cells_monitoring

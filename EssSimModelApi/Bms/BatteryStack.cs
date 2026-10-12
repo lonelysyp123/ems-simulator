@@ -25,6 +25,9 @@ public partial class BatteryStack
         /// <summary>一键并离网脉冲命令：写 1 并网、写 2 离网，处理后自动回 0。</summary>
         public ushort GridConnectCommand { get; set; }
 
+        /// <summary>一键复归脉冲命令：写 1 触发故障清除，处理后自动回 0。</summary>
+        public ushort FaultClearCommand { get; set; }
+
         /// <summary>一键并网状态：0 未开始 / 1 进行中 / 2 成功 / 3 失败。</summary>
         public ushort GridConnectStatus { get; set; }
 
@@ -132,30 +135,27 @@ public partial class BatteryStack
         // public float? AvailableDischargeEnergy { get; set; } // 堆可用放电容量
 
         // 限制参数
-        /// <summary>热降额因子（0–1），由热反馈写入；默认 1。</summary>
-        public float ThermalPowerDeratingFactor { get; set; } = 1f;
-
         /// <summary>
-        /// 最大允许充电功率：各簇 <see cref="ClusterBasicMeasurements.MaxChargePower"/> 之和，
-        /// 再乘柜体热降额（堆级不再独立用 SOC/电压/温度判据）。
+        /// 最大允许充电功率：各簇 <see cref="ClusterBasicMeasurements.MaxChargePower"/> 之和。
+        /// 是否降功率只由 PCS/BMS 告警与故障决定，不再乘温度降额因子。
         /// </summary>
         public float? MaxChargePower =>
             SumClusterLimits(c => c.Measurements?.MaxChargePower);
 
         /// <summary>
-        /// 最大允许放电功率：各簇最大允许放电功率之和 × 柜体热降额。
+        /// 最大允许放电功率：各簇最大允许放电功率之和。
         /// </summary>
         public float? MaxDischargePower =>
             SumClusterLimits(c => c.Measurements?.MaxDischargePower);
 
         /// <summary>
-        /// 最大允许充电电流：各簇最大允许充电电流之和 × 柜体热降额（并联簇电流累加）。
+        /// 最大允许充电电流：各簇最大允许充电电流之和（并联簇电流累加）。
         /// </summary>
         public float? MaxChargeCurrent =>
             SumClusterLimits(c => c.Measurements?.MaxChargeCurrent);
 
         /// <summary>
-        /// 最大允许放电电流：各簇最大允许放电电流之和 × 柜体热降额。
+        /// 最大允许放电电流：各簇最大允许放电电流之和。
         /// </summary>
         public float? MaxDischargeCurrent =>
             SumClusterLimits(c => c.Measurements?.MaxDischargeCurrent);
@@ -179,7 +179,7 @@ public partial class BatteryStack
             if (!any)
                 return null;
 
-            return sum * Math.Clamp(ThermalPowerDeratingFactor, 0f, 1f);
+            return sum;
         } 
 
         public float? AvailableChargeCapacity 
@@ -251,6 +251,141 @@ public partial class BatteryStack
                 return res;
             }
         } // 三级告警汇总
+
+        // 对外三级报警2(主控) — 匹配 Excel 0x1016
+        public ushort BMSFaultSummary2
+        {
+            get
+            {
+                ushort res = 0;
+                if (Cluseter != null && Cluseter.Count > 0)
+                {
+                    foreach (var cluster in Cluseter)
+                        res |= cluster.Alarms.ExternalFaultSummary2;
+                }
+                return res;
+            }
+        }
+
+        // 对外三级报警3(主控) — 匹配 Excel 0x1017
+        public ushort BMSFaultSummary3
+        {
+            get
+            {
+                ushort res = 0;
+                if (Cluseter != null && Cluseter.Count > 0)
+                {
+                    foreach (var cluster in Cluseter)
+                        res |= cluster.Alarms.ExternalFaultSummary3;
+                }
+                return res;
+            }
+        }
+
+        // 对外二级报警2(主控) — 匹配 Excel 0x105A
+        public ushort BMSAlarmSummary2
+        {
+            get
+            {
+                ushort res = 0;
+                if (Cluseter != null && Cluseter.Count > 0)
+                {
+                    foreach (var cluster in Cluseter)
+                        res |= cluster.Alarms.ExternalAlarmSummary2;
+                }
+                return res;
+            }
+        }
+
+        // 对外二级报警3(主控) — 匹配 Excel 0x105B
+        public ushort BMSAlarmSummary3
+        {
+            get
+            {
+                ushort res = 0;
+                if (Cluseter != null && Cluseter.Count > 0)
+                {
+                    foreach (var cluster in Cluseter)
+                        res |= cluster.Alarms.ExternalAlarmSummary3;
+                }
+                return res;
+            }
+        }
+
+        // 对外一级保护2(主控) — 匹配 Excel 0x109F
+        public ushort BMSProtectionSummary2
+        {
+            get
+            {
+                ushort res = 0;
+                if (Cluseter != null && Cluseter.Count > 0)
+                {
+                    foreach (var cluster in Cluseter)
+                        res |= cluster.Alarms.ExternalProtectionSummary2;
+                }
+                return res;
+            }
+        }
+
+        // 对外一级保护3(主控) — 匹配 Excel 0x10A0
+        public ushort BMSProtectionSummary3
+        {
+            get
+            {
+                ushort res = 0;
+                if (Cluseter != null && Cluseter.Count > 0)
+                {
+                    foreach (var cluster in Cluseter)
+                        res |= cluster.Alarms.ExternalProtectionSummary3;
+                }
+                return res;
+            }
+        }
+
+        // 对外三级报警1(总控) — 匹配 Excel 0x1038
+        // bit0:簇间电流差预警 bit1:簇间压差预警 bit2:预留
+        public ushort BMSFaultSummaryBAU
+        {
+            get
+            {
+                ushort res = 0;
+                if (ClusterCurrentDiff.HasValue && System.Math.Abs(ClusterCurrentDiff.Value) > 0.1f)
+                    res |= 1;
+                if (ClusterVoltageDiff.HasValue && ClusterVoltageDiff.Value > 0.1f)
+                    res |= 2;
+                return res;
+            }
+        }
+
+        // 对外二级报警1(总控) — 匹配 Excel 0x107C
+        // bit0:簇间电流差报警 bit1:簇间压差报警 bit2:预留
+        public ushort BMSAlarmSummaryBAU
+        {
+            get
+            {
+                ushort res = 0;
+                if (ClusterCurrentDiff.HasValue && System.Math.Abs(ClusterCurrentDiff.Value) > 0.1f)
+                    res |= 1;
+                if (ClusterVoltageDiffAlarm == true)
+                    res |= 2;
+                return res;
+            }
+        }
+
+        // 对外一级保护1(总控) — 匹配 Excel 0x10C1
+        // bit0:簇间电流差保护 bit1:簇间压差保护 bit2:预留
+        public ushort BMSProtectionSummaryBAU
+        {
+            get
+            {
+                ushort res = 0;
+                if (ClusterCurrentDiff.HasValue && System.Math.Abs(ClusterCurrentDiff.Value) > 0.1f)
+                    res |= 1;
+                if (ClusterVoltageDiff.HasValue && ClusterVoltageDiff.Value > 0.1f)
+                    res |= 2;
+                return res;
+            }
+        }
 
         public bool IsChargeFault
         {

@@ -1,11 +1,22 @@
 namespace EssSimulator.Web.Topology
 {
-    /// <summary>组态连线校验：电压源独占、母线未带电拒绝、变压器匹配、电表统一 PT/CT 抽头等。</summary>
+    /// <summary>
+    /// 组态校验：编辑连线只做结构完整性；电气连接规则在保存时从上到下回放，遇到第一处问题即中断。
+    /// </summary>
     public static class TopologyValidator
     {
         private const double VoltageMatchTolerancePu = 0.02; // 2%
 
-        public static TopologyValidationResult TryConnect(TopologyProject project, TopologyEdge newEdge)
+        /// <summary>编辑连线：只检查端点/端口存在、禁止自连与重复边，不套用电气连接规则。</summary>
+        public static TopologyValidationResult TryConnect(TopologyProject project, TopologyEdge newEdge) =>
+            TryAttachEdge(project, newEdge, enforceElectricalRules: false);
+
+        /// <summary>保存回放用：结构 + 电气连接规则（相位、母线上下侧、电压匹配等）。</summary>
+        public static TopologyValidationResult ValidateConnectionRules(TopologyProject project, TopologyEdge newEdge) =>
+            TryAttachEdge(project, newEdge, enforceElectricalRules: true);
+
+        private static TopologyValidationResult TryAttachEdge(
+            TopologyProject project, TopologyEdge newEdge, bool enforceElectricalRules)
         {
             if (project == null) return Fail("PROJECT_NULL", "工程为空");
             if (newEdge == null) return Fail("EDGE_NULL", "连线为空");
@@ -15,7 +26,10 @@ namespace EssSimulator.Web.Topology
             var fromNode = FindNode(project, newEdge.FromNodeId);
             var toNode = FindNode(project, newEdge.ToNodeId);
             if (fromNode == null || toNode == null)
-                return Fail("NODE_MISSING", "连线端点设备不存在", newEdge.Id);
+            {
+                var missing = fromNode == null ? newEdge.FromNodeId : newEdge.ToNodeId;
+                return Fail("NODE_MISSING", $"连线端点设备不存在（节点 {missing}），请删除指向它的残留连线", newEdge.Id);
+            }
             if (fromNode.Id == toNode.Id)
                 return Fail("SELF_LINK", "不能将设备连接到自身", newEdge.Id);
 
@@ -32,6 +46,9 @@ namespace EssSimulator.Web.Topology
             if (IsDuplicateEdge(project, newEdge))
                 return Fail("DUP_EDGE", "相同端口之间已存在连接", newEdge.Id);
 
+            if (!enforceElectricalRules)
+                return new TopologyValidationResult { Ok = true, Message = "连接成功" };
+
             // 母线拐角可挂多台设备；普通设备端口仍独占
             if (PortBusyExclusive(project, fromNode, newEdge.FromPortId) ||
                 PortBusyExclusive(project, toNode, newEdge.ToPortId))
@@ -46,7 +63,7 @@ namespace EssSimulator.Web.Topology
             // 变压器自身参数：上大下小
             foreach (var n in new[] { fromNode, toNode })
             {
-                if (n.TemplateId == "transformer")
+                if (TopologyTemplates.IsTransformerLike(n.TemplateId))
                 {
                     double pri = TopologyParamHelper.GetDouble(n.Parameters, "primaryVoltage", 0);
                     double sec = TopologyParamHelper.GetDouble(n.Parameters, "secondaryVoltage", 0);
@@ -72,9 +89,16 @@ namespace EssSimulator.Web.Topology
             var xfmrResult = ValidateTransformerBusVoltage(fromNode, fromTpl, fromPort, toNode, toTpl, toPort, newEdge);
             if (!xfmrResult.Ok) return xfmrResult;
 
-            // EMU AC 侧电压与母线匹配
+            var splitEarResult = ValidateSplitTransformerEarBuses(
+                project, fromNode, fromPort, toNode, toPort, newEdge);
+            if (!splitEarResult.Ok) return splitEarResult;
+
+            // PCS / 光伏单元 AC 侧电压与母线匹配
             var emuResult = ValidateEmuBusVoltage(fromNode, fromTpl, fromPort, toNode, toTpl, toPort, newEdge);
             if (!emuResult.Ok) return emuResult;
+
+            var svgVoltage = ValidateSvgBusVoltage(fromNode, fromPort, toNode, toPort, newEdge);
+            if (!svgVoltage.Ok) return svgVoltage;
 
             // DC：单线 dc 只能接到 dc_pos（约定正极）或另一 dc；禁止接到 dc_neg
             var dcResult = ValidateDcPolarity(fromPort, toPort, newEdge);
@@ -102,29 +126,39 @@ namespace EssSimulator.Web.Topology
 
         public static void RefreshAcBusEnergization(TopologyProject project)
         {
-            foreach (var bus in project.Nodes.Where(n => n.TemplateId == "ac_bus"))
+            var buses = project.Nodes.Where(n => n.TemplateId == "ac_bus").ToList();
+            foreach (var bus in buses)
             {
-                var sources = FindVoltageSourcesOnBus(project, bus.Id);
-                if (sources.Count == 0)
+                bus.Parameters["energized"] = false;
+                bus.Parameters["sourceNodeId"] = null;
+            }
+
+            bool changed;
+            var guard = 0;
+            do
+            {
+                changed = false;
+                foreach (var bus in buses)
                 {
-                    bus.Parameters["energized"] = false;
-                    // 保留用户预填 nominalVoltage；若仅由源写入则可清零
-                    if (!bus.Parameters.ContainsKey("nominalVoltageLocked") ||
-                        !(bus.Parameters["nominalVoltageLocked"] is bool b && b))
+                    var sources = FindVoltageSourcesOnBus(project, bus.Id);
+                    if (sources.Count == 0)
+                        continue;
+
+                    var src = sources[0];
+                    bool was = IsTruthy(bus.Parameters, "energized");
+                    double oldV = TopologyParamHelper.GetDouble(bus.Parameters, "nominalVoltage", 0);
+                    string? oldSrc = bus.Parameters.TryGetValue("sourceNodeId", out var raw)
+                        ? raw?.ToString()
+                        : null;
+                    if (!was || Math.Abs(oldV - src.voltage) > 0.01 || oldSrc != src.sourceNodeId)
                     {
-                        // 不断开时若无源，电压记 0 表示未带电
-                        bus.Parameters["sourceNodeId"] = null;
-                        bus.Parameters["energized"] = false;
+                        bus.Parameters["energized"] = true;
+                        bus.Parameters["sourceNodeId"] = src.sourceNodeId;
+                        bus.Parameters["nominalVoltage"] = src.voltage;
+                        changed = true;
                     }
                 }
-                else
-                {
-                    var src = sources[0];
-                    bus.Parameters["energized"] = true;
-                    bus.Parameters["sourceNodeId"] = src.sourceNodeId;
-                    bus.Parameters["nominalVoltage"] = src.voltage;
-                }
-            }
+            } while (changed && ++guard < 32);
         }
 
         private static TopologyValidationResult ValidateAcBusConnection(
@@ -200,14 +234,6 @@ namespace EssSimulator.Web.Topology
                     newEdge.Id);
             }
 
-            if (existingSources.Count == 0)
-            {
-                return Fail(
-                    "BUS_NO_SOURCE",
-                    $"母线「{bus.Label}」尚未接入电压源，拒绝接入设备「{other.Label}」。请先在上侧连接电网或变压器二次侧。",
-                    newEdge.Id);
-            }
-
             return Ok();
         }
 
@@ -264,9 +290,9 @@ namespace EssSimulator.Web.Topology
             TopologyNode? xfmr = null; TopologyPortDef? xfmrPort = null;
             TopologyNode? bus = null;
 
-            if (a.TemplateId == "transformer" && b.TemplateId == "ac_bus")
+            if (TopologyTemplates.IsTransformerLike(a.TemplateId) && b.TemplateId == "ac_bus")
             { xfmr = a; xfmrPort = aPort; bus = b; }
-            else if (b.TemplateId == "transformer" && a.TemplateId == "ac_bus")
+            else if (TopologyTemplates.IsTransformerLike(b.TemplateId) && a.TemplateId == "ac_bus")
             { xfmr = b; xfmrPort = bPort; bus = a; }
             else return Ok();
 
@@ -294,25 +320,149 @@ namespace EssSimulator.Web.Topology
             return Ok();
         }
 
+        /// <summary>双耳左右耳禁止接到同一 AC 母线；同一耳三相须接同一母线。</summary>
+        private static TopologyValidationResult ValidateSplitTransformerEarBuses(
+            TopologyProject project,
+            TopologyNode a, TopologyPortDef aPort,
+            TopologyNode b, TopologyPortDef bPort,
+            TopologyEdge newEdge)
+        {
+            TopologyNode? xfmr = null;
+            TopologyPortDef? xfmrPort = null;
+            TopologyNode? bus = null;
+
+            if (TopologyTemplates.IsSplitTransformer(a.TemplateId) && b.TemplateId == "ac_bus")
+            { xfmr = a; xfmrPort = aPort; bus = b; }
+            else if (TopologyTemplates.IsSplitTransformer(b.TemplateId) && a.TemplateId == "ac_bus")
+            { xfmr = b; xfmrPort = bPort; bus = a; }
+            else return Ok();
+
+            bool left = TopologyTemplates.IsSplitLeftEarPort(xfmrPort!.Id);
+            bool right = TopologyTemplates.IsSplitRightEarPort(xfmrPort.Id);
+            if (!left && !right)
+                return Ok();
+
+            string thisPrefix = left ? "ear_l_" : "ear_r_";
+            string otherPrefix = left ? "ear_r_" : "ear_l_";
+
+            foreach (var e in project.Edges)
+            {
+                if (e.Id == newEdge.Id) continue;
+                string? xfmrPortId = null;
+                string? otherId = null;
+                if (e.FromNodeId == xfmr!.Id) { xfmrPortId = e.FromPortId; otherId = e.ToNodeId; }
+                else if (e.ToNodeId == xfmr.Id) { xfmrPortId = e.ToPortId; otherId = e.FromNodeId; }
+                else continue;
+
+                var otherNode = FindNode(project, otherId);
+                if (otherNode?.TemplateId != "ac_bus") continue;
+
+                if (xfmrPortId!.StartsWith(otherPrefix, StringComparison.OrdinalIgnoreCase)
+                    && otherNode.Id == bus!.Id)
+                {
+                    return Fail(
+                        "SPLIT_XFMR_EARS_SAME_BUS",
+                        $"双耳变压器「{xfmr.Label}」左右耳不能接到同一母线「{bus.Label}」",
+                        newEdge.Id);
+                }
+
+                if (xfmrPortId.StartsWith(thisPrefix, StringComparison.OrdinalIgnoreCase)
+                    && otherNode.Id != bus!.Id)
+                {
+                    return Fail(
+                        "SPLIT_XFMR_EAR_MULTI_BUS",
+                        $"双耳变压器「{xfmr.Label}」同一耳的三相须接到同一母线",
+                        newEdge.Id);
+                }
+            }
+
+            return Ok();
+        }
+
+        private static bool IsAcFeederUnit(string templateId) =>
+            templateId == "pcs" || templateId == "pv_unit";
+
         private static TopologyValidationResult ValidateEmuBusVoltage(
             TopologyNode a, TopologyTemplate aTpl, TopologyPortDef aPort,
             TopologyNode b, TopologyTemplate bTpl, TopologyPortDef bPort,
             TopologyEdge newEdge)
         {
-            TopologyNode? emu = null; TopologyPortDef? emuPort = null; TopologyNode? bus = null;
-            if (a.TemplateId == "emu" && b.TemplateId == "ac_bus")
-            { emu = a; emuPort = aPort; bus = b; }
-            else if (b.TemplateId == "emu" && a.TemplateId == "ac_bus")
-            { emu = b; emuPort = bPort; bus = a; }
+            TopologyNode? unit = null; TopologyPortDef? unitPort = null; TopologyNode? bus = null;
+            if (IsAcFeederUnit(a.TemplateId) && b.TemplateId == "ac_bus")
+            { unit = a; unitPort = aPort; bus = b; }
+            else if (IsAcFeederUnit(b.TemplateId) && a.TemplateId == "ac_bus")
+            { unit = b; unitPort = bPort; bus = a; }
             else return Ok();
 
-            if (!emuPort!.Kind.StartsWith("ac")) return Ok();
+            if (!unitPort!.Kind.StartsWith("ac")) return Ok();
 
-            double emuV = TopologyParamHelper.GetDouble(emu!.Parameters, "acVoltage", 0);
+            double unitV = TopologyParamHelper.GetDouble(unit!.Parameters, "acVoltage", 0);
             double busV = TopologyParamHelper.GetDouble(bus!.Parameters, "nominalVoltage", 0);
-            if (busV > 1 && !VoltageMatches(busV, emuV))
-                return Fail("EMU_BUS_MISMATCH",
-                    $"EMU「{emu.Label}」交流侧 {emuV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配", newEdge.Id);
+            if (busV > 1 && !VoltageMatches(busV, unitV))
+            {
+                bool pv = unit.TemplateId == "pv_unit";
+                return Fail(
+                    pv ? "PV_BUS_MISMATCH" : "PCS_BUS_MISMATCH",
+                    $"{(pv ? "光伏单元" : "PCS")}「{unit.Label}」交流侧 {unitV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配",
+                    newEdge.Id);
+            }
+
+            return Ok();
+        }
+
+        /// <summary>全站一台 SVG，额定容量须大于 0。通过时返回 null。</summary>
+        internal static TopologyValidationResult? ValidateSvgNodes(TopologyProject project)
+        {
+            var nodes = project.Nodes.Where(n => n.TemplateId == "svg").ToList();
+            if (nodes.Count > 1)
+            {
+                return Fail(
+                    "SVG_DUPLICATE",
+                    "全站只能有一台 SVG",
+                    details: nodes.Select(n => n.Label).ToList(),
+                    problemNodeIds: nodes.Select(n => n.Id).ToList());
+            }
+
+            if (nodes.Count == 1)
+            {
+                double rated = TopologyParamHelper.GetDouble(nodes[0].Parameters, "ratedCapacityKvar", 0);
+                if (rated <= 0)
+                {
+                    return Fail(
+                        "SVG_RATED",
+                        $"SVG「{nodes[0].Label}」额定容量须大于 0 kvar",
+                        problemNodeIds: new List<string> { nodes[0].Id });
+                }
+            }
+
+            return null;
+        }
+
+        private static TopologyValidationResult ValidateSvgBusVoltage(
+            TopologyNode a, TopologyPortDef aPort,
+            TopologyNode b, TopologyPortDef bPort,
+            TopologyEdge newEdge)
+        {
+            TopologyNode? svg = null;
+            TopologyPortDef? svgPort = null;
+            TopologyNode? bus = null;
+            if (a.TemplateId == "svg" && b.TemplateId == "ac_bus")
+            { svg = a; svgPort = aPort; bus = b; }
+            else if (b.TemplateId == "svg" && a.TemplateId == "ac_bus")
+            { svg = b; svgPort = bPort; bus = a; }
+            else return Ok();
+
+            if (!svgPort!.Kind.StartsWith("ac")) return Ok();
+
+            double svgV = TopologyParamHelper.GetDouble(svg!.Parameters, "acVoltage", 0);
+            double busV = TopologyParamHelper.GetDouble(bus!.Parameters, "nominalVoltage", 0);
+            if (busV > 1 && !VoltageMatches(busV, svgV))
+            {
+                return Fail(
+                    "SVG_BUS_MISMATCH",
+                    $"SVG「{svg.Label}」交流侧 {svgV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配",
+                    newEdge.Id);
+            }
 
             return Ok();
         }
@@ -385,6 +535,7 @@ namespace EssSimulator.Web.Topology
             TopologyProject project, string busId)
         {
             var list = new List<(string, double)>();
+            var visited = new HashSet<string>(StringComparer.Ordinal) { busId };
             foreach (var e in project.Edges)
             {
                 string? otherId = null;
@@ -399,11 +550,15 @@ namespace EssSimulator.Web.Topology
                 var port = tpl?.Ports.FirstOrDefault(p => p.Id == otherPortId);
                 if (port == null) continue;
 
-                // 三相断路器合闸时透明穿越，查找对侧电压源
                 if (other.TemplateId == "ac_breaker")
                 {
-                    if (!IsBreakerClosed(other)) continue;
-                    list.AddRange(FindVoltageSourcesBehindBreaker(project, other, otherPortId!));
+                    list.AddRange(CollectLiveThroughBreaker(project, other, otherPortId!, visited));
+                    continue;
+                }
+
+                if (other.TemplateId == "ac_bus")
+                {
+                    list.AddRange(LiveFromEnergizedBus(other));
                     continue;
                 }
 
@@ -417,12 +572,17 @@ namespace EssSimulator.Web.Topology
                 .ToList();
         }
 
-        /// <summary>经断路器对侧端口查找电压源（合闸时）。</summary>
+        /// <summary>经断路器对侧查找带电上一级（合闸时）：电压源、已带电母线，或再经合闸断路器穿越。</summary>
         private static List<(string sourceNodeId, double voltage)> FindVoltageSourcesBehindBreaker(
-            TopologyProject project, TopologyNode breaker, string portFacingBus)
+            TopologyProject project, TopologyNode breaker, string portFacingBus) =>
+            CollectLiveThroughBreaker(project, breaker, portFacingBus, new HashSet<string>(StringComparer.Ordinal));
+
+        private static List<(string sourceNodeId, double voltage)> CollectLiveThroughBreaker(
+            TopologyProject project, TopologyNode breaker, string portFacingBus, HashSet<string> visited)
         {
             var list = new List<(string, double)>();
             if (!IsBreakerClosed(breaker)) return list;
+            if (!visited.Add(breaker.Id)) return list;
 
             string? opposite = OppositeBreakerPort(portFacingBus);
             if (opposite == null) return list;
@@ -438,17 +598,50 @@ namespace EssSimulator.Web.Topology
                 else continue;
 
                 var other = FindNode(project, otherId);
-                if (other == null) continue;
-                var tpl = TopologyTemplates.Get(other.TemplateId);
-                var port = tpl?.Ports.FirstOrDefault(p => p.Id == otherPortId);
-                if (port == null || !port.IsVoltageSourcePort) continue;
-                list.Add((other.Id, PortVoltage(other, port)));
+                if (other == null || otherPortId == null) continue;
+                list.AddRange(CollectLiveAt(project, other, otherPortId, visited));
             }
 
             return list
                 .GroupBy(x => x.Item1)
                 .Select(g => g.First())
                 .ToList();
+        }
+
+        private static List<(string sourceNodeId, double voltage)> CollectLiveAt(
+            TopologyProject project, TopologyNode node, string portId, HashSet<string> visited)
+        {
+            if (node.TemplateId == "ac_breaker")
+                return CollectLiveThroughBreaker(project, node, portId, visited);
+
+            if (node.TemplateId == "ac_bus")
+                return LiveFromEnergizedBus(node);
+
+            var tpl = TopologyTemplates.Get(node.TemplateId);
+            var port = tpl?.Ports.FirstOrDefault(p => p.Id == portId);
+            if (port == null || !port.IsVoltageSourcePort)
+                return new List<(string, double)>();
+            return new List<(string, double)> { (node.Id, PortVoltage(node, port)) };
+        }
+
+        private static List<(string sourceNodeId, double voltage)> LiveFromEnergizedBus(TopologyNode bus)
+        {
+            var list = new List<(string, double)>();
+            if (!IsTruthy(bus.Parameters, "energized")) return list;
+            double v = TopologyParamHelper.GetDouble(bus.Parameters, "nominalVoltage", 0);
+            if (v > 1)
+                list.Add((BusSourceId(bus), v));
+            return list;
+        }
+
+        private static string BusSourceId(TopologyNode bus)
+        {
+            if (bus.Parameters.TryGetValue("sourceNodeId", out var raw) && raw != null)
+            {
+                var s = raw.ToString();
+                if (!string.IsNullOrWhiteSpace(s)) return s;
+            }
+            return bus.Id;
         }
 
         private static string? OppositeBreakerPort(string portId) => portId switch
@@ -553,19 +746,13 @@ namespace EssSimulator.Web.Topology
             if (fromPort == null || toPort == null)
                 return new List<TopologyEdge> { CloneEdge(seed) };
 
-            // 交流三相：按相位配对，限定在各自所选侧
+            // 交流三相：按相位配对，限定在所选侧及成组键（双耳左右耳虽同在下侧，须各自成组）
             if (fromPort.Kind == "ac_phase" && toPort.Kind == "ac_phase" &&
                 !string.IsNullOrEmpty(fromPort.Phase) && !string.IsNullOrEmpty(toPort.Phase))
             {
-                var fromGroup = fromTpl.Ports
-                    .Where(p => p.Kind == "ac_phase" &&
-                                string.Equals(p.Side, fromPort.Side, StringComparison.OrdinalIgnoreCase) &&
-                                !string.IsNullOrEmpty(p.Phase))
-                    .ToList();
+                var fromGroup = fromTpl.Ports.Where(p => SameAcPhaseBundle(fromPort, p)).ToList();
                 var toByPhase = toTpl.Ports
-                    .Where(p => p.Kind == "ac_phase" &&
-                                string.Equals(p.Side, toPort.Side, StringComparison.OrdinalIgnoreCase) &&
-                                !string.IsNullOrEmpty(p.Phase))
+                    .Where(p => SameAcPhaseBundle(toPort, p))
                     .GroupBy(p => p.Phase!, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
@@ -621,7 +808,8 @@ namespace EssSimulator.Web.Topology
         }
 
         /// <summary>
-        /// 成组连接：先 ExpandBundle，再逐条校验并写入；任一条失败则整组回滚（不修改入参 project）。
+        /// 成组连接（编辑）：先 ExpandBundle，再逐条写入；不做电气规则校验。
+        /// 任一条结构失败则整组回滚（不修改入参 project）。
         /// </summary>
         public static TopologyValidationResult TryConnectBundle(
             TopologyProject project,
@@ -666,7 +854,7 @@ namespace EssSimulator.Web.Topology
         }
 
         /// <summary>
-        /// 保存工程前的合理性检查：须有电网；有且仅有一个主断路器；有且仅有一个并网点电表。
+        /// 保存工程：先查电网/主断/并网点电表，再按画布从上到下回放连线套用电气规则，遇到第一处问题即中断。
         /// </summary>
         public static TopologyValidationResult ValidateProjectForSave(TopologyProject project)
         {
@@ -717,6 +905,84 @@ namespace EssSimulator.Web.Topology
                     details: details, problemNodeIds: pccMeters.Select(n => n.Id).ToList());
             }
 
+            // PCS 归属：每台 PCS 的 emuId 须指向工程内存在的 EMU 虚拟节点
+            var emuIds = project.Nodes.Where(n => n.TemplateId == "emu").Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+            var orphanPcs = project.Nodes
+                .Where(n => n.TemplateId == "pcs")
+                .Where(n => !emuIds.Contains(TopologyParamHelper.GetString(n.Parameters, "emuId")))
+                .ToList();
+            if (orphanPcs.Count > 0)
+            {
+                details.Add($"以下 PCS 未选择有效的所属 EMU 储能单元：{string.Join("、", orphanPcs.Select(n => n.Label))}");
+                return Fail("PCS_EMU_UNASSIGNED", "每条 PCS 变流器支路须在参数中选择所属 EMU 储能单元",
+                    details: details, problemNodeIds: orphanPcs.Select(n => n.Id).ToList());
+            }
+
+            // 断路器/电表/变压器归属（可选）：已选 emuId 时须指向存在的 EMU，且每个 EMU 至多各 1 台
+            var emuBindingCheck = ValidateEmuDeviceBindings(project, emuIds, details);
+            if (emuBindingCheck != null)
+                return emuBindingCheck;
+
+            var splitBindingCheck = ValidateSplitTransformerBindings(project, emuIds, details);
+            if (splitBindingCheck != null)
+                return splitBindingCheck;
+
+            var splitOverlapCheck = ValidateSplitTransformerPcsOverlap(project, details);
+            if (splitOverlapCheck != null)
+                return splitOverlapCheck;
+
+            // EMU 分组归属（可选）：已选 groupId 时须指向存在的分组，且分组与设备所属 EMU 一致；组级断路器至多 1 台（电表允许多台）
+            var groupBindingCheck = ValidateEmuGroupBindings(project, emuIds, details);
+            if (groupBindingCheck != null)
+                return groupBindingCheck;
+
+            // 至少一个含 PCS 的 EMU 或光伏单元
+            var emusWithPcs = project.Nodes
+                .Where(n => n.TemplateId == "emu")
+                .Where(e => project.Nodes.Any(p =>
+                    p.TemplateId == "pcs" &&
+                    TopologyParamHelper.GetString(p.Parameters, "emuId") == e.Id))
+                .ToList();
+            var pvUnits = project.Nodes.Where(n => n.TemplateId == "pv_unit").ToList();
+            var moduleCheck = ValidatePvModuleModels(project, details);
+            if (moduleCheck != null)
+                return moduleCheck;
+            if (emusWithPcs.Count == 0 && pvUnits.Count == 0)
+            {
+                details.Add("工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元");
+                return Fail("NO_GENERATION_UNIT", "工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元",
+                    details: details, problemNodeIds: project.Nodes.Select(n => n.Id).ToList());
+            }
+
+            var svgCheck = ValidateSvgNodes(project);
+            if (svgCheck != null)
+                return svgCheck;
+
+            var work = CloneProject(project);
+            work.Edges.Clear();
+            RefreshAcBusEnergization(work);
+
+            foreach (var edge in OrderEdgesTopToBottom(project))
+            {
+                var replay = CloneEdge(edge);
+                replay.Id = string.IsNullOrWhiteSpace(edge.Id) ? replay.Id : edge.Id;
+                var rule = ValidateConnectionRules(work, replay);
+                if (!rule.Ok)
+                {
+                    if (rule.Details.Count == 0)
+                        rule.Details.Add(rule.Message);
+                    if (rule.ProblemNodeIds.Count == 0)
+                    {
+                        rule.ProblemNodeIds = new List<string> { edge.FromNodeId, edge.ToNodeId }
+                            .Distinct(StringComparer.Ordinal)
+                            .ToList();
+                    }
+                    return rule;
+                }
+
+                ApplyConnect(work, replay);
+            }
+
             return new TopologyValidationResult
             {
                 Ok = true,
@@ -729,6 +995,282 @@ namespace EssSimulator.Web.Topology
                 }
             };
         }
+
+        /// <summary>
+        /// 断路器/电表/变压器绑定 EMU 校验：绑定可选，但已选 emuId 必须有效，且同一 EMU 下断路器/电表各至多 1 台。
+        /// 变压器不限台数（实际电站常见多台单元变）。已选 groupId 的设备属组级绑定，不参与 EMU 级计数。校验通过返回 null。
+        /// </summary>
+        private static TopologyValidationResult? ValidateEmuDeviceBindings(
+            TopologyProject project, HashSet<string> emuIds, List<string> details)
+        {
+            foreach (var (templateId, deviceLabel, dupCode) in new[]
+            {
+                ("ac_breaker", "断路器", "EMU_BREAKER_DUPLICATE"),
+                ("ac_meter", "电表", "EMU_METER_DUPLICATE")
+            })
+            {
+                var bound = project.Nodes
+                    .Where(n => n.TemplateId == templateId)
+                    .Where(n => !string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "emuId")))
+                    .Where(n => string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "groupId")))
+                    .ToList();
+
+                var orphan = bound.Where(n => !emuIds.Contains(TopologyParamHelper.GetString(n.Parameters, "emuId"))).ToList();
+                if (orphan.Count > 0)
+                {
+                    details.Add($"以下{deviceLabel}选择了不存在的所属 EMU 储能单元：{string.Join("、", orphan.Select(n => n.Label))}");
+                    return Fail("EMU_DEVICE_UNASSIGNED", $"{deviceLabel}选择的所属 EMU 储能单元须为工程内存在的 EMU",
+                        details: details, problemNodeIds: orphan.Select(n => n.Id).ToList());
+                }
+
+                var dupGroups = bound
+                    .GroupBy(n => TopologyParamHelper.GetString(n.Parameters, "emuId"))
+                    .Where(g => g.Count() > 1)
+                    .ToList();
+                if (dupGroups.Count > 0)
+                {
+                    var emuLabel = project.Nodes.Where(n => n.TemplateId == "emu").ToDictionary(n => n.Id, n => n.Label);
+                    foreach (var g in dupGroups)
+                    {
+                        var name = emuLabel.TryGetValue(g.Key, out var l) && !string.IsNullOrWhiteSpace(l) ? l : g.Key;
+                        details.Add($"EMU「{name}」绑定了 {g.Count()} 台{deviceLabel}：{string.Join("、", g.Select(n => n.Label))}");
+                    }
+                    return Fail(dupCode, $"每个 EMU 储能单元至多绑定 1 台{deviceLabel}",
+                        details: details, problemNodeIds: dupGroups.SelectMany(g => g.Select(n => n.Id)).ToList());
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 双耳变压器必须绑定有效 EMU，且每个 EMU 至多 2 台（含组级绑定）。
+        /// </summary>
+        private static TopologyValidationResult? ValidateSplitTransformerBindings(
+            TopologyProject project, HashSet<string> emuIds, List<string> details)
+        {
+            var splits = project.Nodes.Where(n => TopologyTemplates.IsSplitTransformer(n.TemplateId)).ToList();
+            if (splits.Count == 0)
+                return null;
+
+            var missing = splits
+                .Where(n =>
+                {
+                    string emuId = TopologyParamHelper.GetString(n.Parameters, "emuId");
+                    return string.IsNullOrWhiteSpace(emuId) || !emuIds.Contains(emuId);
+                })
+                .ToList();
+            if (missing.Count > 0)
+            {
+                details.Add($"以下双耳变压器未选择有效的所属 EMU：{string.Join("、", missing.Select(n => n.Label))}");
+                return Fail("SPLIT_XFMR_EMU_REQUIRED", "双耳变压器必须归属工程内存在的 EMU 储能单元",
+                    details: details, problemNodeIds: missing.Select(n => n.Id).ToList());
+            }
+
+            var dupGroups = splits
+                .GroupBy(n => TopologyParamHelper.GetString(n.Parameters, "emuId"))
+                .Where(g => g.Count() > TopologyTemplates.MaxSplitTransformersPerEmu)
+                .ToList();
+            if (dupGroups.Count > 0)
+            {
+                var emuLabel = project.Nodes.Where(n => n.TemplateId == "emu").ToDictionary(n => n.Id, n => n.Label);
+                foreach (var g in dupGroups)
+                {
+                    var name = emuLabel.TryGetValue(g.Key, out var l) && !string.IsNullOrWhiteSpace(l) ? l : g.Key;
+                    details.Add($"EMU「{name}」绑定了 {g.Count()} 台双耳变压器：{string.Join("、", g.Select(n => n.Label))}");
+                }
+                return Fail("SPLIT_XFMR_EMU_DUPLICATE",
+                    $"每个 EMU 储能单元至多绑定 {TopologyTemplates.MaxSplitTransformersPerEmu} 台双耳变压器",
+                    details: details, problemNodeIds: dupGroups.SelectMany(g => g.Select(n => n.Id)).ToList());
+            }
+
+            return null;
+        }
+
+        /// <summary>同一 EMU 下两台双耳变压器不得共用同一 PCS 支路。</summary>
+        private static TopologyValidationResult? ValidateSplitTransformerPcsOverlap(
+            TopologyProject project, List<string> details)
+        {
+            var splits = project.Nodes
+                .Where(n => TopologyTemplates.IsSplitTransformer(n.TemplateId))
+                .GroupBy(n => TopologyParamHelper.GetString(n.Parameters, "emuId"), StringComparer.Ordinal)
+                .Where(g => g.Count() >= 2)
+                .ToList();
+            if (splits.Count == 0)
+                return null;
+
+            foreach (var emuGroup in splits)
+            {
+                var xfmrs = emuGroup.OrderBy(n => n.Y).ThenBy(n => n.X).ToList();
+                var pcsSets = xfmrs.Select(x => PcsIdsOnSplitEars(project, x)).ToList();
+                for (int i = 0; i < xfmrs.Count; i++)
+                {
+                    for (int j = i + 1; j < xfmrs.Count; j++)
+                    {
+                        var overlap = pcsSets[i].Intersect(pcsSets[j], StringComparer.Ordinal).ToList();
+                        if (overlap.Count == 0)
+                            continue;
+
+                        var labels = overlap
+                            .Select(id => project.Nodes.FirstOrDefault(n => n.Id == id)?.Label ?? id)
+                            .ToList();
+                        details.Add(
+                            $"双耳变压器「{xfmrs[i].Label}」与「{xfmrs[j].Label}」共用 PCS：{string.Join("、", labels)}");
+                        return Fail("SPLIT_XFMR_PCS_OVERLAP",
+                            "同一 EMU 下两台双耳变压器不得接到同一 PCS 支路",
+                            details: details,
+                            problemNodeIds: xfmrs.Select(x => x.Id).Concat(overlap).Distinct().ToList());
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static HashSet<string> PcsIdsOnSplitEars(TopologyProject project, TopologyNode split)
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (bool left in new[] { true, false })
+            {
+                var bus = FindSplitEarBus(project, split.Id, left);
+                if (bus == null)
+                    continue;
+                foreach (var nbId in SplitNeighbors(project, bus.Id))
+                {
+                    var nb = project.Nodes.FirstOrDefault(n => n.Id == nbId);
+                    if (nb?.TemplateId == "pcs")
+                        ids.Add(nb.Id);
+                }
+            }
+
+            return ids;
+        }
+
+        private static TopologyNode? FindSplitEarBus(TopologyProject project, string xfmrId, bool left)
+        {
+            foreach (var e in project.Edges)
+            {
+                string? xfmrPort;
+                string otherId;
+                if (e.FromNodeId == xfmrId) { xfmrPort = e.FromPortId; otherId = e.ToNodeId; }
+                else if (e.ToNodeId == xfmrId) { xfmrPort = e.ToPortId; otherId = e.FromNodeId; }
+                else continue;
+
+                bool match = left
+                    ? TopologyTemplates.IsSplitLeftEarPort(xfmrPort)
+                    : TopologyTemplates.IsSplitRightEarPort(xfmrPort);
+                if (!match) continue;
+                var other = project.Nodes.FirstOrDefault(n => n.Id == otherId);
+                if (other?.TemplateId == "ac_bus")
+                    return other;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> SplitNeighbors(TopologyProject project, string nodeId)
+        {
+            foreach (var e in project.Edges)
+            {
+                if (e.FromNodeId == nodeId) yield return e.ToNodeId;
+                else if (e.ToNodeId == nodeId) yield return e.FromNodeId;
+            }
+        }
+
+        /// <summary>
+        /// EMU 分组绑定校验：已选 groupId 的设备须指向存在的分组（GROUP_UNASSIGNED），
+        /// 分组所属 EMU 须有效且与设备自身 emuId 一致（GROUP_EMU_MISMATCH），
+        /// 每个分组下断路器至多 1 台（EMU_GROUP_BREAKER_DUPLICATE），电表/变压器不限台数。
+        /// 无分组的工程全部规则退化通过。校验通过返回 null。
+        /// </summary>
+        private static TopologyValidationResult? ValidateEmuGroupBindings(
+            TopologyProject project, HashSet<string> emuIds, List<string> details)
+        {
+            var groups = project.Nodes.Where(n => n.TemplateId == "emu_group").ToList();
+            var groupIds = groups.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+            var groupEmuId = groups.ToDictionary(
+                n => n.Id,
+                n => TopologyParamHelper.GetString(n.Parameters, "emuId"),
+                StringComparer.Ordinal);
+
+            var bound = project.Nodes
+                .Where(n => n.TemplateId is "pcs" or "ac_breaker" or "ac_meter" or "transformer"
+                    or "split_transformer")
+                .Where(n => !string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "groupId")))
+                .ToList();
+            if (bound.Count == 0)
+                return null;
+
+            var orphan = bound
+                .Where(n => !groupIds.Contains(TopologyParamHelper.GetString(n.Parameters, "groupId")))
+                .ToList();
+            if (orphan.Count > 0)
+            {
+                details.Add($"以下设备选择了不存在的所属 EMU 分组：{string.Join("、", orphan.Select(n => n.Label))}");
+                return Fail("GROUP_UNASSIGNED", "设备选择的所属 EMU 分组须为工程内存在的 EMU 分组",
+                    details: details, problemNodeIds: orphan.Select(n => n.Id).ToList());
+            }
+
+            var mismatch = bound.Where(n =>
+            {
+                string gid = TopologyParamHelper.GetString(n.Parameters, "groupId");
+                string devEmu = TopologyParamHelper.GetString(n.Parameters, "emuId");
+                return !groupEmuId.TryGetValue(gid, out string? gEmu) ||
+                       string.IsNullOrWhiteSpace(gEmu) ||
+                       !emuIds.Contains(gEmu) ||
+                       !string.Equals(gEmu, devEmu, StringComparison.Ordinal);
+            }).ToList();
+            if (mismatch.Count > 0)
+            {
+                details.Add($"以下设备所属 EMU 分组与其所属 EMU 储能单元不一致（或分组未选择有效 EMU）：{string.Join("、", mismatch.Select(n => n.Label))}");
+                return Fail("GROUP_EMU_MISMATCH", "EMU 分组所属的 EMU 储能单元须有效且与设备所属 EMU 一致",
+                    details: details, problemNodeIds: mismatch.Select(n => n.Id).ToList());
+            }
+
+            var groupLabel = groups.ToDictionary(n => n.Id, n => n.Label, StringComparer.Ordinal);
+            // 组级断路器至多 1 台；组级电表允许多台（运行期按绑定顺序逐台建镜像）
+            var dupGroups = bound
+                .Where(n => n.TemplateId == "ac_breaker")
+                .GroupBy(n => TopologyParamHelper.GetString(n.Parameters, "groupId"))
+                .Where(g => g.Count() > 1)
+                .ToList();
+            if (dupGroups.Count > 0)
+            {
+                foreach (var g in dupGroups)
+                {
+                    var name = groupLabel.TryGetValue(g.Key, out var l) && !string.IsNullOrWhiteSpace(l) ? l : g.Key;
+                    details.Add($"EMU 分组「{name}」绑定了 {g.Count()} 台断路器：{string.Join("、", g.Select(n => n.Label))}");
+                }
+                return Fail("EMU_GROUP_BREAKER_DUPLICATE", "每个 EMU 分组至多绑定 1 台断路器",
+                    details: details, problemNodeIds: dupGroups.SelectMany(g => g.Select(n => n.Id)).ToList());
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<TopologyEdge> OrderEdgesTopToBottom(TopologyProject project)
+        {
+            double YOf(string id) => FindNode(project, id)?.Y ?? 0;
+            double XOf(string id) => FindNode(project, id)?.X ?? 0;
+            return project.Edges
+                .OrderBy(e => Math.Min(YOf(e.FromNodeId), YOf(e.ToNodeId)))
+                .ThenBy(e => Math.Min(XOf(e.FromNodeId), XOf(e.ToNodeId)))
+                .ThenBy(e => e.FromNodeId, StringComparer.Ordinal)
+                .ThenBy(e => e.FromPortId, StringComparer.Ordinal)
+                .ThenBy(e => e.ToNodeId, StringComparer.Ordinal)
+                .ThenBy(e => e.ToPortId, StringComparer.Ordinal)
+                .ThenBy(e => e.Id, StringComparer.Ordinal);
+        }
+
+        /// <summary>同侧且同一成组键的交流相口才参与快捷连线（双耳左右耳互不展开）。</summary>
+        private static bool SameAcPhaseBundle(TopologyPortDef seed, TopologyPortDef candidate) =>
+            candidate.Kind == "ac_phase"
+            && !string.IsNullOrEmpty(candidate.Phase)
+            && string.Equals(candidate.Side, seed.Side, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                TopologyTemplates.AcPhaseBundleKey(candidate.Id),
+                TopologyTemplates.AcPhaseBundleKey(seed.Id),
+                StringComparison.OrdinalIgnoreCase);
 
         private static int PhaseOrder(string? phase) => phase?.ToUpperInvariant() switch
         {
@@ -764,6 +1306,31 @@ namespace EssSimulator.Web.Topology
             var json = System.Text.Json.JsonSerializer.Serialize(project);
             return System.Text.Json.JsonSerializer.Deserialize<TopologyProject>(json)
                    ?? new TopologyProject();
+        }
+
+        private static TopologyValidationResult? ValidatePvModuleModels(TopologyProject project, List<string> details)
+        {
+            var bad = project.Nodes
+                .Where(n => n.TemplateId == "pv_unit")
+                .Where(n =>
+                {
+                    var model = TopologyParamHelper.GetString(n.Parameters, "moduleModel");
+                    if (string.IsNullOrWhiteSpace(model))
+                        return false;
+                    return !EssDeviceSimModel.Pv.TrinaPvModuleCatalog.TryGet(model, out _);
+                })
+                .ToList();
+            if (bad.Count == 0)
+                return null;
+
+            var known = string.Join("、", EssDeviceSimModel.Pv.TrinaPvModuleCatalog.KnownModels);
+            foreach (var n in bad)
+                details.Add($"{n.Label}：{TopologyParamHelper.GetString(n.Parameters, "moduleModel")}");
+            return Fail(
+                "PV_UNKNOWN_MODULE",
+                $"未知光伏组件型号。已知型号：{known}",
+                details: details,
+                problemNodeIds: bad.Select(n => n.Id).ToList());
         }
 
         private static TopologyNode? FindNode(TopologyProject p, string id) =>

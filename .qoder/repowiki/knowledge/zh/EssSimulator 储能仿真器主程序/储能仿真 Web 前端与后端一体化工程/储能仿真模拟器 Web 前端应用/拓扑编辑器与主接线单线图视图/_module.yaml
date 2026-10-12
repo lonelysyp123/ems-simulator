@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: web_frontend_backend/frontend_app/topology_editor
+title: 拓扑编辑器与主接线单线图视图
+scope:
+    - Web/src/views/TopologyView.vue
+    - Web/src/components/topology/
+    - Web/src/components/TopologyMainLineSvg.vue
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/backend_topology

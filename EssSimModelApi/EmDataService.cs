@@ -1,16 +1,14 @@
-using EssSimulator.Configuration;
-using EssSimulator.EssDeviceSimModel;
 using EssSimulator.Core;
+using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi.ElectricMeter;
 using EssSimulator.EssSimModelApi.Mappers;
-using Microsoft.Extensions.Hosting;
 
 namespace EssSimulator.EssSimModelApi
 {
     /// <summary>
-    /// 电表数据同步后台服务；刷新周期与 ESS 主循环一致，映射逻辑委托给 <see cref="EmMapper"/>。
+    /// 电表协议镜像：构造时注册 DTO，投影由 <see cref="ProtocolProjectionService"/> 在物理步进末尾调用。
     /// </summary>
-    public class EmDataService : BackgroundService
+    public class EmDataService
     {
         private readonly EmData _emData;
         private double _forwardKWh;
@@ -22,22 +20,10 @@ namespace EssSimulator.EssSimModelApi
             SimulatorHost.Instance.Register("em", _emData);
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public void Project(EnergyStorageSystem ess)
         {
-            var store = SimulatorHost.Instance;
-            EnergyStorageSystem? ess = null;
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                ess ??= store.Get<EnergyStorageSystem>("ess");
-                int intervalMs = Math.Max(10, ess?.LoopIntervalMs ?? 100);
-                await Task.Delay(intervalMs, stoppingToken);
-                if (ess == null)
-                    continue;
-
-                EmMapper.MapEssToEmData(ess, _emData, TimeSpan.Zero,
-                    ref _forwardKWh, ref _reverseKWh);
-            }
+            EmMapper.MapEssToEmData(ess, _emData, TimeSpan.Zero,
+                ref _forwardKWh, ref _reverseKWh);
         }
     }
 }

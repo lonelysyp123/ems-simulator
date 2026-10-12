@@ -55,8 +55,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 _config.ReactiveVoltageInfluenceCoefficient,
                 _config.MaxVoltageShiftPercent);
 
-            if (!context.MainBreakerClosed)
-                lineVoltageV = 0;
+            // 电网始终是电压源；与站内的隔离由断路器完成，不在此把电网端口打成 0。
 
             var internalQty = new AcInternalQuantities
             {

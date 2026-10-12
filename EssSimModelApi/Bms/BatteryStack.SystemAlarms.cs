@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using EssSimulator.EssDeviceSimModel.Bms;
 
 namespace EssSimulator.EssSimModelApi.BatteryManagementSystem
 {

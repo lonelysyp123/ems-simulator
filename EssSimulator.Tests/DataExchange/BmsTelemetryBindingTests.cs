@@ -15,8 +15,28 @@ namespace EssSimulator.Tests.DataExchange;
 /// <summary>
 /// 验证 BMS 点表 ModelSim 路径能否解析到 DTO 属性，以及遥测管道能否读到映射后的值。
 /// </summary>
-public class BmsTelemetryBindingTests
+public class BmsTelemetryBindingTests : SimulatorHostTestBase
 {
+    /// <summary>
+    /// common 版点表绝对路径。根目录 bms_bank.csv 可能随交付版本切换（如 LC 版），
+    /// 本测试固定验证 pointmaps/models/bms/standard 版本（原 pointmaps/common），不能依赖复制到 bin 的运行时点表。
+    /// </summary>
+    private static string CommonBankCsvPath
+    {
+        get
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "EssSimulator.sln")))
+                    return Path.Combine(dir.FullName, "pointmaps", "models", "bms", "standard", "bms_bank.csv");
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException("找不到仓库根目录");
+        }
+    }
+
     private sealed class FakeSimulationAdapter : ISimulationDataAdapter
     {
         private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase);
@@ -39,26 +59,26 @@ public class BmsTelemetryBindingTests
 
         public void WriteDefaults(IReadOnlyDictionary<string, object> defaults) => WritePoints(defaults);
 
-        public void WritePoints(IReadOnlyDictionary<string, object> values, byte slaveId = 1, bool applyScale = true)
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true)
         {
             foreach (var pair in values)
                 Registers[pair.Key] = pair.Value;
         }
 
-        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte slaveId = 1) => new();
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) => new();
 
-        public object? ReadParsedPoint(string paramName, byte slaveId = 1) =>
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) =>
             Registers.TryGetValue(paramName, out var val) ? val : null;
     }
 
     [Fact]
     public void FromPointMap_yc11_BindsToBatteryStackSoc()
     {
-        var pointMap = new ModbusPointMap("bms_bank.csv", "simBms1", clusterCount: 12);
+        var pointMap = new ModbusPointMap(CommonBankCsvPath, "simBms1", clusterCount: 12);
         var catalog = PointCatalogLoader.FromPointMap(pointMap, "simBms1", new DataExchangeOptions());
 
         var yc11 = catalog.TelemetryPoints.First(p => p.ParamName == "yc11");
-        Assert.Equal(4110, yc11.Entry.Address);
+        Assert.Equal(10011, yc11.Entry.Address);
         Assert.Equal(1000, yc11.Entry.Scale);
         Assert.Equal("bms1", yc11.Target.RootKey);
         Assert.Equal("BatteryStacks[0].SOC", yc11.Target.PropertyPath);
@@ -145,7 +165,7 @@ public class BmsTelemetryBindingTests
     [Fact]
     public void TelemetryPipeline_RewritesAfterShadowCleared()
     {
-        var pointMap = new ModbusPointMap("bms_bank.csv", "simBms1", clusterCount: 12);
+        var pointMap = new ModbusPointMap(CommonBankCsvPath, "simBms1", clusterCount: 12);
         var catalog = PointCatalogLoader.FromPointMap(pointMap, "simBms1", new DataExchangeOptions());
 
         var simulation = new FakeSimulationAdapter();
@@ -170,7 +190,7 @@ public class BmsTelemetryBindingTests
     [Fact]
     public void TelemetryPipeline_WritesYc11WhenSocChanges()
     {
-        var pointMap = new ModbusPointMap("bms_bank.csv", "simBms1", clusterCount: 12);
+        var pointMap = new ModbusPointMap(CommonBankCsvPath, "simBms1", clusterCount: 12);
         var catalog = PointCatalogLoader.FromPointMap(pointMap, "simBms1", new DataExchangeOptions());
 
         var simulation = new FakeSimulationAdapter();

@@ -9,6 +9,19 @@
     </div>
 
     <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span>IEC 61850</span>
+        <el-button type="primary" size="small" @click="$router.push('/iec61850')">打开 IEC 61850</el-button>
+      </div>
+      <p class="muted" style="margin:0 0 8px;font-size:13px">
+        {{ data?.iec61850Summary?.headline || '加载中…' }}
+      </p>
+      <p class="muted" style="margin:0;font-size:12px">
+        详细 IED 状态、GOOSE 入向报文与解码请到「IEC 61850」页；端口开关在「协议端口」。
+      </p>
+    </div>
+
+    <div class="card">
       <p class="card-title">Modbus 服务监听</p>
       <el-table :data="data?.servers || []" size="small" border stripe>
         <el-table-column prop="server" label="服务" width="160" />
@@ -49,12 +62,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getConnections, postLink, getHub } from '@/services/api.js'
+import { getConnections, postLink, joinHubChannel, onHubMethod } from '@/services/api.js'
 import { RealtimeMethods, RealtimeChannels } from '@/services/constants.js'
 import { ElMessage } from 'element-plus'
 
 const data = ref(null)
-let hub = null
 
 async function reload() {
   try { data.value = await getConnections() } catch (e) { console.warn(e) }
@@ -73,9 +85,12 @@ async function toggle(target, state) {
 onMounted(async () => {
   await reload()
   try {
-    hub = await getHub()
-    await hub.invoke('JoinChannel', RealtimeChannels.Connections)
-    hub.on(RealtimeMethods.ReceiveConnections, d => { data.value = d })
+    onHubMethod(RealtimeMethods.ReceiveConnections, d => { data.value = d })
+    await joinHubChannel(RealtimeChannels.Connections)
   } catch { /* ignore */ }
 })
 </script>
+
+<style scoped>
+.muted { color: #909399; }
+</style>

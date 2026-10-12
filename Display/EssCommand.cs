@@ -1,8 +1,8 @@
 using EssSimulator.Core;
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi.Bms;
+using EssSimulator.EssSimModelApi.Mappers;
 using EssSimulator.Protocol;
-using EssSimulator.Web;
 using System;
 using System.Collections.Generic;
 
@@ -22,6 +22,9 @@ namespace EssSimulator.Display
             if (verb.Equals("setLoad", StringComparison.OrdinalIgnoreCase))
                 return ExecuteSetLoad(args);
 
+            if (verb.Equals("setSvg", StringComparison.OrdinalIgnoreCase))
+                return ExecuteSetSvg(args);
+
             if (verb.Equals("link", StringComparison.OrdinalIgnoreCase))
                 return ExecuteLink(args);
 
@@ -38,7 +41,10 @@ namespace EssSimulator.Display
                 return ExecuteBmsFaultClear(args);
 
             if (verb.StartsWith("pcs", StringComparison.OrdinalIgnoreCase))
-                return ExecutePcsStartStop(args);
+                return ExecutePcsCommand(args);
+
+            if (verb.StartsWith("setpv", StringComparison.OrdinalIgnoreCase))
+                return ExecuteSetPv(args);
 
             return CommandResult.Fail("未知子命令，请使用 esscmd help 查看用法");
         }
@@ -50,16 +56,26 @@ namespace EssSimulator.Display
                 "esscmd 子命令:",
                 "  setLoad activePower <kW>       // 手动设定负载有功（仅允许 ≤0：负=消耗，正值拒绝）",
                 "  setLoad reactivePower <kvar>   // 手动设定负载无功（可正可负）",
+                "  setSvg run on|off               // SVG 开关机（1 开机 / 0 关机）",
+                "  setSvg reactive <kvar>          // SVG 无功设定（正=容性发出，负=感性吸收）",
                 "  link pcsN on|off               // 开启/关闭第 N 路 PCS 所属 EMU 单元的 Modbus 对外服务",
                 "  link bmsN on|off               // 开启/关闭第 N 路 BMS 的 Modbus 对外服务",
                 "  link em on|off                 // 开启/关闭并网点电表 simEm 的 Modbus 对外服务",
                 "  link status [pcsN|bmsN|em]     // 查看协议链路状态（省略目标则列出全部）",
                 "  setGrid frequency <Hz>         // 设定仿真电网额定频率（并网时 PCS 跟网、电表 yc19）",
                 "  setGrid voltage <V>            // 设定仿真电网额定线电压（如 220000）",
-                "  pcsN start|stop                // PCS 启停（内部走 dpc 写 EMU yx3/yx5 控制点）",
+                "  pcsN start|stop                // PCS 启停（直控仿真设备，不依赖点表点位）",
+                "  pcsN power <kW>                // PCS 有功设定（工程值 kW；无功保留现值）",
+                "  pcsN reactive <kvar>           // PCS 无功设定（工程值 kvar；有功保留现值）",
                 "  setbmsN power on|off           // BMS 物理并网/离网（PCS↔BMS 直流链路）",
                 "  setbmsN soc <0~1|%>            // 热设 BMS 整堆 SOC（须待机；写透电芯，立即生效）",
                 "  bmsN fault clear               // 待机时清除充放电方向内部故障，恢复可并网",
+                "  setpvN run on|off              // 光伏单元启停（直控仿真设备）",
+                "  setpvN power <kW>              // 光伏有功设定（限发 kW，≥0）",
+                "  setpvN reactive <kvar>         // 光伏无功设定（kvar，可正可负）",
+                "  setpvN array A|B temperature <℃> // 设定光伏方阵环境温度（电池温度由 NOCT 估算）",
+                "  setpvN array A|B angle <度>    // 设定光伏方阵光照入射角（90=正对 1000 W/㎡，0/180=0）",
+                "  setpvN array A|B albedo <0~1>  // 设定方阵地面反照率（G_rear = 反照率 × 平面辐照；0 关闭双面）",
                 "",
                 "说明:",
                 "  - link off：关闭 TCP 监听，模拟通信中断；与 setbms power 无关",
@@ -68,7 +84,8 @@ namespace EssSimulator.Display
                 "  - setbmsN power off：断开 PCS↔BMS 链路，GridConnectStatus→0",
                 "  - setbmsN soc：须堆电流为 0（待机）；0~1 为标幺，>1 且≤100 按百分比",
                 "  - bmsN fault clear：待机时清除充放电方向内部故障（一次性）；再次超限会重新触发，三级故障会自动下电",
-                "  - 同一储能单元内 pcs(2n-1)/pcs(2n) 共用 simEmu{n}，关闭任一路会影响该单元两路 PCS"
+                "  - setpvN：方阵环境温度/入射角/反照率替代按时刻正弦的辐照，A/B 可分别设定",
+                "  - 每台 PCS 对应独立 simEmu{N}（与 pcsN 1:1），关闭链路只影响该路 PCS"
             }.JoinLines();
         }
 
@@ -83,7 +100,8 @@ namespace EssSimulator.Display
             if (!BmsFaultClearEngine.TryClearFaults(bms1Based - 1, out var result))
                 return CommandResult.Fail($"操作失败: {result}");
 
-            SimulatorHost.Instance.Get<ModbusSimServer>($"simBms{bms1Based}")?.InvalidateDataShadow("yc0");
+            // 强制刷新遥测 shadow（点名随点表版本而异，不存在的点名安全忽略）
+            InvalidateBmsTelemetryShadow(bms1Based, "yc0", "param4", "param19");
             return CommandResult.Ok($"执行成功: bms{bms1Based} — {result}");
         }
 
@@ -128,6 +146,39 @@ namespace EssSimulator.Display
             return CommandResult.Ok($"执行成功: 负载 {args[1]} = {num}");
         }
 
+        private static CommandResult ExecuteSetSvg(string[] args)
+        {
+            if (args.Length != 3)
+                return CommandResult.Fail("用法: esscmd setSvg run on|off | reactive <kvar>");
+
+            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
+            if (ess == null)
+                return CommandResult.Fail("找不到 ess 模型，请确认仿真已启动");
+            if (ess.Svg == null)
+                return CommandResult.Fail("SVG 未启用");
+
+            if (args[1].Equals("run", StringComparison.OrdinalIgnoreCase))
+            {
+                if (args[2].Equals("on", StringComparison.OrdinalIgnoreCase))
+                    ess.Svg.RunCommand = 1;
+                else if (args[2].Equals("off", StringComparison.OrdinalIgnoreCase))
+                    ess.Svg.RunCommand = 0;
+                else
+                    return CommandResult.Fail("setSvg run 仅支持 on 或 off");
+                return CommandResult.Ok($"执行成功: SVG 开关机 = {ess.Svg.RunCommand}");
+            }
+
+            if (args[1].Equals("reactive", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(args[2], out var kvar) || !double.IsFinite(kvar))
+                    return CommandResult.Fail("请输入有效的无功数值（kvar）");
+                ess.Svg.ReactiveSetpointKvar = kvar;
+                return CommandResult.Ok($"执行成功: SVG 无功设定 = {kvar} kvar");
+            }
+
+            return CommandResult.Fail("setSvg 仅支持 run 或 reactive");
+        }
+
         private static CommandResult ExecuteSetGrid(string[] args)
         {
             if (args.Length != 3)
@@ -145,7 +196,7 @@ namespace EssSimulator.Display
                 if (!ess.TrySetGridFrequency(hz, out var message))
                     return CommandResult.Fail($"操作失败: {message}");
 
-                SnapshotService.RequestImmediatePush();
+                UiSnapshotNotifier.RequestImmediatePush();
                 return CommandResult.Ok($"执行成功: {message}");
             }
 
@@ -157,7 +208,7 @@ namespace EssSimulator.Display
                 if (!ess.TrySetGridVoltage(volts, out var message))
                     return CommandResult.Fail($"操作失败: {message}");
 
-                SnapshotService.RequestImmediatePush();
+                UiSnapshotNotifier.RequestImmediatePush();
                 return CommandResult.Ok($"执行成功: {message}");
             }
 
@@ -203,8 +254,8 @@ namespace EssSimulator.Display
             if (!ess._bmsRackDevices[idx].TrySetSoc(soc, out var result))
                 return CommandResult.Fail($"操作失败: {result}");
 
-            SimulatorHost.Instance.Get<ModbusSimServer>($"simBms{bms1Based}")?.InvalidateDataShadow("yc11");
-            SnapshotService.RequestImmediatePush();
+            InvalidateBmsTelemetryShadow(bms1Based, "yc11", "param47");
+            UiSnapshotNotifier.RequestImmediatePush();
             return CommandResult.Ok($"执行成功: bms{bms1Based} — {result}");
         }
 
@@ -249,39 +300,160 @@ namespace EssSimulator.Display
             if (!BmsLinkEngine.TrySetGridPower(bms1Based - 1, connect, out var result))
                 return CommandResult.Fail($"操作失败: {result}");
 
-            SimulatorHost.Instance.Get<ModbusSimServer>($"simBms{bms1Based}")?.InvalidateDataShadow("yc0");
-            SimulatorHost.Instance.Get<ModbusSimServer>($"simBms{bms1Based}")?.InvalidateDataShadow("yc45");
+            InvalidateBmsTelemetryShadow(bms1Based, "yc0", "yc45", "param4", "param43");
             return CommandResult.Ok($"执行成功: bms{bms1Based} {(connect ? "并网" : "离网")} — {result}");
         }
 
-        private static CommandResult ExecutePcsStartStop(string[] args)
+        /// <summary>
+        /// 使 BMS 遥测 shadow 失效，强制下一轮数据 worker 回写实时值。
+        /// 点名随点表版本而异（common 版 yc/yt、LC 版 param），不存在的点名安全忽略。
+        /// </summary>
+        private static void InvalidateBmsTelemetryShadow(int bms1Based, params string[] pointNames)
         {
-            if (args.Length != 2)
-                return CommandResult.Fail("用法: esscmd pcsN start|stop\n示例: esscmd pcs1 start");
+            var server = SimulatorHost.Instance.Get<ModbusSimServer>($"simBms{bms1Based}");
+            if (server == null)
+                return;
 
-            if (!args[0].StartsWith("pcs", StringComparison.OrdinalIgnoreCase) ||
-                !int.TryParse(args[0].AsSpan(3), out int pcs1Based) ||
-                pcs1Based < 1)
-                return CommandResult.Fail("子命令格式应为 pcsN，例如 pcs1");
+            foreach (var name in pointNames)
+                server.InvalidateDataShadow(name);
+        }
 
-            string state = args[1].ToLowerInvariant();
-            bool? start = state switch
+        private static CommandResult ExecutePcsCommand(string[] args)
+        {
+            if (!TryParsePcsIndex(args[0], out int pcs1Based, out var parseMessage))
+                return CommandResult.Fail(parseMessage);
+
+            if (args.Length == 2)
             {
-                "start" or "on" or "1" or "true" => true,
-                "stop" or "off" or "0" or "false" => false,
-                _ => null
-            };
-            if (start == null)
-                return CommandResult.Fail("请使用 start|stop");
+                string state = args[1].ToLowerInvariant();
+                bool? start = state switch
+                {
+                    "start" or "on" or "1" or "true" => true,
+                    "stop" or "off" or "0" or "false" => false,
+                    _ => null
+                };
+                if (start == null)
+                    return CommandResult.Fail("请使用 start|stop");
 
-            int emuUnit = (pcs1Based - 1) / 2 + 1;
-            string point = pcs1Based % 2 == 1 ? "yx3" : "yx5";
-            string[] dpcArgs = { $"simEmu{emuUnit}.{point}", "set", start.Value ? "1" : "0" };
+                if (!DeviceControlFacade.TrySetPcsRun(pcs1Based, start.Value, out var runMessage))
+                    return CommandResult.Fail($"操作失败: {runMessage}");
 
-            if (!DataPointChangeCommand.TryExecuteDpcOperation(dpcArgs, out var message))
-                return CommandResult.Fail(message);
+                return CommandResult.Ok($"执行成功: PCS{pcs1Based} {(start.Value ? "启动" : "停机")} — {runMessage}");
+            }
 
-            return CommandResult.Ok($"执行成功: PCS{pcs1Based} {(start.Value ? "启动" : "停机")} — {message}");
+            if (args.Length == 3 &&
+                (args[1].Equals("power", StringComparison.OrdinalIgnoreCase) ||
+                 args[1].Equals("reactive", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!double.TryParse(args[2], out var value))
+                    return CommandResult.Fail("请输入有效的数字");
+
+                bool active = args[1].Equals("power", StringComparison.OrdinalIgnoreCase);
+                if (!DeviceControlFacade.TrySetPcsPower(
+                    pcs1Based,
+                    active ? value : null,
+                    active ? null : value,
+                    out var powerMessage))
+                    return CommandResult.Fail($"操作失败: {powerMessage}");
+
+                return CommandResult.Ok($"执行成功: {powerMessage}");
+            }
+
+            return CommandResult.Fail(
+                "用法: esscmd pcsN start|stop\n      esscmd pcsN power <kW>\n      esscmd pcsN reactive <kvar>\n示例: esscmd pcs1 start\n      esscmd pcs1 power 500");
+        }
+
+        private static bool TryParsePcsIndex(string target, out int pcs1Based, out string message)
+        {
+            pcs1Based = 0;
+            message = string.Empty;
+            if (!target.StartsWith("pcs", StringComparison.OrdinalIgnoreCase) ||
+                !int.TryParse(target.AsSpan(3), out pcs1Based) ||
+                pcs1Based < 1)
+            {
+                message = "子命令格式应为 pcsN，例如 pcs1";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static CommandResult ExecuteSetPv(string[] args)
+        {
+            if (!TryParseSetPvIndex(args[0], out int pv1Based, out var parseMessage))
+                return CommandResult.Fail(parseMessage);
+
+            if (args.Length == 3 && args[1].Equals("run", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!TryParseLinkState(args[2], out bool run, out var stateMessage))
+                    return CommandResult.Fail(stateMessage);
+
+                if (!DeviceControlFacade.TrySetPvRun(pv1Based, run, out var runMessage))
+                    return CommandResult.Fail($"操作失败: {runMessage}");
+
+                return CommandResult.Ok($"执行成功: {runMessage}");
+            }
+
+            if (args.Length == 3 &&
+                (args[1].Equals("power", StringComparison.OrdinalIgnoreCase) ||
+                 args[1].Equals("reactive", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!double.TryParse(args[2], out var pvValue))
+                    return CommandResult.Fail("请输入有效的数字");
+
+                bool active = args[1].Equals("power", StringComparison.OrdinalIgnoreCase);
+                if (!DeviceControlFacade.TrySetPvPower(
+                    pv1Based,
+                    active ? pvValue : null,
+                    active ? null : pvValue,
+                    out var powerMessage))
+                    return CommandResult.Fail($"操作失败: {powerMessage}");
+
+                return CommandResult.Ok($"执行成功: {powerMessage}");
+            }
+
+            if (args.Length != 5
+                || !args[1].Equals("array", StringComparison.OrdinalIgnoreCase))
+            {
+                return CommandResult.Fail(
+                    "用法: esscmd setpvN run on|off\n      esscmd setpvN power <kW>\n      esscmd setpvN reactive <kvar>\n      esscmd setpvN array A|B temperature|angle|albedo <数值>\n示例: esscmd setpv1 run on\n      esscmd setpv1 array A temperature 35");
+            }
+
+            string side = args[2].Trim().ToUpperInvariant();
+            if (side != "A" && side != "B")
+                return CommandResult.Fail("方阵侧应为 A 或 B");
+
+            if (!double.TryParse(args[4], out var value))
+                return CommandResult.Fail("请输入有效的数字");
+
+            var ess = SimulatorHost.Instance.Get<EnergyStorageSystem>("ess");
+            if (ess == null)
+                return CommandResult.Fail("找不到 ess 模型，请确认仿真已启动");
+
+            if (!ess.TrySetPvArrayClimate(pv1Based, side, args[3], value, out var message))
+                return CommandResult.Fail($"操作失败: {message}");
+
+            UiSnapshotNotifier.RequestImmediatePush();
+            return CommandResult.Ok($"执行成功: {message}");
+        }
+
+        private static bool TryParseSetPvIndex(string verb, out int pv1Based, out string message)
+        {
+            pv1Based = 0;
+            message = string.Empty;
+            if (!verb.StartsWith("setpv", StringComparison.OrdinalIgnoreCase))
+            {
+                message = "子命令格式应为 setpvN，例如 setpv1";
+                return false;
+            }
+
+            if (!int.TryParse(verb.AsSpan(5), out pv1Based) || pv1Based < 1)
+            {
+                message = "子命令格式应为 setpvN，例如 setpv1";
+                return false;
+            }
+
+            return true;
         }
 
         private static bool TryParseSetBmsIndex(string verb, out int bms1Based, out string message)
@@ -367,7 +539,7 @@ namespace EssSimulator.Display
             detail = string.Empty;
             if (string.IsNullOrWhiteSpace(target))
             {
-                detail = "请指定 pcsN、bmsN 或 em";
+                detail = "请指定 pcsN、bmsN、pvN、pvMeterN 或 em";
                 return false;
             }
 
@@ -388,9 +560,7 @@ namespace EssSimulator.Display
                 int.TryParse(target.AsSpan(3), out int pcsIdx) &&
                 pcsIdx >= 1)
             {
-                int emuUnit = (pcsIdx - 1) / 2 + 1;
-                int pcsPeer = (emuUnit - 1) * 2 + 1;
-                serverName = $"simEmu{emuUnit}";
+                serverName = $"simEmu{pcsIdx}";
                 server = store.Get<ModbusSimServer>(serverName);
                 if (server == null)
                 {
@@ -398,7 +568,7 @@ namespace EssSimulator.Display
                     return false;
                 }
 
-                detail = $"（emu 单元 {emuUnit}，影响 pcs{pcsPeer} 与 pcs{pcsPeer + 1}）";
+                detail = $"（pcs{pcsIdx}）";
                 return true;
             }
 
@@ -416,7 +586,35 @@ namespace EssSimulator.Display
                 return true;
             }
 
-            detail = "目标格式应为 pcsN、bmsN 或 em，例如 pcs1、bms3、em";
+            if (target.StartsWith("pvMeter", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(target.AsSpan(7), out int pvMeterIdx) &&
+                pvMeterIdx >= 1)
+            {
+                serverName = $"simPvMeter{pvMeterIdx}";
+                server = store.Get<ModbusSimServer>(serverName);
+                if (server == null)
+                {
+                    detail = $"找不到 {serverName}（pvMeter{pvMeterIdx} 超出当前配置范围）";
+                    return false;
+                }
+                return true;
+            }
+
+            if (target.StartsWith("pv", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(target.AsSpan(2), out int pvIdx) &&
+                pvIdx >= 1)
+            {
+                serverName = $"simPv{pvIdx}";
+                server = store.Get<ModbusSimServer>(serverName);
+                if (server == null)
+                {
+                    detail = $"找不到 {serverName}（pv{pvIdx} 超出当前配置范围）";
+                    return false;
+                }
+                return true;
+            }
+
+            detail = "目标格式应为 pcsN、bmsN、pvN、pvMeterN 或 em，例如 pcs1、bms3、pv1、em";
             return false;
         }
 
@@ -443,13 +641,55 @@ namespace EssSimulator.Display
             while (store.Contains($"simEmu{emu}"))
             {
                 var server = store.Get<ModbusSimServer>($"simEmu{emu}");
-                int pcsA = (emu - 1) * 2 + 1;
-                int pcsB = pcsA + 1;
-                list.Add(BuildLinkStatusDto($"pcs{pcsA}/pcs{pcsB}", $"simEmu{emu}", server!, $"emu 单元 {emu}", $"pcs{pcsA}"));
+                list.Add(BuildLinkStatusDto($"pcs{emu}", $"simEmu{emu}", server!, "", $"pcs{emu}"));
+                var ied = EssSimulator.Protocol.Iec61850.Iec61850LayerManager.Instance.GetSnapshot()
+                    .FirstOrDefault(s => string.Equals(s.ServerName, $"simEmu{emu}", StringComparison.OrdinalIgnoreCase));
+                if (ied != null)
+                {
+                    list.Add(new LinkStatusDto
+                    {
+                        Label = $"pcs{emu}-61850",
+                        ServerName = $"{ied.ServerName}.iec61850",
+                        Target = $"iec61850-pcs{emu}",
+                        Online = ied.Online,
+                        ListenInfo = $"IEC 61850 MMS {ied.IedName} 端口 {ied.Port}",
+                        Extra = Extra61850(ied)
+                    });
+                }
                 emu++;
             }
 
+            int pv = 1;
+            while (store.Contains($"simPv{pv}"))
+            {
+                var server = store.Get<ModbusSimServer>($"simPv{pv}");
+                list.Add(BuildLinkStatusDto($"pv{pv}", $"simPv{pv}", server!, "", $"pv{pv}"));
+                pv++;
+            }
+
+            int pvMeter = 1;
+            while (store.Contains($"simPvMeter{pvMeter}"))
+            {
+                var server = store.Get<ModbusSimServer>($"simPvMeter{pvMeter}");
+                list.Add(BuildLinkStatusDto($"pvMeter{pvMeter}", $"simPvMeter{pvMeter}", server!, "", $"pvMeter{pvMeter}"));
+                pvMeter++;
+            }
+
             return list;
+        }
+
+        private static string Extra61850(EssSimulator.Protocol.Iec61850.Iec61850DeviceSnapshot ied)
+        {
+            var parts = new List<string> { $"客户端 {ied.AssociatedClients}" };
+            if (!string.IsNullOrWhiteSpace(ied.GooseInterface))
+                parts.Add($"网卡 {ied.GooseInterface}");
+            if (ied.GooseSubscribing)
+                parts.Add(ied.GooseSubscribeAppId.HasValue
+                    ? $"GOOSE订 0x{ied.GooseSubscribeAppId.Value:X4}"
+                    : "GOOSE订");
+            else if (!string.IsNullOrWhiteSpace(ied.GooseSubscribeSkip))
+                parts.Add($"GOOSE订关 {ied.GooseSubscribeSkip}");
+            return string.Join(" ", parts);
         }
 
         private static LinkStatusDto BuildLinkStatusDto(string label, string serverName, ModbusSimServer server, string extra, string target)

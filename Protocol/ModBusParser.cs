@@ -1,4 +1,4 @@
-﻿using System.Data;
+﻿using EssSimulator.Protocol.Modbus;
 using log4net;
 
 namespace EssSimulator
@@ -25,52 +25,12 @@ namespace EssSimulator
         public Dictionary<string, byte[]> DataEncryption(Dictionary<string, object> models)
         {
             Dictionary<string, byte[]> reslut = new Dictionary<string, byte[]>();
-            object value = 0;
 
             foreach (var item in models)
             {
                 var point = FindPointByName(item.Key);
-
-                string typeofPoint = "";
-                // 当点位的size位32时，类型强制转为System.Int32，当size为16时，类型强制转为System.Int16，当size为1时，类型强制转为System.Boolean
-                if (point.Size == 32)
-                {
-                    typeofPoint = "System.Int32";
-                }
-                else if (point.Size == 16)
-                {
-                    typeofPoint = "System.Int16";
-                }
-                else if (point.Size == 1)
-                {
-                    typeofPoint = "System.Boolean";
-                }
-
-                if (string.IsNullOrEmpty(typeofPoint)) throw new NullReferenceException("type is null");
-                Type? type = Type.GetType(typeofPoint);
-                if (type == null) throw new Exception("type is error");
                 if (item.Value == null) throw new NullReferenceException("value is null");
-                if (typeofPoint == "System.Boolean")
-                {
-                    // 兼容 bool / "true|false" / "0|1" / 数值输入
-                    bool bv = item.Value switch
-                    {
-                        bool b => b,
-                        string s when bool.TryParse(s, out var b) => b,
-                        string s when int.TryParse(s, out var i) => i != 0,
-                        _ => Convert.ToDouble(item.Value) != 0
-                    };
-                    value = bv;
-                }
-                else
-                {
-                    double actualValue = double.Parse(item.Value.ToString()!);
-                    value = Convert.ChangeType(actualValue, type);
-                }
-
-                byte[] resultBytes = Common.DataUnTranslation(value, typeofPoint);
-                //GetBytes方法默认转换成小端序，低位在前，所以要反转
-                Array.Reverse(resultBytes);
+                byte[] resultBytes = ModbusPointCodec.Encode(item.Value, point, applyScale: true);
                 reslut.Add(item.Key, resultBytes);
             }
             return reslut;
@@ -88,46 +48,15 @@ namespace EssSimulator
                 var ResultArray = new Dictionary<string, object>();
                 foreach (var item in originalData)
                 {
-                    byte[]? data = item.Value as byte[];
-                    // TODO: s 待优化，应该让modbusPointMap和数据有一个共同的索引，不用每次都遍历整个map
                     MapEntry? point = FindPointByName(item.Key);
-
-                    string typeofPoint = "";
-                    // 当点位的size位32时，类型强制转为System.Int32，当size为16时，类型强制转为System.Int16，当size为1时，类型强制转为System.Boolean
-                    string dataOrder = "";
-                    if (point.Size == 32)
-                    {
-                        typeofPoint = "System.Int32";
-                        dataOrder = "CDAB";
-                    }
-                    else if (point.Size == 16)
-                    {
-                        typeofPoint = "System.Int16";
-                        dataOrder = "AB";
-                    }
-                    else if (point.Size == 1)
-                    {
-                        typeofPoint = "System.Boolean";
-                    }
-                    if (point == null || typeofPoint == "" || data == null)
-                    {
+                    if (point == null)
                         continue;
-                    }
-                    //根据数据点表定义的顺序调整数据格式
-                    //当类型为bool时，不需要调整字节顺序
-                    if (typeofPoint == "System.Boolean")
-                    {
-                        byte[] newData =  data;
-                        object actualData = Common.DataTranslation(newData, 0, point.Size, typeofPoint);
-                        ResultArray.Add(item.Key, actualData);
-                    }
+
+                    // 61850 / 点影子可能直接写入工程值；Modbus 读回仍为字节数组。
+                    if (item.Value is byte[] data)
+                        ResultArray.Add(item.Key, ModbusPointCodec.Decode(data, point));
                     else
-                    {
-                        byte[] newData = Common.ConverByteOrder(data, dataOrder);
-                        object actualData = Common.DataTranslation(newData, 0, point.Size, typeofPoint);
-                        object valueToConvert = Convert.ToDouble(actualData) / point.Scale;
-                        ResultArray.Add(item.Key, valueToConvert);
-                    }
+                        ResultArray.Add(item.Key, item.Value);
                 }
                 return ResultArray;
             }

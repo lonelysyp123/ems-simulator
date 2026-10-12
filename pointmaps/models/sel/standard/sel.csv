@@ -1,0 +1,8 @@
+FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
+6,0,u16,16,heartbeat,1,心跳写1后内部清0,0
+6,1,u16,16,secondary_control_enable,1,二次控制使能保留不参与控制,0
+6,2,u16,16,island_voltage_percent,10,PCS孤岛电压百分比0至100%,0
+6,3,u16,16,island_frequency,100,PCS孤岛频率45至65Hz,50
+6,4,u16,16,black_start_mode,1,SEL黑启动模式0退出1进入,0
+6,5,u16,16,voltage_ramp_seconds,100,电压软启动时间0至100秒,0
+6,6,u16,16,reserved,1,保留不参与控制,0

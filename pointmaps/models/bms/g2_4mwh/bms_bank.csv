@@ -1,0 +1,78 @@
+FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
+6,1,u16,16,param1,1,一键并网开关 0x1: 启动; 启动一键并网后BMS会将断网的支路依次并联回主回路 0x2:一键分闸 启动一键分闸后BMS会把已经合闸的rack依次断开主回路,model=4|arg1=bmsdeviceId.BatteryStacks[0].GridConnectCommand|arg2=|arg3=|arg4=1
+6,11,u16,16,param9,1,复位 1：复位,model=4|arg1=bmsdeviceId.BatteryStacks[0].FaultClearCommand|arg2=|arg3=|arg4=1
+6,256,u16,16,param10,1,绝缘采样功能开关 1：使能 2：不使能,0
+6,257,u16,16,param11,1,清除PCS控制失效 1：清除,0
+6,258,u16,16,param12,1,最小并机簇数 当前并机rack数低于最少并机rack数时，系统状态为待机，请求PCS停止充放电；,12
+6,12800,u16,16,param13,1,设置Rack1启用/停用（1-32簇） 1:启用 2:停用,0
+6,12803,u16,16,param14,1,设置Rack1启用/停用2（32-40簇） 1:启用 2:停用,0
+3,4097,u16,16,param15,1,一键并网开关状态 0x0：无操作 0x1: 启动 0x2: 成功 0x3: 结束,model=4|arg1=bmsdeviceId.BatteryStacks[0].GridConnectStatus|arg2=|arg3=|arg4=1
+3,4098,u16,16,param16,1,Rack启用/停用状态1 Bit0 Rack1 启用/停用状态; (0: 停用， 1:启用 );Bit1 Rack2 启用/停用状态; (0: 停用， 1:启用 );Bit15 Rack 16 启用/停用状态; (0: 停用， 1:启用 ),0
+3,4101,u16,16,param17,1,RACK 在线状态1 Bit0 Rack1在线状态; (0: 离线， 1: 在线);Bit1 Rack2在线状态; (0: 离线， 1: 在线);Bit15 Rack 16在线状态; (0: 离线， 1: 在线),0
+3,4102,u16,16,param18,1,系统运行状态 0: 正常（系统可以放电， 可以充电）; -- 自检完成就绪，BMS转变状态为正常 1: 禁充（系统可以放电， 不能充电）; 2: 禁放（系统可以充电， 不能放…,model=4|arg1=bmsdeviceId.BatteryStacks[0].OperationStatus|arg2=|arg3=|arg4=1
+3,4103,u16,16,param19,1,系统充放电状态 0x0: 静置; 0x1: 放电; 0x2: 充电,model=4|arg1=bmsdeviceId.BatteryStacks[0].ChargeDischargeStatus|arg2=|arg3=|arg4=1
+3,4104,u16,16,param20,1,BAU报警状态 Bit0 BMS内部通讯故障;Bit1 PCS通讯故障报警;Bit2 PCS控制失效报警;Bit3 EMS通信故障报警;Bit4 Rack间压差过大报警;Bit12 bdu通信故障;Bit13 总控急停;Bit14 PCS停机信号;Bit15 从舱急停信号,0
+3,4105,u16,16,param21,1,系统三级报警汇总（轻微） Bit0 总电压过压三级报警汇总;Bit1 总电压欠压三级报警汇总;Bit2 单体过压三级报警汇总;Bit3 单体欠压三级报警汇总;Bit4 放电电流过大三级报警汇总;Bit5 充电电流过大三级报警汇总;Bit6 放电电池过温三级报警汇总;Bit7 放电电池欠温三级报警汇总;Bit8 充电电池过温三级报警汇总;Bit9 充电电池欠温三级报警汇总;Bit10 绝缘阻值过低三级报警汇总;Bit11 极柱温度过高三级报警汇总;Bit12 高压箱连接器温度过高三级报警汇总;Bit13 单体压差过高三级报警汇总;Bit14 单体温差过高三级报警汇总;Bit15 SOC低三级报警汇总,model=4|arg1=bmsdeviceId.BatteryStacks[0].BMSFaultSummary|arg2=|arg3=|arg4=1
+3,4106,u16,16,param22,1,系统二级报警汇总 Bit0 总电压过压二级报警汇总;Bit1 总电压欠压二级报警汇总;Bit2 单体过压二级报警汇总;Bit3 单体欠压二级报警汇总;Bit4 放电电流过大二级报警汇总;Bit5 充电电流过大二级报警汇总;Bit6 放电电池过温二级报警汇总;Bit7 放电电池欠温二级报警汇总;Bit8 充电电池过温二级报警汇总;Bit9 充电电池欠温二级报警汇总;Bit10 绝缘阻值过低二级报警汇总;Bit11 极柱温度过高二级报警汇总;Bit12 高压箱连接器温度过高二级报警汇总;Bit13 单体压差过高二级报警汇总;Bit14 单体温差过高二级报警汇总;Bit15 SOC低二级报警汇总,model=4|arg1=bmsdeviceId.BatteryStacks[0].BMSAlarmSummary|arg2=|arg3=|arg4=1
+3,4107,u16,16,param23,1,系统一级报警汇总（严重） Bit0 总电压过压一级报警汇总;Bit1 总电压欠压一级报警汇总;Bit2 单体过压一级报警汇总;Bit3 单体欠压一级报警汇总;Bit4 放电电流过大一级报警汇总;Bit5 充电电流过大一级报警汇总;Bit6 放电电池过温一级报警汇总;Bit7 放电电池欠温一级报警汇总;Bit8 充电电池过温一级报警汇总;Bit9 充电电池欠温一级报警汇总;Bit10 绝缘阻值过低一级报警汇总;Bit11 极柱温度过高一级报警汇总;Bit12 高压箱连接器温度过高一级报警汇总;Bit13 单体压差过高一级报警汇总;Bit14 单体温差过高一级报警汇总;Bit15 SOC低一级报警汇总,model=4|arg1=bmsdeviceId.BatteryStacks[0].BMSProtectionSummary|arg2=|arg3=|arg4=1
+3,4108,u16,16,param24,10,系统总电压,model=4|arg1=bmsdeviceId.BatteryStacks[0].TotalVoltage|arg2=|arg3=|arg4=10
+3,4109,int16,16,param25,10,系统总电流 充电电流为负值， 放电为正,model=4|arg1=bmsdeviceId.BatteryStacks[0].Current|arg2=|arg3=|arg4=10
+3,4110,u16,16,param26,1000,系统SOC 0～1000,model=4|arg1=bmsdeviceId.BatteryStacks[0].SOC|arg2=|arg3=|arg4=1000
+3,4111,u16,16,param27,1000,系统SOH 0～1000,model=4|arg1=bmsdeviceId.BatteryStacks[0].SOH|arg2=|arg3=|arg4=1000
+3,4112,u16,16,param28,1,系统绝缘值,model=4|arg1=bmsdeviceId.BatteryStacks[0].InsulationPlus|arg2=|arg3=|arg4=1
+3,4113,u16,16,param29,1,系统可充电量,model=4|arg1=bmsdeviceId.BatteryStacks[0].AvailableChargeCapacity|arg2=|arg3=|arg4=1
+3,4114,u16,16,param30,1,系统可放电量,model=4|arg1=bmsdeviceId.BatteryStacks[0].AvailableDischargeCapacity|arg2=|arg3=|arg4=1
+3,4115,u16,16,param31,10,系统允许最大充电电流,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxChargeCurrent|arg2=|arg3=|arg4=10
+3,4116,u16,16,param32,10,系统允许最大放电电流,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxDischargeCurrent|arg2=|arg3=|arg4=10
+3,4117,int16,16,param33,10,簇间电流差异值 所有使能rack之间电流差异值,model=4|arg1=bmsdeviceId.BatteryStacks[0].ClusterCurrentDiff|arg2=|arg3=|arg4=10
+3,4118,u16,16,param34,10,簇间总压差异值 所有使能rack之间总压最高最低之间差异值,model=4|arg1=bmsdeviceId.BatteryStacks[0].ClusterVoltageDiff|arg2=|arg3=|arg4=10
+3,4119,u16,16,param35,1,系统最高电压电池所在Rack号 1～最大Rack数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellVoltageClusterId|arg2=|arg3=|arg4=1
+3,4120,u16,16,param36,1,系统最高电压电池所在组 该电池所在的从控编号， 1～最大从控编号,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellVoltagePackId|arg2=|arg3=|arg4=1
+3,4121,u16,16,param37,1,系统最高电压电池所在位置 该电池在电池箱内的ID， 1～从控电池串数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellVoltageCellId|arg2=|arg3=|arg4=1
+3,4122,u16,16,param38,1000,系统最高电池电压,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellVoltage|arg2=|arg3=|arg4=1000
+3,4123,u16,16,param39,1,系统最低电压电池所在Rack号 1～最大Rack数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellVoltageClusterId|arg2=|arg3=|arg4=1
+3,4124,u16,16,param40,1,系统最低电压电池所在组 该电池所在的从控编号， 1～最大从控编号,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellVoltagePackId|arg2=|arg3=|arg4=1
+3,4125,u16,16,param41,1,系统最低电压电池所在位置 该电池在电池箱内的ID， 1～从控电池串数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellVoltageCellId|arg2=|arg3=|arg4=1
+3,4126,u16,16,param42,1000,系统最低电池电压,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellVoltage|arg2=|arg3=|arg4=1000
+3,4127,u16,16,param43,1000,系统平均电压 所有Rack的平均电压,model=4|arg1=bmsdeviceId.BatteryStacks[0].AvgCellVoltage|arg2=|arg3=|arg4=1000
+3,4128,u16,16,param44,1,系统最高温度电池所在Rack号 1～最大Rack数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellTempClusterId|arg2=|arg3=|arg4=1
+3,4129,u16,16,param45,1,系统最高温度电池所在组 该电池所在的从控编号， 1～最大从控编号,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellTempPackId|arg2=|arg3=|arg4=1
+3,4130,u16,16,param46,1,系统最高温度电池所在位置 该电池在电池箱内的ID， 1～从控电池串数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellTempCellId|arg2=|arg3=|arg4=1
+3,4131,int16,16,param47,10,系统最高电池温度,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxCellTemp|arg2=|arg3=|arg4=10
+3,4132,u16,16,param48,1,系统最低温度电池所在Rack号 1～最大Rack数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellTempClusterId|arg2=|arg3=|arg4=1
+3,4133,u16,16,param49,1,系统最低温度电池所在组 该电池所在的从控编号， 1～最大从控编号,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellTempPackId|arg2=|arg3=|arg4=1
+3,4134,u16,16,param50,1,系统最低温度电池所在位置 该电池在电池箱内的ID， 1～从控电池串数,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellTempCellId|arg2=|arg3=|arg4=1
+3,4135,int16,16,param51,10,系统最低电池温度,model=4|arg1=bmsdeviceId.BatteryStacks[0].MinCellTemp|arg2=|arg3=|arg4=10
+3,4136,int16,16,param52,10,系统平均温度 所有Rack的平均温度,model=4|arg1=bmsdeviceId.BatteryStacks[0].AvgCellTemp|arg2=|arg3=|arg4=10
+3,4137,u16,16,param53,1,主控通信故障报警 Bit0 主控1通讯故障;Bit1 主控2通讯故障;Bit2 主控3通讯故障;Bit3 主控4通讯故障;Bit15 主控16通讯故障,0
+3,4138,u16,16,param54,1,主控通信故障报警2 Bit0 主控17通讯故障;Bit1 主控18通讯故障;Bit2 主控19通讯故障;Bit3 主控20通讯故障;Bit15 主控32通讯故障,0
+3,4139,u16,16,param55,1,BAU输出干接点状态 0:故障，2：正常；,0
+3,4140,u16,16,param56,1,Rack启用/停用状态 2 Bit0 Rack17 启用/停用状态; (0: 停用， 1:启用 );Bit1 Rack18 启用/停用状态; (0: 停用， 1:启用 );Bit15 Rack 32 启用/停用状态; (0: 停用， 1:启用 ),0
+3,4143,u16,16,param57,1,RACK在线状态2 Bit0 Rack17在线状态; (0: 离线， 1: 在线);Bit1 Rack18在线状态; (0: 离线， 1: 在线);Bit15 Rack 32在线状态; (0: 离线， 1: 在线),0
+3,4144,u32,32,param58,1,累计充电电量,model=4|arg1=bmsdeviceId.BatteryStacks[0].CumulativeChargeEnergy|arg2=|arg3=|arg4=1
+3,4146,u32,32,param59,1,累计放电电量,model=4|arg1=bmsdeviceId.BatteryStacks[0].CumulativeDischargeEnergy|arg2=|arg3=|arg4=1
+3,4148,u16,16,param60,1,当前在网簇数 接触器闭合的簇数,model=4|arg1=bmsdeviceId.BatteryStacks[0].OnlineClusterCount|arg2=|arg3=|arg4=1
+3,4149,u16,16,param61,1,堆内总簇数 系统总rack数,model=4|arg1=bmsdeviceId.BatteryStacks[0].TotalClusterCount|arg2=|arg3=|arg4=1
+3,4150,u16,16,param62,1,最小并机簇数 当前并机rack数低于最少并机rack数时，系统状态为待机，请求PCS停止充放电,12
+3,4151,u16,16,param63,1,最大允许放电功率 系统最大允许放电功率,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxDischargePower|arg2=|arg3=|arg4=1
+3,4152,u16,16,param64,1,最大允许充电功率 系统最大允许充电功率,model=4|arg1=bmsdeviceId.BatteryStacks[0].MaxChargePower|arg2=|arg3=|arg4=1
+3,4153,u16,16,param65,1,BMS心跳 BAU心跳指示，0-255，间隔1s累加,0
+3,4154,u16,16,param66,1,Rack 故障汇总 Bit0 BMU硬件故障汇总;Bit1 BCU硬件故障汇总;Bit2 熔断器故障汇总;Bit3 接触器粘连故障汇总;Bit4 BMU通信故障汇总;Bit5 BAU通信故障汇总;Bit6 电流传感器故障汇总;Bit7 绝缘监测设备故障汇总;Bit8 隔开开关异常断开汇总;Bit9 -bit15备用,0
+3,4157,u16,16,param67,1,主控通信故障报警3 Bit0 主控33通讯故障;Bit1 主控34通讯故障;Bit2 主控35通讯故障;Bit3 主控36通讯故障;Bit7 主控40通讯故障,0
+3,4159,u16,16,param68,1,Rack启用/停用状态3 Bit0 Rack33 启用/停用状态; (0: 停用， 1:启用 );Bit1 Rack34 启用/停用状态; (0: 停用， 1:启用 );Bit7 Rack40 启用/停用状态; (0: 停用， 1:启用 ),0
+3,4164,u16,16,param69,1,RACK在线状态3 Bit0 Rack33在线状态; (0: 离线， 1: 在线);Bit1 Rack34在线状态; (0: 离线， 1: 在线);Bit7 Rack40在线状态; (0: 离线， 1: 在线),0
+3,4173,u16,16,param70,1,总控充放电簇间电流差告警 Bit0 电流差三级告警-充电;Bit1 电流差二级告警-充电;Bit2 电流差一级告警-充电;Bit3 电流差三级告警-放电;Bit4 电流差二级告警-放电;Bit5 电流差一级告警-放电;Bit6 -bit15备用,0
+3,4180,u16,16,param71,1,总控直连IO点位 Bit0 IO1行程开关;Bit1 IO2急停信号;Bit2 IO3消防故障;Bit3 IO4气溶胶释放;Bit4 IO5火警信号;Bit5 IO6-SPD故障;Bit6 IO7隔离开关反馈;Bit7 IO8熔断器反馈,0
+3,16471,u16,16,param72,10,系统保护充电电流,0
+3,16472,u16,16,param73,10,系统保护放电电流,0
+3,16473,u16,16,param74,10,系统允许最大充电电压,0
+3,16474,u16,16,param75,10,系统允许最大放电电压,0
+3,16475,u16,16,param76,10,系统保护充电电压,0
+3,16476,u16,16,param77,10,系统保护放电电压,0
+3,16477,u16,16,param78,1,总电池容量,0
+3,16478,u16,16,param79,1,标称容量,0
+3,16479,u16,16,param80,1,可充容量,0
+3,16480,u16,16,param81,1,可放容量,0
+3,16481,u16,16,param82,1,平均电池内阻,0
+3,16482,int16,16,param83,10,集装箱环境温度,model=4|arg1=bmsdeviceId.TempHumiditySensors[0].Temperature|arg2=|arg3=|arg4=10
+3,16486,u16,16,param87,1,Rack截止报汇总 Bit0 总压过压截止;Bit1 总压欠压截止;Bit2 单体过压截止;Bit3 单体过欠截止;Bit4 单体压差截止;Bit5 放电过温截止;Bit6 放电欠温截止;Bit7 温差过高截止;Bit8 充电过温截止;Bit9 充电欠温截止;Bit10 充电过流截止;Bit11 放电过流截止;Bit12 电池箱温差过高截止;Bit13 电池箱过压截止;Bit14 电池箱欠压截止;Bit15 电池箱压差过高截止,0

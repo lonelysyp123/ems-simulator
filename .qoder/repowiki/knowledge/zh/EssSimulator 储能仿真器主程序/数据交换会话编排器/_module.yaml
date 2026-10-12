@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: data_exchange
+title: 数据交换会话编排器
+scope:
+    - DataExchange/
+source_files: []
+depends_on: []
+related_to:
+    - path: device_sim_model/core_engine
+    - path: protocol_modbus

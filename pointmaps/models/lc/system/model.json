@@ -1,0 +1,5 @@
+{
+  "id": "system",
+  "name": "中压系统-system部分",
+  "description": "天合中压对外 Modbus TCP 协议 System（总系统）工作表：单元级输入/保持寄存器。"
+}

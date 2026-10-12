@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: local_control
+title: LocalControl Modbus 从站与仿真桥接服务
+scope:
+    - LocalControl/
+source_files: []
+depends_on: []
+related_to:
+    - path: device_sim_model/devices_domain
+    - path: protocol_modbus

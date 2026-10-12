@@ -1,0 +1,6 @@
+{
+  "id": "emu",
+  "name": "EMU",
+  "description": "储能单元能量管理单元（EMU）；standard 点表为单台 PCS 直控",
+  "files": [ "emu.csv" ]
+}

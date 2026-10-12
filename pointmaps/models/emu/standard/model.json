@@ -1,0 +1,5 @@
+{
+  "id": "standard",
+  "name": "标准版",
+  "description": "单台 PCS 协议点表。断路器由 LC 直连储能单元模型，不在本表。"
+}

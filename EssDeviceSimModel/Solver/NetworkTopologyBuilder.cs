@@ -20,15 +20,16 @@ namespace EssSimulator.EssDeviceSimModel.Solver
             IReadOnlyList<PcsDevice>? externalPcsDevices = null,
             TransformerDevice? externalMainTransformer = null,
             IReadOnlyList<TransformerDevice>? externalUnitTransformers = null,
+            IReadOnlyList<IReadOnlyList<DualEarTransformerDevice>>? externalDualEars = null,
             LoadDevice? externalLoadDevice = null,
             MeterSimulator? externalPccMeter = null,
-            EnergyStorageSystem? legacyEss = null)
+            EnergyStorageSystem? legacyEss = null,
+            IReadOnlyList<int>? pcsPerUnit = null)
         {
             breakerCfg ??= new BreakerConfig();
             meterCfg ??= new MeterConfig();
 
-            int unitCount = Math.Max(1, simCfg.Devices?.Count ?? 1);
-            int channelCount = Math.Max(2, unitCount * 2);
+            int unitCount = simCfg.EffectiveEssUnitCount;
 
             var gridConfig = new GridConfig
             {
@@ -49,8 +50,9 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 Connection = ThreePhaseConnection.Star
             };
 
-            var topology = BuildTopology(unitCount, pccCfg, unitTransCfg);
-            var dcLinks = BuildDcLinks(unitCount);
+            var topology = BuildTopology(
+                unitCount, pccCfg, unitTransCfg, meterCfg.PccMeter.SourceBusId, mainTransCfg.Present);
+            var dcLinks = BuildDcLinks(unitCount, pcsPerUnit);
 
             var grid = new GridSimulator("grid", gridConfig);
             var mainBreaker = new BreakerSimulator("main_breaker", breakerCfg.Main);
@@ -61,20 +63,45 @@ namespace EssSimulator.EssDeviceSimModel.Solver
 
             var unitBreakers = new List<BreakerSimulator>();
             var unitTransformers = new List<TransformerDevice>();
+            var dualEars = new List<IReadOnlyList<DualEarTransformerDevice>>();
+            var splitAssignments = new List<SplitEarAssignment?>();
             var networkPcsDevices = new List<PcsDevice>();
             var bmsDevices = new List<BmsRackDevice>();
 
             for (int u = 0; u < unitCount; u++)
             {
                 unitBreakers.Add(new BreakerSimulator($"unit_breaker_u{u}", breakerCfg.Unit));
-                if (externalUnitTransformers != null && u < externalUnitTransformers.Count)
-                    unitTransformers.Add(externalUnitTransformers[u]);
-                else
-                    unitTransformers.Add(TransformerDeviceFactory.Create($"unit_transformer_u{u}", unitTransDeviceCfg));
+                var (baseIdx, pcsCount) = PcsUnitLayout.RangeOfUnit(pcsPerUnit, u);
+                var splitCfgs = u < simCfg.Devices.Count
+                    ? simCfg.Devices[u].ResolveSplitTransformers()
+                    : Array.Empty<SplitTransformerRuntimeConfig>();
+                IReadOnlyList<DualEarTransformerDevice> duals =
+                    externalDualEars != null && u < externalDualEars.Count
+                        ? externalDualEars[u]
+                        : CreateDualEars(u, splitCfgs);
 
-                for (int ch = 0; ch < 2; ch++)
+                if (duals.Count > 0)
                 {
-                    int channel = u * 2 + ch;
+                    dualEars.Add(duals);
+                    if (externalUnitTransformers != null && u < externalUnitTransformers.Count)
+                        unitTransformers.Add(externalUnitTransformers[u]);
+                    else
+                        unitTransformers.Add(duals[0].Through);
+                    splitAssignments.Add(ToSplitAssignment(splitCfgs, baseIdx, pcsCount));
+                }
+                else
+                {
+                    dualEars.Add(Array.Empty<DualEarTransformerDevice>());
+                    splitAssignments.Add(null);
+                    if (externalUnitTransformers != null && u < externalUnitTransformers.Count)
+                        unitTransformers.Add(externalUnitTransformers[u]);
+                    else
+                        unitTransformers.Add(TransformerDeviceFactory.Create($"unit_transformer_u{u}", unitTransDeviceCfg));
+                }
+
+                for (int ch = 0; ch < pcsCount; ch++)
+                {
+                    int channel = baseIdx + ch;
                     if (externalPcsDevices != null && channel < externalPcsDevices.Count)
                         networkPcsDevices.Add(externalPcsDevices[channel]);
                     else
@@ -98,21 +125,26 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 PccMeter = meter,
                 UnitBreakers = unitBreakers,
                 UnitTransformers = unitTransformers,
+                DualEarTransformers = dualEars,
+                SplitEarAssignments = splitAssignments,
                 PcsDevices = networkPcsDevices,
                 BmsDevices = bmsDevices,
                 DcLinks = dcLinks,
+                PcsPerUnit = pcsPerUnit ?? Array.Empty<int>(),
                 PccLineVoltageV = pccCfg.NominalLineVoltage,
-                StationBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage
+                StationBus35LineVoltageV = pccCfg.StationBusNominalLineVoltage,
+                HasMainTransformer = mainTransCfg.Present
             };
 
-            network.Solver = new NetworkSolver(network, pccCfg, pcsCfg, legacyEss);
             return network;
         }
 
         private static NetworkTopology BuildTopology(
             int unitCount,
             PccConfig pccCfg,
-            UnitTransformerConfig unitTransCfg)
+            UnitTransformerConfig unitTransCfg,
+            string? pccMeterSourceBusId,
+            bool hasMainTransformer)
         {
             var config = new ElectricalTopologyConfig
             {
@@ -123,23 +155,23 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 {
                     new BusDefinition
                     {
-                        Id = "BUS_GRID",
+                        Id = RuntimeBusIds.Grid,
                         NominalLineVoltageV = pccCfg.NominalLineVoltage,
                         Connection = ThreePhaseConnection.Star,
-                        Description = "220kV PCC"
+                        Description = "PCC grid"
                     },
                     new BusDefinition
                     {
-                        Id = "BUS_AFTER_MAIN_BRK",
+                        Id = RuntimeBusIds.AfterMainBreaker,
                         NominalLineVoltageV = pccCfg.NominalLineVoltage,
                         Connection = ThreePhaseConnection.Star
                     },
                     new BusDefinition
                     {
-                        Id = "BUS_35",
+                        Id = RuntimeBusIds.Station35,
                         NominalLineVoltageV = pccCfg.StationBusNominalLineVoltage,
                         Connection = ThreePhaseConnection.Star,
-                        Description = "35kV station bus"
+                        Description = "station bus"
                     }
                 },
                 SeriesLinks =
@@ -149,16 +181,10 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                         LinkId = "L_MAIN_BRK",
                         DeviceId = "main_breaker",
                         DeviceKind = ElectricalDeviceKind.Breaker,
-                        UpstreamBusId = "BUS_GRID",
-                        DownstreamBusId = "BUS_AFTER_MAIN_BRK"
-                    },
-                    new SeriesLinkDefinition
-                    {
-                        LinkId = "L_MAIN_XFMR",
-                        DeviceId = "main_transformer",
-                        DeviceKind = ElectricalDeviceKind.Transformer,
-                        UpstreamBusId = "BUS_AFTER_MAIN_BRK",
-                        DownstreamBusId = "BUS_35"
+                        UpstreamBusId = RuntimeBusIds.Grid,
+                        DownstreamBusId = hasMainTransformer
+                            ? RuntimeBusIds.AfterMainBreaker
+                            : RuntimeBusIds.Station35
                     }
                 },
                 MeasurementTaps =
@@ -166,11 +192,23 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                     new MeasurementTapDefinition
                     {
                         MeterDeviceId = "pcc_meter",
-                        SourceDeviceId = "main_transformer",
-                        SourcePortId = "primary"
+                        SourceDeviceId = pccMeterSourceBusId ?? RuntimeBusIds.AfterMainBreaker,
+                        SourcePortId = "bus"
                     }
                 }
             };
+
+            if (hasMainTransformer)
+            {
+                config.SeriesLinks.Add(new SeriesLinkDefinition
+                {
+                    LinkId = "L_MAIN_XFMR",
+                    DeviceId = "main_transformer",
+                    DeviceKind = ElectricalDeviceKind.Transformer,
+                    UpstreamBusId = RuntimeBusIds.AfterMainBreaker,
+                    DownstreamBusId = RuntimeBusIds.Station35
+                });
+            }
 
             for (int u = 0; u < unitCount; u++)
             {
@@ -211,12 +249,13 @@ namespace EssSimulator.EssDeviceSimModel.Solver
             return ElectricalTopologyFactory.FromConfig(config);
         }
 
-        private static List<DcLink> BuildDcLinks(int unitCount)
+        private static List<DcLink> BuildDcLinks(int unitCount, IReadOnlyList<int>? pcsPerUnit)
         {
             var links = new List<DcLink>();
             for (int u = 0; u < unitCount; u++)
             {
-                for (int ch = 0; ch < 2; ch++)
+                int pcsCount = PcsUnitLayout.CountOfUnit(pcsPerUnit, u);
+                for (int ch = 0; ch < pcsCount; ch++)
                 {
                     links.Add(new DcLink
                     {
@@ -230,6 +269,67 @@ namespace EssSimulator.EssDeviceSimModel.Solver
             }
 
             return links;
+        }
+
+        private static IReadOnlyList<DualEarTransformerDevice> CreateDualEars(
+            int unitIndex, IReadOnlyList<SplitTransformerRuntimeConfig> splitCfgs)
+        {
+            var list = new List<DualEarTransformerDevice>();
+            for (int t = 0; t < splitCfgs.Count; t++)
+            {
+                string id = t == 0 ? $"unit_transformer_u{unitIndex}" : $"unit_transformer_u{unitIndex}_t{t}";
+                list.Add(TransformerDeviceFactory.CreateDualEar(id, splitCfgs[t]));
+            }
+
+            return list;
+        }
+
+        private static SplitEarAssignment ToSplitAssignment(
+            IReadOnlyList<SplitTransformerRuntimeConfig> splitCfgs, int baseIdx, int pcsCount)
+        {
+            var taken = new HashSet<int>();
+            var transformers = new List<SplitXfmrEarChannels>();
+            foreach (var splitCfg in splitCfgs)
+            {
+                var left = new List<int>();
+                var right = new List<int>();
+                foreach (var i in splitCfg.RightEarPcsIndices)
+                {
+                    int global = baseIdx + i;
+                    if (i < 0 || i >= pcsCount || !taken.Add(global))
+                        continue;
+                    right.Add(global);
+                }
+
+                foreach (var i in splitCfg.LeftEarPcsIndices)
+                {
+                    int global = baseIdx + i;
+                    if (i < 0 || i >= pcsCount || !taken.Add(global))
+                        continue;
+                    left.Add(global);
+                }
+
+                transformers.Add(new SplitXfmrEarChannels { LeftChannels = left, RightChannels = right });
+            }
+
+            if (transformers.Count > 0)
+            {
+                var firstLeft = transformers[0].LeftChannels.ToList();
+                for (int ch = 0; ch < pcsCount; ch++)
+                {
+                    int global = baseIdx + ch;
+                    if (taken.Add(global))
+                        firstLeft.Add(global);
+                }
+
+                transformers[0] = new SplitXfmrEarChannels
+                {
+                    LeftChannels = firstLeft,
+                    RightChannels = transformers[0].RightChannels
+                };
+            }
+
+            return new SplitEarAssignment { Transformers = transformers };
         }
     }
 }

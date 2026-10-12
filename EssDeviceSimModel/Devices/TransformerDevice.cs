@@ -82,7 +82,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 secIn.ReactivePowerKvar,
                 context.SimulationTime,
                 step,
-                applyReactiveVoltageShift: false);
+                applyReactiveVoltageShift: true);
 
             PublishPorts(priIn.FrequencyHz, secIn, context);
         }
@@ -110,6 +110,15 @@ namespace EssSimulator.EssDeviceSimModel.Devices
 
         public void OverrideSecondaryVoltage(double secondaryLineVoltageV) =>
             _currentState.SecondaryVoltage = secondaryLineVoltageV;
+
+        /// <summary>主断分闸且无反送时，状态与端口一并清零，避免界面读到上一拍并网电压。</summary>
+        public void WriteDeenergizedPorts()
+        {
+            var emptyPri = new AcInternalQuantities { Connection = _config.PrimaryConnection };
+            var emptySec = new AcInternalQuantities { Connection = _config.SecondaryConnection };
+            AcPortHelper.WriteAcOutput(Primary, emptyPri);
+            AcPortHelper.WriteAcOutput(Secondary, emptySec);
+        }
 
         public void RefreshIslandReverseExcitation(
             double stationBus35LineVoltageV,
@@ -180,8 +189,8 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 _prevPrimaryVoltagePu = vPuNow;
             }
 
-            double ratedSecondaryCurrent = _config.RatedPowerKva * 1000
-                / (_config.SecondaryNominalLineVoltageV * Math.Sqrt(3));
+            double ratedSecondaryCurrent = RatedLineCurrent(
+                _config.RatedPowerKva, _config.SecondaryNominalLineVoltageV);
 
             double netVoltageFactor = 1.0;
             if (applyReactiveVoltageShift)
@@ -195,10 +204,14 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 netVoltageFactor = 1 + reactiveShiftPu;
             }
 
-            _currentState.SecondaryVoltage = primaryVoltage / turnsRatio * netVoltageFactor;
+            double secondaryVoltage = DivideByTurns(primaryVoltage, turnsRatio) * netVoltageFactor;
+            _currentState.SecondaryVoltage = double.IsFinite(secondaryVoltage) ? secondaryVoltage : 0;
 
-            double ratedPrimaryCurrent = _config.RatedPowerKva * 1000 / (_config.PrimaryNominalLineVoltageV * Math.Sqrt(3));
-            double vRatio = _config.PrimaryNominalLineVoltageV > 0
+            double ratedPrimaryCurrent = RatedLineCurrent(
+                _config.RatedPowerKva, _config.PrimaryNominalLineVoltageV);
+            double vRatio = double.IsFinite(_config.PrimaryNominalLineVoltageV)
+                && _config.PrimaryNominalLineVoltageV > 1e-9
+                && double.IsFinite(primaryVoltage)
                 ? primaryVoltage / _config.PrimaryNominalLineVoltageV
                 : 0.0;
             double noLoadPrimaryA = (_config.NoLoadCurrentPercent / 100.0) * ratedPrimaryCurrent * Math.Abs(vRatio);
@@ -221,32 +234,52 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             double i2Q = i2Mag * sinPhi * signQ;
             double i2QTotal = i2Q + magnetizingSecondaryA;
 
-            _currentState.SecondaryCurrent = loadSecondaryCurrent;
-            _currentState.LoadRatio = ratedSecondaryCurrent > 0
+            _currentState.SecondaryCurrent = double.IsFinite(loadSecondaryCurrent) ? loadSecondaryCurrent : 0;
+            double loadRatio = ratedSecondaryCurrent > 0 && double.IsFinite(loadSecondaryCurrent)
                 ? Math.Abs(loadSecondaryCurrent) / ratedSecondaryCurrent
                 : 0;
+            _currentState.LoadRatio = double.IsFinite(loadRatio) ? loadRatio : 0;
 
-            double i1W = i2W / turnsRatio;
-            double i1Q = i2QTotal / turnsRatio;
-            _currentState.PrimaryCurrent = Math.Sqrt(i1W * i1W + i1Q * i1Q);
+            double i1W = DivideByTurns(i2W, turnsRatio);
+            double i1Q = DivideByTurns(i2QTotal, turnsRatio);
+            double primaryCurrent = Math.Sqrt(i1W * i1W + i1Q * i1Q);
+            _currentState.PrimaryCurrent = double.IsFinite(primaryCurrent) ? primaryCurrent : 0;
             if (loadSecondaryCurrent < 0 && Math.Abs(i2W) >= 1e-6)
                 _currentState.PrimaryCurrent = -_currentState.PrimaryCurrent;
             else if (loadSecondaryCurrent < 0 && i2QTotal < 0)
                 _currentState.PrimaryCurrent = -Math.Abs(_currentState.PrimaryCurrent);
 
-            double noLoadLossW = _config.NoLoadLossKw * 1000.0;
-            double loadLossW = _config.LoadLossKw * 1000.0;
-            _currentState.IronLoss = noLoadLossW * Math.Pow(
-                primaryVoltage / Math.Max(_config.PrimaryNominalLineVoltageV, 1.0), 2);
-            _currentState.CopperLoss = loadLossW * Math.Pow(_currentState.LoadRatio, 2);
-            _currentState.TotalLoss = _currentState.IronLoss + _currentState.CopperLoss;
+            var loss = TransformerLoss.Compute(
+                _config.NoLoadLossKw * 1000.0,
+                _config.LoadLossKw * 1000.0,
+                primaryVoltage,
+                _config.PrimaryNominalLineVoltageV,
+                _currentState.LoadRatio);
+            _currentState.IronLoss = loss.IronLossW;
+            _currentState.CopperLoss = loss.CopperLossW;
+            _currentState.TotalLoss = loss.TotalLossW;
 
             double outputPower = Math.Sqrt(3.0) * _currentState.SecondaryVoltage * loadSecondaryCurrent * powerFactor;
             double pAbs = Math.Abs(outputPower);
-            _currentState.Efficiency = (pAbs + _currentState.TotalLoss) > 0
+            double efficiency = (pAbs + _currentState.TotalLoss) > 0
                 ? pAbs / (pAbs + _currentState.TotalLoss)
                 : 0;
-            _currentState.Power = outputPower;
+            _currentState.Efficiency = double.IsFinite(efficiency) ? efficiency : 0;
+            _currentState.Power = double.IsFinite(outputPower) ? outputPower : 0;
+        }
+
+        private static double RatedLineCurrent(double ratedKva, double nominalVoltageV)
+        {
+            if (!double.IsFinite(ratedKva) || !double.IsFinite(nominalVoltageV) || nominalVoltageV <= 1e-9)
+                return 0;
+            return ratedKva * 1000.0 / (nominalVoltageV * Math.Sqrt(3));
+        }
+
+        private static double DivideByTurns(double value, double turnsRatio)
+        {
+            if (!double.IsFinite(value) || !double.IsFinite(turnsRatio) || Math.Abs(turnsRatio) <= 1e-9)
+                return 0;
+            return value / turnsRatio;
         }
 
         /// <summary>

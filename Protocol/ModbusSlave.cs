@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using log4net;
 using NModbus.Data;
 using System.Threading;
+using EssSimulator.Protocol.Modbus;
 
 namespace EssSimulator
 {
@@ -28,31 +29,42 @@ namespace EssSimulator
         #region ReadOnly
         protected readonly MapEntry[]? rackPointMap;
         protected readonly MapEntry[] pointMap;
-        protected readonly CommunicatorBase communicator;
+        protected readonly CommunicatorBase? communicator;
         protected readonly DeviceInfoDto deviceInfoDto;
         #endregion
 
         protected IModbusSlaveNetwork? modbusSlaveNetwork;
         private Dictionary<int, int> CtrlContinuerAddressGroup; // function code -> 6
         private Dictionary<int, int>? CtrlContinuerAddressGroupForRack; // function code -> 6
+        private readonly HashSet<int> _bankTelemetryOwnedHolding;
+        private readonly HashSet<int> _rackTelemetryOwnedHolding;
+        private readonly Dictionary<(byte SlaveId, int Address), ushort> _telemetryHolding = new();
+        private readonly Dictionary<(byte SlaveId, string Param), byte[]> _controlLatch = new();
+        private readonly object _splitGate = new();
+        private int _telemetryGeneration;
         private int _suppressWriteNotifyDepth;
         ILog log = LogManager.GetLogger(typeof(ModbusSlave));
 
         /// <summary>外部 Modbus 主站写入控制区（FC5/FC6/FC16）后触发，slaveId 为 NModbus 从站号。</summary>
         public event Action<byte>? ExternalControlWrite;
-        public ModbusSlave(DeviceInfoDto deviceInfoDto, List<MapEntry[]> pointMaps, CommunicatorBase communicator, int rackCount = 0)
+        public ModbusSlave(DeviceInfoDto deviceInfoDto, List<MapEntry[]> pointMaps, CommunicatorBase? communicator = null, int rackCount = 0)
         {
             this.communicator = communicator;
             this.deviceInfoDto = deviceInfoDto;
 
             pointMap = pointMaps[0];
             CtrlContinuerAddressGroup = CalcContinuerAddress(pointMap);
+            _bankTelemetryOwnedHolding = TelemetryOwnedHolding(pointMap);
             if (rackCount > 0)
             {
                 rackPointMap = pointMaps[1];
                 CtrlContinuerAddressGroupForRack = CalcContinuerAddress(rackPointMap);
+                _rackTelemetryOwnedHolding = TelemetryOwnedHolding(rackPointMap);
             }
-            
+            else
+            {
+                _rackTelemetryOwnedHolding = new HashSet<int>();
+            }
         }
 
         private Dictionary<int, int> CalcContinuerAddress(MapEntry[] pointMap)
@@ -109,6 +121,8 @@ namespace EssSimulator
 
         public virtual bool GetCommunicatorState()
         {
+            if (communicator == null)
+                return false;
             return communicator.GetCommunicatorStatus() != 0;
         }
 
@@ -149,9 +163,9 @@ namespace EssSimulator
         // 优化读取方法，只读取外部能够修改的部分，也就是function code为3的
         public Dictionary<string, object>? Read(byte slaveId = 1)
         {
-            // 如果slaveid为1，则读取的是pointMap，否则读取rackPointMap
-            var pointMapToUse = slaveId == 1 ? pointMap : rackPointMap;
-            var ctrlContinuerAddressGroup = slaveId == 1 ? CtrlContinuerAddressGroup : CtrlContinuerAddressGroupForRack;
+            // 传入的从站号与 bank 从站号一致时读 pointMap，否则读 rackPointMap
+            var pointMapToUse = slaveId == deviceInfoDto.slaveId ? pointMap : rackPointMap;
+            var ctrlContinuerAddressGroup = slaveId == deviceInfoDto.slaveId ? CtrlContinuerAddressGroup : CtrlContinuerAddressGroupForRack;
 
             if (pointMapToUse == null || ctrlContinuerAddressGroup == null)
             {
@@ -177,6 +191,11 @@ namespace EssSimulator
 
                         string? paramName = entry.ParamName;
                         if (paramName == null) continue;
+                        if (TryCopyControlLatch(slaveId, paramName, out var latched))
+                        {
+                            propertyDataGroup[paramName] = latched;
+                            continue;
+                        }
                         if (propertyDataGroup.TryGetValue(paramName, out var existing))
                         {
                             var propertyData = (existing as byte[])!.ToList();
@@ -226,25 +245,26 @@ namespace EssSimulator
             }
             var entry = pointMapToUse.Where(p => p.ParamName == paramName).FirstOrDefault();
             if (entry == null) return null;
+            if (TryCopyControlLatch(deviceInfoDto.slaveId, paramName, out var latched))
+                return latched;
             // 预筛功能码，避免内层重复 LINQ 分配
             ushort num = (ushort)(entry.Size / ADDRESS_LENGTH);
             if (num == 0) num = 1;
-            List<byte[]> data = ReadFunc((ushort)entry.Address, num, entry.FunctionCode, 1);
+            List<byte[]> data = ReadFunc((ushort)entry.Address, num, entry.FunctionCode, deviceInfoDto.slaveId);
             if (data == null || data.Count == 0) return Array.Empty<byte>();
             return data.SelectMany(x => x).ToArray();
         }
 
         public bool Write(Dictionary<string, object> data, byte slaveId = 1, bool applyScale = true)
         {
-            // 如果slaveid为1，则写入的是pointMap，否则写入rackPointMap
-            var pointMapToUse = slaveId == 1 ? pointMap : rackPointMap;
+            // 传入的从站号与 bank 从站号一致时写 pointMap，否则写 rackPointMap
+            var pointMapToUse = slaveId == deviceInfoDto.slaveId ? pointMap : rackPointMap;
             if (pointMapToUse == null)
             {
                 log.Error("Modbus Slave 写入数据失败，点表为空");
                 return false;
             }
             // 完成slave的自我数据写入
-            object actualValue = 0;
             byte[] actualValArrary;
             foreach (var item in data)
             {
@@ -267,96 +287,210 @@ namespace EssSimulator
                     continue;
                 }
 
-                string? typeofPoint = null;
-                if (pm.First().Type == "int32")
+                try
                 {
-                    typeofPoint = "System.Int32";
+                    actualValArrary = ModbusPointCodec.Encode(item.Value, pm.First(), applyScale);
                 }
-                else if (pm.First().Type == "u32")
+                catch (Exception ex)
                 {
-                    typeofPoint = "System.UInt32";
+                    log.Warn($"Encode failed for {pm.First().ParamName}: {ex}");
+                    continue;
                 }
-                else if (pm.First().Type == "u16")
-                {
-                    typeofPoint = "System.UInt16";
-                }
-                else if (pm.First().Type == "int16")
-                {
-                    typeofPoint = "System.Int16";
-                }
-                else if (pm.First().Type == "bool")
-                {
-                    typeofPoint = "System.Boolean";
-                }
-                if (typeofPoint == null)
-                {
-                    throw new Exception("数据类型未NULL");
-                }
-
-                actualValue = item.Value;
-
-                object valueToConvert = actualValue;
-                if (applyScale)
-                {
-                    // 仿真 → Modbus 反馈：工程值 × Scale → 原始寄存器值
-                    var scale = pm.First().Scale;
-                    try
-                    {
-                        var d = Convert.ToSingle(actualValue) * scale;
-                        if (typeofPoint == "System.Int16")
-                            valueToConvert = Convert.ToInt16(Math.Round(d));
-                        else if (typeofPoint == "System.UInt16")
-                            valueToConvert = Convert.ToUInt16(Math.Round(d));
-                        else if (typeofPoint == "System.Int32")
-                            valueToConvert = Convert.ToInt32(Math.Round(d));
-                        else if (typeofPoint == "System.UInt32")
-                            valueToConvert = Convert.ToUInt32(Math.Round(d));
-                        else
-                            valueToConvert = d;
-                    }
-                    catch (Exception ex)
-                    {
-                        log.Warn($"Scale apply failed for {pm.First().ParamName}: {ex}");
-                        valueToConvert = actualValue;
-                    }
-                }
-                else
-                {
-                    // dpc / 外部 imperative：已是原始寄存器值，不再乘 Scale
-                    try
-                    {
-                        if (typeofPoint == "System.Int16")
-                            valueToConvert = Convert.ToInt16(Math.Round(Convert.ToDouble(actualValue)));
-                        else if (typeofPoint == "System.UInt16")
-                            valueToConvert = Convert.ToUInt16(Math.Round(Convert.ToDouble(actualValue)));
-                        else if (typeofPoint == "System.Int32")
-                            valueToConvert = Convert.ToInt32(Math.Round(Convert.ToDouble(actualValue)));
-                        else if (typeofPoint == "System.UInt32")
-                            valueToConvert = Convert.ToUInt32(Math.Round(Convert.ToDouble(actualValue)));
-                    }
-                    catch (Exception ex)
-                    {
-                        log.Warn($"Raw register coerce failed for {pm.First().ParamName}: {ex}");
-                    }
-                }
-
-                actualValArrary = Common.DataUnTranslation(valueToConvert, typeofPoint);
-                //3、根据点表的定义字节顺序，排列字节数组
-                // 增加校验逻辑，当数组长度为4的时候才需要排序
-                byte[] itemdata;
-                if (actualValArrary.Length == 4)
-                {
-                    string dataOrder = "CDAB";
-                    itemdata = Common.ConverByteOrder(actualValArrary, dataOrder);
-                }
-                else
-                {
-                    string dataOrder = "AB";
-                    itemdata = Common.ConverByteOrder(actualValArrary, dataOrder);
-                }
-                WriteFunc(slaveId, (ushort)currentAddress, itemdata, itemdata.Length, functionCode);
+                WriteFunc(slaveId, (ushort)currentAddress, actualValArrary, actualValArrary.Length, functionCode);
+                PreserveRegisterSplit(slaveId, pm.First(), actualValArrary);
             }
             return true;
+        }
+
+        /// <summary>
+        /// 外部主站写入保持寄存器后调用：重叠地址上的控制值进入锁存，遥测字立刻写回，
+        /// 使功能码 03 继续返回遥测，控制管道读到的仍是本次设定。
+        /// </summary>
+        internal void CaptureExternalHoldingWrite(byte slaveId, ushort startAddress, int pointCount)
+        {
+            var map = slaveId == deviceInfoDto.slaveId ? pointMap : rackPointMap;
+            if (map == null || modbusSlaveNetwork == null || pointCount <= 0)
+                return;
+            if (!SpanOverlapsOwned(slaveId, startAddress, pointCount))
+                return;
+
+            var nmodbus = modbusSlaveNetwork.GetSlave(slaveId);
+            if (nmodbus == null)
+                return;
+
+            int writeStart = startAddress;
+            int writeEnd = startAddress + pointCount;
+            foreach (var entry in map)
+            {
+                if (entry.FunctionCode is not (CTRLFUNCTIONCODE or CTRLBATCHFUNCTIONCODE)
+                    || string.IsNullOrWhiteSpace(entry.ParamName))
+                    continue;
+
+                int length = Math.Max(1, entry.Size / ADDRESS_LENGTH);
+                int entryStart = entry.Address;
+                int entryEnd = entryStart + length;
+                int overlapStart = Math.Max(entryStart, writeStart);
+                int overlapEnd = Math.Min(entryEnd, writeEnd);
+                if (overlapStart >= overlapEnd || !SpanOverlapsOwned(slaveId, entryStart, length))
+                    continue;
+
+                byte[] image;
+                lock (_splitGate)
+                {
+                    image = _controlLatch.TryGetValue((slaveId, entry.ParamName), out var existing)
+                        ? (byte[])existing.Clone()
+                        : new byte[length * 2];
+                }
+
+                var regs = nmodbus.DataStore.HoldingRegisters.ReadPoints(
+                    (ushort)overlapStart, (ushort)(overlapEnd - overlapStart));
+                int offset = (overlapStart - entryStart) * 2;
+                for (int i = 0; i < regs.Length && offset + (i + 1) * 2 <= image.Length; i++)
+                {
+                    var raw = BitConverter.GetBytes(regs[i]);
+                    Buffer.BlockCopy(raw, 0, image, offset + i * 2, 2);
+                }
+
+                lock (_splitGate)
+                    _controlLatch[(slaveId, entry.ParamName)] = image;
+            }
+
+            using (SuppressWriteNotifications())
+                RestoreOwned(slaveId, writeStart, pointCount);
+        }
+
+        private static HashSet<int> TelemetryOwnedHolding(MapEntry[]? map)
+        {
+            var owned = new HashSet<int>();
+            if (map == null)
+                return owned;
+
+            var control = new List<(int Start, int End)>();
+            var telemetry = new List<(int Start, int End)>();
+            foreach (var entry in map)
+            {
+                int length = Math.Max(1, entry.Size / 16);
+                var span = (entry.Address, entry.Address + length);
+                if (entry.FunctionCode is 6 or 16)
+                    control.Add(span);
+                else if (entry.FunctionCode == 3)
+                    telemetry.Add(span);
+            }
+
+            foreach (var data in telemetry)
+            {
+                foreach (var command in control)
+                {
+                    int start = Math.Max(data.Start, command.Start);
+                    int end = Math.Min(data.End, command.End);
+                    for (int address = start; address < end; address++)
+                        owned.Add(address);
+                }
+            }
+
+            return owned;
+        }
+
+        private HashSet<int> OwnedHolding(byte slaveId) =>
+            slaveId == deviceInfoDto.slaveId ? _bankTelemetryOwnedHolding : _rackTelemetryOwnedHolding;
+
+        private bool SpanOverlapsOwned(byte slaveId, int start, int length)
+        {
+            var owned = OwnedHolding(slaveId);
+            if (owned.Count == 0 || length <= 0)
+                return false;
+            for (int address = start; address < start + length; address++)
+            {
+                if (owned.Contains(address))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool TryCopyControlLatch(byte slaveId, string paramName, out byte[] raw)
+        {
+            lock (_splitGate)
+            {
+                if (_controlLatch.TryGetValue((slaveId, paramName), out var latched))
+                {
+                    raw = (byte[])latched.Clone();
+                    return true;
+                }
+            }
+
+            raw = Array.Empty<byte>();
+            return false;
+        }
+
+        private void PreserveRegisterSplit(byte slaveId, MapEntry entry, byte[] encoded)
+        {
+            int length = Math.Max(1, entry.Size / ADDRESS_LENGTH);
+            if (entry.FunctionCode == 3)
+            {
+                RememberTelemetry(slaveId, entry.Address, encoded);
+                return;
+            }
+
+            if (entry.FunctionCode is not (CTRLFUNCTIONCODE or CTRLBATCHFUNCTIONCODE)
+                || string.IsNullOrWhiteSpace(entry.ParamName)
+                || !SpanOverlapsOwned(slaveId, entry.Address, length))
+                return;
+
+            lock (_splitGate)
+                _controlLatch[(slaveId, entry.ParamName)] = (byte[])encoded.Clone();
+
+            using (SuppressWriteNotifications())
+                RestoreOwned(slaveId, entry.Address, length);
+        }
+
+        private void RememberTelemetry(byte slaveId, int start, byte[] encoded)
+        {
+            if (encoded.Length < 2 || !SpanOverlapsOwned(slaveId, start, encoded.Length / 2))
+                return;
+
+            var words = Common.ConvertBytesToUShorts(encoded);
+            lock (_splitGate)
+            {
+                var owned = OwnedHolding(slaveId);
+                _telemetryGeneration++;
+                for (int i = 0; i < words.Length; i++)
+                {
+                    int address = start + i;
+                    if (owned.Contains(address))
+                        _telemetryHolding[(slaveId, address)] = words[i];
+                }
+            }
+        }
+
+        private void RestoreOwned(byte slaveId, int start, int length)
+        {
+            var owned = OwnedHolding(slaveId);
+            for (int i = 0; i < length; i++)
+            {
+                int address = start + i;
+                if (!owned.Contains(address))
+                    continue;
+
+                for (int attempt = 0; attempt < 4; attempt++)
+                {
+                    int generation;
+                    ushort word;
+                    lock (_splitGate)
+                    {
+                        generation = _telemetryGeneration;
+                        _telemetryHolding.TryGetValue((slaveId, address), out word);
+                    }
+
+                    var bytes = BitConverter.GetBytes(word);
+                    WriteFunc(slaveId, (ushort)address, bytes, bytes.Length, 3);
+                    lock (_splitGate)
+                    {
+                        if (_telemetryGeneration == generation)
+                            break;
+                    }
+                }
+            }
         }
 
         private void WriteFunc(byte slaveId, ushort address, byte[] data, int num, int functionCode)

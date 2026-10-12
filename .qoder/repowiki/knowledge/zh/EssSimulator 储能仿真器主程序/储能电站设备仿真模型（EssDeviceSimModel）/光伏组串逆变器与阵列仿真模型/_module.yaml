@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model/pv_domain
+title: 光伏组串逆变器与阵列仿真模型
+scope:
+    - EssDeviceSimModel/Pv/
+source_files: []
+depends_on: []
+related_to: []

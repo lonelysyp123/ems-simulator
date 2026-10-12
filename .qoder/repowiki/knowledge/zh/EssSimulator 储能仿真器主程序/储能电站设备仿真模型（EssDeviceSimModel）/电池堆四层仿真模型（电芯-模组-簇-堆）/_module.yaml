@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: device_sim_model/battery_domain
+title: 电池堆四层仿真模型（电芯-模组-簇-堆）
+scope:
+    - EssDeviceSimModel/Battery/
+source_files: []
+depends_on: []
+related_to: []

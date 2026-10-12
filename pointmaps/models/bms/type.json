@@ -1,0 +1,6 @@
+{
+  "id": "bms",
+  "name": "BMS",
+  "description": "电池管理系统（bank + rack 点表）",
+  "files": [ "bms_bank.csv", "bms_rack.csv" ]
+}

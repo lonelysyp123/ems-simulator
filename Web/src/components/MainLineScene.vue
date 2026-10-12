@@ -48,7 +48,7 @@
     <div class="mainline-legend">
       <span><i class="legend-swatch legend-closed" />合闸通电</span>
       <span><i class="legend-swatch legend-open" />分闸/跳闸</span>
-      <span><i class="legend-swatch legend-discharge" />放电流向电网</span>
+      <span><i class="legend-swatch legend-discharge" />放电流向电网 / 光伏送电</span>
       <span><i class="legend-swatch legend-charge" />充电流向电池</span>
       <span><i class="legend-swatch legend-idle" />待机通电</span>
       <span>数据实时推送</span>
@@ -73,7 +73,14 @@ const emit = defineEmits([
   'pcs-set-reactive',
   'bms-power-on',
   'bms-power-off',
-  'bms-fault-clear'
+  'bms-fault-clear',
+  'pv-start',
+  'pv-stop',
+  'pv-set-power',
+  'pv-set-reactive',
+  'pv-set-temp',
+  'pv-set-angle',
+  'pv-set-albedo'
 ])
 
 const viewportRef = ref(null)
@@ -90,7 +97,7 @@ const toolbarHint = computed(() => {
     const kind = key.startsWith('bms-') ? 'BMS 舱' : 'PCS 柜'
     return `设备详情（${kind}）· 左键旋转 · 滚轮缩放 · Esc / 返回全站`
   }
-  return '左键旋转 · 滚轮缩放 · 右键平移 · 单击断路器 · 双击 BMS 进入设备详情'
+  return '左键旋转 · 滚轮缩放 · 右键平移 · 单击设备打开面板 · 双击 BMS 进入详情'
 })
 
 const blackStartChips = computed(() => {
@@ -137,6 +144,27 @@ function onEvent(name, payload) {
       break
     case 'bms-fault-clear':
       emit('bms-fault-clear', payload)
+      break
+    case 'pv-start':
+      emit('pv-start', payload)
+      break
+    case 'pv-stop':
+      emit('pv-stop', payload)
+      break
+    case 'pv-set-power':
+      emit('pv-set-power', payload || {})
+      break
+    case 'pv-set-reactive':
+      emit('pv-set-reactive', payload || {})
+      break
+    case 'pv-set-temp':
+      emit('pv-set-temp', payload || {})
+      break
+    case 'pv-set-angle':
+      emit('pv-set-angle', payload || {})
+      break
+    case 'pv-set-albedo':
+      emit('pv-set-albedo', payload || {})
       break
     case 'view-mode':
       viewMode.value = payload?.mode || 'station'
@@ -355,16 +383,13 @@ onBeforeUnmount(() => {
   line-height: 1.35;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   white-space: nowrap;
-  pointer-events: auto;
+  /* 标签不拦截鼠标，缩放/旋转/点选直接穿透到画布 */
+  pointer-events: none;
   opacity: 0.45;
   transition: opacity 0.18s ease;
   padding: 2px 6px;
   border-radius: 4px;
   background: rgba(20, 28, 38, 0.35);
-}
-.dt-float-label:hover {
-  opacity: 0.98;
-  background: rgba(20, 28, 38, 0.72);
 }
 .dt-float-label.dt-unit-title {
   font-size: 13px;

@@ -24,7 +24,7 @@ namespace EssSimulator.Configuration
         /// <summary>是否开放主接线 3D 视图。社区版强制为 false。</summary>
         public bool AllowMainline3d { get; set; } = true;
 
-        /// <summary>是否开放组态编辑 / 工程管理 / 系统配置（工程模式）。社区版强制为 false。</summary>
+        /// <summary>是否开放组态编辑 / 工程配置（工程模式与点表选型）。社区版强制为 false。</summary>
         public bool AllowTopologyEditor { get; set; } = true;
 
         public bool IsCommunity =>

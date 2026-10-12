@@ -31,6 +31,7 @@ namespace EssSimulator.Web
         public const string Logs = "logs";
         public const string Alert = "alert";
         public const string CommandProgress = "cmdprogress";
+        public const string Iec61850 = "iec61850";
     }
 
     /// <summary>SignalR 推送方法名常量。</summary>
@@ -43,6 +44,7 @@ namespace EssSimulator.Web
         public const string ReceiveLog = "ReceiveLog";
         public const string ReceiveAlert = "ReceiveAlert";
         public const string ReceiveCommandProgress = "ReceiveCommandProgress";
+        public const string ReceiveIec61850Message = "ReceiveIec61850Message";
     }
 
     /// <summary>日志推送 DTO。</summary>

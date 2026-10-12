@@ -4,7 +4,8 @@ export const RealtimeMethods = {
   ReceiveCells: 'ReceiveCells',
   ReceiveConnections: 'ReceiveConnections',
   ReceiveAlert: 'ReceiveAlert',
-  ReceiveCommandProgress: 'ReceiveCommandProgress'
+  ReceiveCommandProgress: 'ReceiveCommandProgress',
+  ReceiveIec61850Message: 'ReceiveIec61850Message'
 }
 
 export const RealtimeChannels = {
@@ -13,5 +14,6 @@ export const RealtimeChannels = {
   Cells: 'cells',
   Connections: 'connections',
   Alert: 'alert',
-  CommandProgress: 'cmdprogress'
+  CommandProgress: 'cmdprogress',
+  Iec61850: 'iec61850'
 }

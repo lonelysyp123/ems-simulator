@@ -3,8 +3,8 @@
     <div class="card">
       <p class="card-title">BMS 告警门限</p>
       <p class="hint">
-        编辑工程值后下发；内部转换为寄存器原始值（工程值 × Scale），经
-        <code>dpc simBmsN.rK.ycXXXX set &lt;raw&gt;</code> 写入簇控制管道。
+        编辑工程值后写入簇模型 <code>ClusterThresholds</code>；保护评估在设备模型层，与点表无关。
+        若当前 BMS 点表暴露了对应寄存器，会同步写入 Holding。
       </p>
       <el-space wrap :size="12">
         <el-select v-model="unitNumber" style="width:120px" @change="reload">
@@ -27,7 +27,7 @@
         <el-select v-model="categoryFilter" style="width:150px" clearable placeholder="类别" filterable>
           <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
         </el-select>
-        <el-input v-model="keyword" clearable placeholder="搜索点名/说明" style="width:200px" />
+        <el-input v-model="keyword" clearable placeholder="搜索属性/说明" style="width:200px" />
         <el-checkbox v-model="hideRecovery">隐藏恢复门限</el-checkbox>
         <el-button @click="reload" :loading="loading">刷新</el-button>
         <el-button type="primary" :loading="applying" :disabled="!dirtyRows.length" @click="applyDirty">
@@ -44,8 +44,8 @@
         {{ snap.device }} · 参考簇 r{{ snap.rackIndex }}（共 {{ snap.clusterCount }} 簇）
         <span class="meta">目标：{{ targetRackLabel }}</span>
       </p>
-      <el-table :data="filteredRows" size="small" border stripe max-height="640" row-key="paramName">
-        <el-table-column prop="paramName" label="点名" width="90" fixed />
+      <el-table :data="filteredRows" size="small" border stripe max-height="640" row-key="propertyName">
+        <el-table-column prop="propertyName" label="属性" width="220" fixed show-overflow-tooltip />
         <el-table-column prop="level" label="等级" width="72">
           <template #default="{ row }">
             <el-tag size="small" :type="levelTagType(row.level)">{{ levelLabel(row.level) }}</el-tag>
@@ -56,7 +56,9 @@
         <el-table-column label="单位" width="80">
           <template #default="{ row }">{{ row.unitHint || '—' }}</template>
         </el-table-column>
-        <el-table-column label="Scale" width="70" prop="scale" />
+        <el-table-column label="Scale" width="70">
+          <template #default="{ row }">{{ row.exposedOnProtocol && row.scale ? row.scale : '—' }}</template>
+        </el-table-column>
         <el-table-column label="当前工程值" width="110">
           <template #default="{ row }">
             {{ formatEng(row.engineeringValue) }}
@@ -65,7 +67,7 @@
         <el-table-column label="设定工程值" width="130">
           <template #default="{ row }">
             <el-input-number
-              v-model="draft[row.paramName]"
+              v-model="draft[row.propertyName]"
               :controls="false"
               :precision="precisionOf(row)"
               size="small"
@@ -80,7 +82,7 @@
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" :loading="applying === row.paramName" @click="applyOne(row)">
+            <el-button link type="primary" size="small" :loading="applying === row.propertyName" @click="applyOne(row)">
               下发
             </el-button>
           </template>
@@ -100,7 +102,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getConfig, getRackThresholds, postCommand } from '@/services/api.js'
+import { getConfig, getRackThresholds, postRackThresholds } from '@/services/api.js'
 
 const unitNumber = ref(1)
 const unitCount = ref(1)
@@ -117,9 +119,10 @@ const output = ref([])
 
 const clusterCount = computed(() => snap.value?.clusterCount || 1)
 
-const targetRackLabel = computed(() =>
-  rackMode.value === '*' ? `${snap.value?.device || 'simBms?'}.r*.…` : `${snap.value?.device || 'simBms?'}.r${rackMode.value}.…`
-)
+const targetRackLabel = computed(() => {
+  const device = snap.value?.device || `bms${unitNumber.value}`
+  return rackMode.value === '*' ? `${device} 全部簇` : `${device} 簇 r${rackMode.value}`
+})
 
 const categories = computed(() => {
   const set = new Set((snap.value?.points || []).map(p => p.category).filter(Boolean))
@@ -135,8 +138,9 @@ const filteredRows = computed(() => {
   if (kw) {
     rows = rows.filter(r =>
       (r.paramName || '').toLowerCase().includes(kw) ||
-      (r.description || '').toLowerCase().includes(kw) ||
-      (r.propertyName || '').toLowerCase().includes(kw)
+      (r.propertyName || '').toLowerCase().includes(kw) ||
+      (r.protocolParamName || '').toLowerCase().includes(kw) ||
+      (r.description || '').toLowerCase().includes(kw)
     )
   }
   return rows
@@ -144,7 +148,7 @@ const filteredRows = computed(() => {
 
 const dirtyRows = computed(() =>
   filteredRows.value.filter(r => {
-    const cur = draft[r.paramName]
+    const cur = draft[r.propertyName]
     if (cur == null || Number.isNaN(Number(cur))) return false
     if (r.engineeringValue == null) return true
     return Math.abs(Number(cur) - Number(r.engineeringValue)) > 1e-9
@@ -175,6 +179,9 @@ function formatEng(v) {
 
 function precisionOf(row) {
   if ((row.unitHint || '').includes('pu')) return 3
+  if (row.unitHint === '°C') return 1
+  if (row.unitHint === 'V' && (row.propertyName || '').includes('Cell')) return 3
+  if (row.unitHint === 'V') return 1
   if (row.scale >= 1000) return 3
   if (row.scale >= 100) return 2
   if (row.scale >= 10) return 1
@@ -182,16 +189,10 @@ function precisionOf(row) {
 }
 
 function rawOf(row) {
-  const eng = draft[row.paramName]
+  if (!row.exposedOnProtocol || !row.scale) return '—'
+  const eng = draft[row.propertyName]
   if (eng == null || Number.isNaN(Number(eng))) return '—'
-  const scale = row.scale > 0 ? row.scale : 1
-  return Math.round(Number(eng) * scale)
-}
-
-function buildDpc(row) {
-  const rackTok = rackMode.value === '*' ? 'r*' : `r${rackMode.value}`
-  const raw = rawOf(row)
-  return `dpc ${snap.value.device}.${rackTok}.${row.paramName} set ${raw}`
+  return Math.round(Number(eng) * row.scale)
 }
 
 function pushOut(text, ok = true) {
@@ -207,7 +208,7 @@ async function reload() {
     const data = await getRackThresholds(unitNumber.value, rackForRead)
     snap.value = data
     for (const p of data.points || []) {
-      draft[p.paramName] = p.engineeringValue != null ? Number(p.engineeringValue) : null
+      draft[p.propertyName] = p.engineeringValue != null ? Number(p.engineeringValue) : null
     }
   } catch (e) {
     ElMessage.error(e.message || String(e))
@@ -216,21 +217,15 @@ async function reload() {
   }
 }
 
-async function runDpc(cmd) {
-  pushOut(`> ${cmd}`)
-  const res = await postCommand(cmd)
-  const ok = !!res?.success
-  const msg = res?.message || (ok ? 'ok' : '失败')
-  pushOut(msg, ok)
-  return ok
-}
-
 async function applyRows(rows) {
   if (!rows.length) return
-  const cmds = rows.map(buildDpc)
+  const items = rows.map(row => ({
+    propertyName: row.propertyName,
+    engineeringValue: Number(draft[row.propertyName])
+  }))
   try {
     await ElMessageBox.confirm(
-      `将执行 ${cmds.length} 条 dpc 写入（目标 ${targetRackLabel.value}）。确认？\n\n示例：\n${cmds.slice(0, 3).join('\n')}${cmds.length > 3 ? '\n…' : ''}`,
+      `将写入 ${items.length} 条门限到模型（目标 ${targetRackLabel.value}）。确认？`,
       '确认下发门限',
       { type: 'warning', confirmButtonText: '下发', cancelButtonText: '取消' }
     )
@@ -239,34 +234,47 @@ async function applyRows(rows) {
   }
 
   applying.value = true
-  let okCount = 0
   try {
-    for (const row of rows) {
-      applying.value = row.paramName
-      const ok = await runDpc(buildDpc(row))
-      if (ok) okCount++
+    const res = await postRackThresholds(unitNumber.value, {
+      rack: rackMode.value,
+      items
+    })
+    const ok = !!res?.ok
+    for (const msg of res?.messages || []) pushOut(msg, ok)
+    for (const err of res?.errors || []) pushOut(err, false)
+    if (ok) {
+      ElMessage.success(`完成：写入 ${res.written} 条`)
+      await reload()
+    } else {
+      ElMessage.error(res?.errors?.[0] || '下发失败')
     }
-    ElMessage.success(`完成：成功 ${okCount} / ${rows.length}`)
-    await reload()
   } catch (e) {
     ElMessage.error(e.message || String(e))
+    pushOut(e.message || String(e), false)
   } finally {
     applying.value = false
   }
 }
 
 async function applyOne(row) {
-  applying.value = row.paramName
+  applying.value = row.propertyName
   try {
-    const ok = await runDpc(buildDpc(row))
+    const res = await postRackThresholds(unitNumber.value, {
+      rack: rackMode.value,
+      items: [{ propertyName: row.propertyName, engineeringValue: Number(draft[row.propertyName]) }]
+    })
+    const ok = !!res?.ok
+    for (const msg of res?.messages || []) pushOut(msg, ok)
+    for (const err of res?.errors || []) pushOut(err, false)
     if (ok) {
       ElMessage.success('已下发')
       await reload()
     } else {
-      ElMessage.error('下发失败')
+      ElMessage.error(res?.errors?.[0] || '下发失败')
     }
   } catch (e) {
     ElMessage.error(e.message || String(e))
+    pushOut(e.message || String(e), false)
   } finally {
     applying.value = false
   }

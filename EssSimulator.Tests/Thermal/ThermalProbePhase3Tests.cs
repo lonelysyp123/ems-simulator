@@ -30,6 +30,26 @@ public class ThermalProbeSamplerTests
 
 public class BmsThermalProbeMapperTests
 {
+    /// <summary>
+    /// common 版点表绝对路径。根目录 bms_bank.csv 可能随交付版本切换（如 LC 版不含空调/液冷点），
+    /// 本测试固定验证 pointmaps/models/bms/standard 版本（原 pointmaps/common），不能依赖复制到 bin 的运行时点表。
+    /// </summary>
+    private static string CommonBankCsvPath
+    {
+        get
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "EssSimulator.sln")))
+                    return Path.Combine(dir.FullName, "pointmaps", "models", "bms", "standard", "bms_bank.csv");
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException("找不到仓库根目录");
+        }
+    }
+
     [Fact]
     public void Apply_WritesDistinctProbeTempsToDto()
     {
@@ -77,7 +97,7 @@ public class BmsThermalProbeMapperTests
     [Fact]
     public void FromPointMap_BindsCabinetAndProbeTemps()
     {
-        var pointMap = new EssSimulator.Protocol.Modbus.ModbusPointMap("bms_bank.csv", "simBms1", clusterCount: 12);
+        var pointMap = new EssSimulator.Protocol.Modbus.ModbusPointMap(CommonBankCsvPath, "simBms1", clusterCount: 12);
         var catalog = EssSimulator.DataExchange.Catalog.PointCatalogLoader.FromPointMap(
             pointMap, "simBms1", new EssSimulator.DataExchange.Config.DataExchangeOptions());
 

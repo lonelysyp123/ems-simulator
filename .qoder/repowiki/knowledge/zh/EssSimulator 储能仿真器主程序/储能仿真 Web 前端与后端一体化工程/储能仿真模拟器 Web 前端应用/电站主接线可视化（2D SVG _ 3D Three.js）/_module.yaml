@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: web_frontend_backend/frontend_app/mainline_visualization
+title: 电站主接线可视化（2D SVG / 3D Three.js）
+scope:
+    - Web/src/views/MainLineView.vue
+    - Web/src/views/MainLine3dView.vue
+    - Web/src/components/mainline3d/
+    - Web/src/components/MainLineScene.vue
+    - Web/src/components/MainLineSvg.vue
+source_files: []
+depends_on: []
+related_to:
+    - path: web_frontend_backend/backend_runtime

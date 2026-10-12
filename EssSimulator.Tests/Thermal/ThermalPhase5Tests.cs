@@ -4,30 +4,6 @@ using EssSimulator.EssSimModelApi.BatteryManagementSystem;
 
 namespace EssSimulator.Tests.Thermal;
 
-public class TemperatureDeratingTests
-{
-    [Fact]
-    public void BelowStart_NoDerating()
-    {
-        var cfg = new ThermalFeedbackConfig { DerateStartCelsius = 40, DerateFullCelsius = 55, MinPowerFactor = 0.2 };
-        Assert.Equal(1.0, TemperatureDerating.ComputePowerFactor(35, cfg));
-    }
-
-    [Fact]
-    public void AtFull_MinFactor()
-    {
-        var cfg = new ThermalFeedbackConfig { DerateStartCelsius = 40, DerateFullCelsius = 55, MinPowerFactor = 0.2 };
-        Assert.Equal(0.2, TemperatureDerating.ComputePowerFactor(55, cfg), 3);
-    }
-
-    [Fact]
-    public void Midpoint_Linear()
-    {
-        var cfg = new ThermalFeedbackConfig { DerateStartCelsius = 40, DerateFullCelsius = 60, MinPowerFactor = 0.0 };
-        Assert.Equal(0.5, TemperatureDerating.ComputePowerFactor(50, cfg), 3);
-    }
-}
-
 public class HvacClosedLoopTests
 {
     [Fact]
@@ -117,34 +93,5 @@ public class ThermalAgingContextTests
 
         Assert.True(ThermalAgingContext.ArrheniusFactor(45) > 1.5);
         Assert.InRange(ThermalAgingContext.ArrheniusFactor(25), 0.99, 1.01);
-    }
-}
-
-public class BatteryStackThermalDeratingTests
-{
-    [Fact]
-    public void ThermalFactor_ScalesMaxChargePower()
-    {
-        var stack = new BatteryStack
-        {
-            ThermalPowerDeratingFactor = 1f
-        };
-        stack.Cluseter.Add(new BatteryCluster
-        {
-            Measurements =
-            {
-                SOC = 0.5f,
-                NominalEnergyKWh = 1000,
-                MaxCRate = 0.5f,
-                TotalVoltage = 1300f,
-                MaxCellTemp = 25f,
-                MinCellTemp = 25f,
-                MaxCellVoltage = 3.3f,
-                MinCellVoltage = 3.2f,
-            }
-        });
-        float full = stack.MaxChargePower!.Value;
-        stack.ThermalPowerDeratingFactor = 0.5f;
-        Assert.Equal(full * 0.5f, stack.MaxChargePower!.Value, 2);
     }
 }

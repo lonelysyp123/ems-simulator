@@ -3,6 +3,7 @@ using EssSimulator.DataExchange.Catalog;
 using EssSimulator.DataExchange.Config;
 using EssSimulator.DataExchange.Effects;
 using EssSimulator.DataExchange.Pipeline;
+using EssSimulator.DataExchange.Plugins;
 using EssSimulator.Protocol.Modbus;
 using log4net;
 
@@ -29,9 +30,11 @@ namespace EssSimulator.DataExchange
         private readonly RackControlPipeline? _rackControlPipeline;
         private readonly ControlFeedbackPipeline _feedbackPipeline;
         private readonly IModbusRegisterAdapter _modbusAdapter;
+        private readonly IProtocolPointStore _pointStore;
         private readonly ControlEffectRegistry _effects;
 
         private readonly object _controlGate = new();
+        private readonly ControlDrainCoalescer _controlDrain = new();
         private volatile bool _running;
         private bool _hadPreviousSession;
         private Thread? _telemetryThread;
@@ -55,15 +58,20 @@ namespace EssSimulator.DataExchange
             _clusterCount = clusterCount;
 
             _simulation = new ReflectionSimulationAdapter();
-            _modbusAdapter = new ModbusRegisterAdapter(slave, parser);
+            _pointStore = new ProtocolPointStore(new ModbusRegisterAdapter(slave, parser, deviceInfo));
+            _modbusAdapter = _pointStore;
 
             _effects = new ControlEffectRegistry();
+            var telemetryPlugins = new TelemetryPluginRegistry();
             string serverName = deviceInfo.name ?? string.Empty;
-            if (serverName.StartsWith("simEmu", StringComparison.OrdinalIgnoreCase))
+            if (IsEmuLikeDevice(serverName))
             {
+                // simLc（LC 系统级点表）与 simEmu 同构：控制点作用于首机组 EMU 虚拟模型，
+                // 插件/效果注册保持一致，联动链路相同。
                 _effects
                     .Register(new EmuPcsControlEffect(RefreshOperationStatusTelemetry))
                     .Register(new EmuUnitBreakerEffect());
+                telemetryPlugins.Register(new TrinaEmuFaultWordPlugin());
             }
             else if (serverName.StartsWith("simBms", StringComparison.OrdinalIgnoreCase))
             {
@@ -72,7 +80,7 @@ namespace EssSimulator.DataExchange
 
             bool logChanges = ShouldLogChanges(deviceInfo.name);
 
-            _telemetryPipeline = new TelemetryPipeline(catalog, _simulation, _modbusAdapter, _shadow);
+            _telemetryPipeline = new TelemetryPipeline(catalog, _simulation, _modbusAdapter, _shadow, telemetryPlugins);
             if (clusterCount > 0 && catalog.RackTelemetryPoints.Count > 0)
             {
                 _rackTelemetryPipeline = new RackTelemetryPipeline(
@@ -106,31 +114,34 @@ namespace EssSimulator.DataExchange
                 modbusSlave.ExternalControlWrite += OnExternalControlWrite;
         }
 
+        /// <summary>协议门面共用点影子（Modbus 与 IEC 61850）。</summary>
+        public IProtocolPointStore PointStore => _pointStore;
+
         private void OnExternalControlWrite(byte slaveId)
         {
             if (!_running)
                 return;
 
-            ThreadPool.UnsafeQueueUserWorkItem(_ =>
+            // bank slaveId == base；簇从站 = base + rackIndex + 1
+            if (_rackControlPipeline != null && slaveId > _deviceInfo.slaveId)
+                _controlDrain.SignalRack(slaveId - _deviceInfo.slaveId - 1, DrainSignaled);
+            else
+                _controlDrain.SignalBank(DrainSignaled);
+        }
+
+        private void DrainSignaled(bool bank, IReadOnlyList<int> racks)
+        {
+            try
             {
-                try
-                {
-                    // bank slaveId == base；簇从站 = base + rackIndex + 1
-                    if (_rackControlPipeline != null && slaveId > _deviceInfo.slaveId)
-                    {
-                        int rackId = slaveId - _deviceInfo.slaveId - 1;
-                        DrainRackControlPipeline(rackId);
-                    }
-                    else
-                    {
-                        DrainControlPipeline();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _log.Error($"Event-driven control drain error [{_deviceInfo.name}] slave={slaveId}", ex);
-                }
-            }, null);
+                if (bank)
+                    DrainControlPipeline();
+                foreach (var rackId in racks)
+                    DrainRackControlPipeline(rackId);
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Event-driven control drain error [{_deviceInfo.name}]", ex);
+            }
         }
 
         private bool TryWriteControlRegister(string name, object value, out object appliedModbusValue)
@@ -144,10 +155,13 @@ namespace EssSimulator.DataExchange
                 return false;
 
             appliedModbusValue = ControlValueCoercion.CoerceForModbusRegister(binding, value);
-            _modbusAdapter.WritePoints(
-                new Dictionary<string, object> { { name, appliedModbusValue } },
-                applyScale: false);
-            DrainControlPipeline();
+            lock (_controlGate)
+            {
+                _modbusAdapter.WritePoints(
+                    new Dictionary<string, object> { { name, appliedModbusValue } },
+                    applyScale: false);
+                DrainControlPipeline();
+            }
             return true;
         }
 
@@ -226,12 +240,18 @@ namespace EssSimulator.DataExchange
             }
         }
 
-        private static bool ShouldLogChanges(string? serverName) =>
+        /// <summary>EMU 及与 EMU 同构的 LC 系统级设备。</summary>
+        internal static bool IsEmuLikeDevice(string? serverName) =>
             serverName?.StartsWith("simEmu", StringComparison.OrdinalIgnoreCase) == true
-            || serverName?.StartsWith("simBms", StringComparison.OrdinalIgnoreCase) == true;
+            || serverName?.StartsWith("simLc", StringComparison.OrdinalIgnoreCase) == true;
+
+        private static bool ShouldLogChanges(string? serverName) =>
+            IsEmuLikeDevice(serverName)
+            || serverName?.StartsWith("simBms", StringComparison.OrdinalIgnoreCase) == true
+            || serverName?.StartsWith("simPvInv", StringComparison.OrdinalIgnoreCase) == true;
 
         private int TelemetryIntervalForDevice =>
-            _deviceInfo.name?.StartsWith("simEmu", StringComparison.OrdinalIgnoreCase) == true
+            IsEmuLikeDevice(_deviceInfo.name)
                 ? Math.Max(10, _options.EmuTelemetryIntervalMs)
                 : Math.Max(10, _options.TelemetryIntervalMs);
 
@@ -322,8 +342,11 @@ namespace EssSimulator.DataExchange
         /// <summary>仿真 → Modbus 反馈（不回灌控制管道，避免重复触发副作用）。</summary>
         public void PublishControlToSlave(string name, object value)
         {
-            if (!_feedbackPipeline.PublishImmediate(name, value, out _))
-                _log.Warn($"Control feedback publish failed: {_deviceInfo.name}.{name}");
+            lock (_controlGate)
+            {
+                if (!_feedbackPipeline.PublishImmediate(name, value, out _))
+                    _log.Warn($"Control feedback publish failed: {_deviceInfo.name}.{name}");
+            }
         }
 
         public void InvalidateDataShadow(string name) =>
@@ -482,7 +505,12 @@ namespace EssSimulator.DataExchange
             {
                 try
                 {
-                    _feedbackPipeline.RunOnce();
+                    // 寄存器回填和 shadow 提交必须与控制快照读取互斥。
+                    lock (_controlGate)
+                    {
+                        if (_running)
+                            _feedbackPipeline.RunOnce();
+                    }
                 }
                 catch (Exception ex)
                 {

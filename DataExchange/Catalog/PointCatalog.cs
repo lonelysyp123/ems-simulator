@@ -7,6 +7,9 @@ namespace EssSimulator.DataExchange.Catalog
         public required IReadOnlyList<PointBinding> ControlPoints { get; init; }
         public IReadOnlyList<RackPointBinding> RackTelemetryPoints { get; init; } = Array.Empty<RackPointBinding>();
         public IReadOnlyList<RackPointBinding> RackControlPoints { get; init; } = Array.Empty<RackPointBinding>();
+        public IReadOnlyList<PluginPointBinding> PluginPoints { get; init; } = Array.Empty<PluginPointBinding>();
+        public IReadOnlyList<SumPointBinding> SumPoints { get; init; } = Array.Empty<SumPointBinding>();
+        public IReadOnlyList<MaxPointBinding> MaxPoints { get; init; } = Array.Empty<MaxPointBinding>();
         public required IReadOnlyDictionary<string, object> DefaultValues { get; init; }
 
         public PointBinding? FindControl(string paramName) =>

@@ -6,7 +6,8 @@ using EssSimulator.EssDeviceSimModel.Thermal;
 namespace EssSimulator.EssDeviceSimModel.Plant
 {
     /// <summary>
-    /// PCS↔BMS 直流耦合边：环境温、V/I 交换、损耗登记，以及高温降额反馈。
+    /// PCS↔BMS 直流耦合边：环境温、V/I 交换、损耗登记，以及电池节点温度同步。
+    /// 功率降额不做温度反馈：是否降功率只由 PCS / 对应 BMS 的告警与故障信息决定。
     /// </summary>
     public sealed class PcsBmsDcCouplingLink
     {
@@ -32,18 +33,11 @@ namespace EssSimulator.EssDeviceSimModel.Plant
             double cabinetAir = thermal.GetBmsAmbientCelsius(ThermalCabinetIndex);
             double pcsAmbient = thermal.Enabled ? cabinetAir : thermal.OutdoorCelsius;
 
-            // 降额基于上一热步后的电池节点/柜温（本步物理更新前）
-            double senseTemp = cabinetAir;
-            if (ThermalCabinetIndex >= 0 && ThermalCabinetIndex < thermal.Cabinets.Count)
-                senseTemp = Math.Max(
-                    thermal.Cabinets[ThermalCabinetIndex].BatteryNodeCelsius,
-                    thermal.Cabinets[ThermalCabinetIndex].CabinetAirCelsius);
-
-            double derate = TemperatureDerating.ComputePowerFactor(senseTemp, thermal.Feedback);
-            Pcs.ApplyThermalPowerDerating(derate);
-            Bms.ApplyThermalPowerDerating(derate);
-            if (ThermalCabinetIndex >= 0 && ThermalCabinetIndex < thermal.Cabinets.Count)
-                thermal.Cabinets[ThermalCabinetIndex].LastPowerDeratingFactor = derate;
+            // 电池节点温度同步到 BMS 设备：作为电芯热环境（节点温度越高，电芯散热效率越低）。
+            Bms.ApplyBatteryNodeTemperature(
+                ThermalCabinetIndex >= 0 && ThermalCabinetIndex < thermal.Cabinets.Count
+                    ? thermal.Cabinets[ThermalCabinetIndex].BatteryNodeCelsius
+                    : cabinetAir);
 
             ((ITemperatureAware)Pcs).ApplyAmbientTemperature(pcsAmbient);
             ((ITemperatureAware)Bms).ApplyAmbientTemperature(cabinetAir);
