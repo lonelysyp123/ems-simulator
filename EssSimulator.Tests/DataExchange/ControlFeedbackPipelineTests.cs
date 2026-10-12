@@ -137,4 +137,117 @@ public class ControlFeedbackPipelineTests
         Assert.Equal(1, Convert.ToInt32(applied));
         Assert.Equal(1, Convert.ToInt32(modbus.Registers["pcs1_startstop"]));
     }
+
+    [Fact]
+    public void RunOnce_QuantizedReadback_CommitsShadowToRegisterValue()
+    {
+        var binding = PercentBinding();
+        var catalog = Catalog(binding);
+        var simulation = new FakeSimulationAdapter();
+        var modbus = new QuantizingModbusAdapter(scale: 10);
+        var shadow = new ShadowStore();
+        shadow.SeedControl("yt6", 100d);
+        simulation.Set(binding.Target.FullPath, 3.90625);
+
+        var pipeline = new ControlFeedbackPipeline(
+            catalog, simulation, modbus, shadow, "simPv2", logFeedback: false);
+
+        pipeline.RunOnce();
+        Assert.Equal(1, modbus.WriteCount);
+        Assert.Equal(3.9, modbus.Engineering);
+
+        simulation.Set(binding.Target.FullPath, 3.9);
+        pipeline.RunOnce();
+        Assert.Equal(1, modbus.WriteCount);
+
+        simulation.Set(binding.Target.FullPath, 3.90625);
+        pipeline.RunOnce();
+        Assert.Equal(2, modbus.WriteCount);
+    }
+
+    [Fact]
+    public void RunOnce_UnrelatedReadback_DoesNotCommitShadow()
+    {
+        var binding = PercentBinding();
+        var catalog = Catalog(binding);
+        var simulation = new FakeSimulationAdapter();
+        var modbus = new FixedReadbackModbusAdapter(25);
+        var shadow = new ShadowStore();
+        shadow.SeedControl("yt6", 100d);
+        simulation.Set(binding.Target.FullPath, 3.90625);
+
+        var pipeline = new ControlFeedbackPipeline(
+            catalog, simulation, modbus, shadow, "simPv2", logFeedback: false);
+
+        pipeline.RunOnce();
+        simulation.Set(binding.Target.FullPath, 25d);
+        pipeline.RunOnce();
+        Assert.Equal(2, modbus.WriteCount);
+    }
+
+    private static PointBinding PercentBinding() => new()
+    {
+        Entry = new MapEntry
+        {
+            Address = 8005,
+            FunctionCode = 6,
+            ParamName = "yt6",
+            Scale = 10,
+            Size = 32,
+            Type = "u32"
+        },
+        ParamName = "yt6",
+        Target = new DataTarget { RootKey = "pv2", PropertyPath = "Logger.SubarrayActivePowerPercent" }
+    };
+
+    private static PointCatalog Catalog(PointBinding binding) => new()
+    {
+        ServerName = "simPv2",
+        TelemetryPoints = Array.Empty<PointBinding>(),
+        ControlPoints = new[] { binding },
+        DefaultValues = new Dictionary<string, object>()
+    };
+
+    private sealed class QuantizingModbusAdapter : IModbusRegisterAdapter
+    {
+        private readonly int _scale;
+        public int WriteCount { get; private set; }
+        public double Engineering { get; private set; }
+
+        public QuantizingModbusAdapter(int scale) => _scale = scale;
+
+        public void WriteDefaults(IReadOnlyDictionary<string, object> defaults) =>
+            WritePoints(defaults);
+
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true)
+        {
+            WriteCount++;
+            double written = Convert.ToDouble(values.Values.First());
+            Engineering = Math.Round(written * _scale, MidpointRounding.ToEven) / _scale;
+        }
+
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) =>
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) => Engineering;
+    }
+
+    private sealed class FixedReadbackModbusAdapter : IModbusRegisterAdapter
+    {
+        private readonly double _readback;
+        public int WriteCount { get; private set; }
+
+        public FixedReadbackModbusAdapter(double readback) => _readback = readback;
+
+        public void WriteDefaults(IReadOnlyDictionary<string, object> defaults) =>
+            WritePoints(defaults);
+
+        public void WritePoints(IReadOnlyDictionary<string, object> values, byte? slaveId = null, bool applyScale = true) =>
+            WriteCount++;
+
+        public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) =>
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) => _readback;
+    }
 }

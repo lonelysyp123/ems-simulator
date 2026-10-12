@@ -21,6 +21,7 @@ namespace EssSimulator.EssDeviceSimModel
         /// </summary>
         public void Step(DateTime simTime, TimeSpan elapsed, TimeSpan integrationElapsed)
         {
+            PlantControlMailbox.Flush();
             _ess.StepPvUnits(simTime, elapsed);
             _ess.RefreshAllUnitBlackStartBusContexts();
             RunElectricalStep(simTime, elapsed, integrationElapsed);

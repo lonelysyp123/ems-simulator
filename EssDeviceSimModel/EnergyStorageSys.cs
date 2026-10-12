@@ -576,25 +576,34 @@ namespace EssSimulator.EssDeviceSimModel
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _log.Info("[EnergyStorageSystem] 仿真主循环启动（经 PlantEngine.Step）");
-            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_propagationIntervalMs));
+            PlantControlMailbox.DeferralEnabled = true;
             try
             {
-                while (await timer.WaitForNextTickAsync(stoppingToken))
+                using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_propagationIntervalMs));
+                try
                 {
-                    var (elapsed, integrationElapsed) = AdvanceCycleClock();
-                    DateTime simTime = DateTime.UtcNow;
-                    PlantEngine.Step(simTime, elapsed, integrationElapsed);
+                    while (await timer.WaitForNextTickAsync(stoppingToken))
+                    {
+                        var (elapsed, integrationElapsed) = AdvanceCycleClock();
+                        DateTime simTime = DateTime.UtcNow;
+                        PlantEngine.Step(simTime, elapsed, integrationElapsed);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // 正常停止，不视为错误
+                    _log.Info("[EnergyStorageSystem] 仿真主循环收到停止信号，正常退出");
+                }
+                catch (Exception ex)
+                {
+                    _log.Fatal("[EnergyStorageSystem] 仿真主循环发生未处理异常，已停止", ex);
+                    throw; // 重新抛出，让 Host 感知到服务崩溃
                 }
             }
-            catch (OperationCanceledException)
+            finally
             {
-                // 正常停止，不视为错误
-                _log.Info("[EnergyStorageSystem] 仿真主循环收到停止信号，正常退出");
-            }
-            catch (Exception ex)
-            {
-                _log.Fatal("[EnergyStorageSystem] 仿真主循环发生未处理异常，已停止", ex);
-                throw; // 重新抛出，让 Host 感知到服务崩溃
+                PlantControlMailbox.DeferralEnabled = false;
+                PlantControlMailbox.Flush();
             }
         }
 

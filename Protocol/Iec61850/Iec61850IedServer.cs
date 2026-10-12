@@ -11,20 +11,6 @@ using log4net;
 
 namespace EssSimulator.Protocol.Iec61850
 {
-    public sealed class Iec61850ReportEventArgs : EventArgs
-    {
-        public required string RptId { get; init; }
-        public required string Reason { get; init; }
-        public required int SeqNum { get; init; }
-        public required IReadOnlyList<Iec61850ReportEntry> Entries { get; init; }
-    }
-
-    public sealed class Iec61850ReportEntry
-    {
-        public string Ref { get; set; } = string.Empty;
-        public object? Value { get; set; }
-    }
-
     /// <summary>
     /// 一台 PCS 一个 libiec61850 MMS IED：动态模型、Get/Set、Direct-operate、URCB；yk/yt 只订阅入向 GOOSE 遥控，不发布。
     /// </summary>
@@ -51,7 +37,6 @@ namespace EssSimulator.Protocol.Iec61850
         private RCBEventHandler? _rcbEventHandler;
         private readonly ConcurrentDictionary<string, long> _mmsReadThrottleTicks = new(StringComparer.Ordinal);
         private const int MmsReadThrottleMs = 300;
-        private int _seqNum;
         private int _inNativeCallback;
         private bool _disposed;
 
@@ -92,8 +77,6 @@ namespace EssSimulator.Protocol.Iec61850
         public int AssociatedClients => _server?.GetNumberOfOpenConnections() ?? 0;
         internal int SpcHandlerCount => _model.ControlDoByParam.Count;
         internal int GooseEntryCount => _model.GooseEntryCount;
-
-        public event EventHandler<Iec61850ReportEventArgs>? ReportGenerated;
 
         public void Attach(IProtocolPointStore store, Action<string, object> writeControl)
         {
@@ -930,7 +913,8 @@ namespace EssSimulator.Protocol.Iec61850
             if (e.Values.Count == 0)
                 return;
 
-            var entries = new List<Iec61850ReportEntry>();
+            // 只更新数据模型。libiec61850 按已关联客户端各自发报告。
+            // 遥测刷新不再组一份完整报文进流量日志，避免两套 EMS 同时采集时堵住模型锁。
             bool locked = false;
             try
             {
@@ -945,13 +929,6 @@ namespace EssSimulator.Protocol.Iec61850
                     if (!_mapping.ByParam.TryGetValue(pair.Key, out var map))
                         continue;
                     PushOne(map, pair.Value, lockModel: false);
-                    if (!map.IsStatusOrMeas)
-                        continue;
-                    entries.Add(new Iec61850ReportEntry
-                    {
-                        Ref = Iec61850Mapping.AbsoluteRef(IedName, map.ObjectRef),
-                        Value = pair.Value
-                    });
                 }
             }
             finally
@@ -959,45 +936,6 @@ namespace EssSimulator.Protocol.Iec61850
                 if (locked)
                     _server?.UnlockDataModel();
             }
-
-            if (entries.Count == 0)
-                return;
-
-            int seq = Interlocked.Increment(ref _seqNum);
-            var args = new Iec61850ReportEventArgs
-            {
-                RptId = $"{IedName}PCS/LLN0.{Iec61850PcsModel.UrcbName}",
-                Reason = "dchg",
-                SeqNum = seq,
-                Entries = entries
-            };
-            ReportGenerated?.Invoke(this, args);
-
-            var allData = entries.Select((e, i) => new Iec61850GooseDataEntry
-            {
-                Index = i,
-                ParamName = e.Ref,
-                Type = FormatTrafficType(e.Value),
-                Value = e.Value is bool or float or double or int or long or string
-                    ? e.Value
-                    : FormatTrafficValue(e.Value ?? ""),
-                Description = null
-            }).ToList();
-            Iec61850TrafficLog.Append(new Iec61850TrafficMessage
-            {
-                Direction = "egress",
-                Protocol = "mms",
-                Service = "Report",
-                ServerName = ServerName,
-                IedName = IedName,
-                ObjectRef = args.RptId,
-                SqNum = seq,
-                NumDatSetEntries = allData.Count,
-                Result = "applied",
-                Summary = $"MMS Report {args.RptId} seq={seq} reason={args.Reason} n={allData.Count}",
-                AllData = allData,
-                Values = entries.ToDictionary(e => e.Ref, e => e.Value, StringComparer.OrdinalIgnoreCase)
-            });
         }
 
         private void PushAllFromShadow()

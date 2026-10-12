@@ -1,41 +1,32 @@
-# 站用 SVG 恒无功模型
+# Modbus 连接改为异步收包
 
-> 已确认：全站一台，并联 35 kV，只做恒无功。默认关闭。不做恒电压、恒功率因数、谐波、不平衡。主接线有一张 35 kV 卡片。
-> EMS 策略参数方案已归档：`tasks/ems-strategy-params.md` / `tasks/todo-ems-strategy-params.md`。
+> 已确认：`ModbusPortHub` 自己异步收 Modbus TCP 帧，不调用 NModbus `ListenAsync`。白名单不再经环回转发。一条连接串行处理帧，事务号原样返回。未知从站回异常码 4 且不拆连接。不抬线程池最小线程数，不改一次图前端，不改 SEL 监听。
+> 非有限数计划已归档：`tasks/finite-number-json.md` / `tasks/todo-finite-number-json.md`。
 
 ## 已确认
-- [x] 无功为正是容性发出；可用上限 \(Q_{rated}\times U/U_{nom}\)；设定值不回写夹限
-- [x] 运行状态 0 停机 / 1 运行 / 2 闭锁；闭锁带 0.85–1.15 倍额定
-- [x] 单位：V、A、kvar、Hz；变比 1
-- [x] 一阶滞后 20 ms；运行损耗为额定容量的 0.8%
-- [x] `EnableSvg` 默认 false，额定默认 10000 kvar，端口默认 2201
+- [x] 收包放在 `ModbusPortHub`，空闲连接不占线程池工作线程
+- [x] 从站挂载、`GetNetwork`、寄存器镜像和白名单语义保留
+- [x] 不实现同一条连接上的请求流水线
+- [x] 不按轮询请求写日志
 
-## Phase 1: 点表与设备
-- [x] Task 1: 点表类型与单位（`Uint16`→`u16`，描述补单位和枚举）
-- [x] Task 2: `SvgDevice` 恒无功（可与 Task 1 并行）
+## Phase 1: 一帧能收能回
+- [x] Task 1: MBAP 组帧
+- [x] Task 2: 单连接异步会话（依赖 Task 1）
 
-## Checkpoint: 设备可单测
-- [x] `svg1` 解析为 `UInt16`
-- [x] 100 ms 跟上设定，5 ms 仍在滞后；越限夹住；关机/闭锁输出为 0 且设定保留
-- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~SvgPointMap|FullyQualifiedName~SvgDevice"`
+## Checkpoint: 一帧能收能回
+- [x] 会话测试里的主站读到预先写入的寄存器
+- [x] 非零事务号能对上响应
+- [x] 未知从站号返回异常后，同一连接的下一次合法读仍成功
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~ModbusTcpFrame|FullyQualifiedName~ModbusTcpSession"`
 - [x] `dotnet build ./EssSimulator.csproj`
 
-## Phase 2: 母线
-- [x] Task 3: `SvgBusContributor` 挂 `Bus35`（依赖 Task 2）
-
-## Checkpoint: 功率进母线
-- [x] 关闭时不注册贡献者
-- [x] 开启发 +5000 kvar 时母线无功增加、有功减少损耗；关机后退出
-- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~SvgBus"`
-
-## Phase 3: 协议
-- [x] Task 4: `svg` 根对象 + `ModelSim`（依赖 Task 1、Task 2；可与 Task 3 并行）
-- [x] Task 5: `simSvg` 从站（依赖 Task 3、Task 4）
+## Phase 2: 接入现有端口
+- [x] Task 3: `ModbusPortHub` 改用异步会话，去掉 `ListenAsync` 和环回泵（依赖 Task 2）
+- [x] Task 4: 40 条空闲连接不挡住活动读（依赖 Task 3）
 
 ## Checkpoint: Complete
-- [x] 写开关机和无功设定进 `svg` 对象，遥测读到设备输出
-- [x] 关闭时端口计划没有 `simSvg`
-- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~Svg"`
+- [x] 共享传输、白名单、第三方 EMS 客户端测试通过
+- [x] 空闲连接存在时，活动读在 1 秒内返回
+- [x] 两个主站同时读到同一个值
+- [x] `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~ModbusPortHub|FullyQualifiedName~ModbusTcpSlaveSharedTransport|FullyQualifiedName~ThirdPartyEmsModbusClient|FullyQualifiedName~ModbusTcpFrame|FullyQualifiedName~ModbusTcpSession"`
 - [x] `dotnet build ./EssSimulator.csproj`
-- [x] 主接线 35 kV 卡片：状态、实际无功、可用上限、开关机与无功设定
-- [x] 未做：恒电压、恒功率因数、谐波、不平衡

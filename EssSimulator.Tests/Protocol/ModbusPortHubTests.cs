@@ -173,6 +173,89 @@ public class ModbusPortHubTests
         }
     }
 
+    [Fact]
+    public void IdleConnections_DoNotBlockActiveRead()
+    {
+        var hub = new ModbusPortHub();
+        int port = NextPort();
+        var idlers = new List<TcpClient>();
+        try
+        {
+            Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
+            using (var writer = new TcpClient("127.0.0.1", port) { ReceiveTimeout = 2000, SendTimeout = 2000 })
+            {
+                new NModbus.ModbusFactory().CreateMaster(writer).WriteSingleRegister(1, 100, 42);
+            }
+
+            for (int i = 0; i < 40; i++)
+                idlers.Add(new TcpClient("127.0.0.1", port));
+
+            using var active = new TcpClient("127.0.0.1", port) { ReceiveTimeout = 1000, SendTimeout = 1000 };
+            var started = DateTime.UtcNow;
+            ushort value = new NModbus.ModbusFactory().CreateMaster(active).ReadHoldingRegisters(1, 100, 1)[0];
+            Assert.Equal((ushort)42, value);
+            Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            foreach (var client in idlers)
+            {
+                try { client.Close(); } catch { /* 测试结束 */ }
+            }
+            hub.ShutdownAll();
+        }
+    }
+
+    [Fact]
+    public async Task TwoMasters_ReadTheSameRegister()
+    {
+        var hub = new ModbusPortHub();
+        int port = NextPort();
+        try
+        {
+            Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
+            using (var writer = new TcpClient("127.0.0.1", port) { ReceiveTimeout = 2000, SendTimeout = 2000 })
+            {
+                new NModbus.ModbusFactory().CreateMaster(writer).WriteSingleRegister(1, 100, 42);
+            }
+
+            using var left = new TcpClient("127.0.0.1", port) { ReceiveTimeout = 2000, SendTimeout = 2000 };
+            using var right = new TcpClient("127.0.0.1", port) { ReceiveTimeout = 2000, SendTimeout = 2000 };
+            var leftRead = Task.Run(() => new NModbus.ModbusFactory().CreateMaster(left).ReadHoldingRegisters(1, 100, 1)[0]);
+            var rightRead = Task.Run(() => new NModbus.ModbusFactory().CreateMaster(right).ReadHoldingRegisters(1, 100, 1)[0]);
+
+            Assert.Equal((ushort)42, await leftRead);
+            Assert.Equal((ushort)42, await rightRead);
+        }
+        finally
+        {
+            hub.ShutdownAll();
+        }
+    }
+
+    [Fact]
+    public void ShutdownAll_RejectsTheNextRead()
+    {
+        var hub = new ModbusPortHub();
+        int port = NextPort();
+        try
+        {
+            Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
+            using var client = new TcpClient("127.0.0.1", port) { ReceiveTimeout = 1000, SendTimeout = 1000 };
+            var master = new NModbus.ModbusFactory().CreateMaster(client);
+            master.WriteSingleRegister(1, 100, 42);
+
+            hub.ShutdownAll();
+
+            Assert.False(hub.IsPortListening(port));
+            Assert.ThrowsAny<Exception>(() => master.ReadHoldingRegisters(1, 100, 1));
+        }
+        finally
+        {
+            hub.ShutdownAll();
+        }
+    }
+
     private static ModbusIpAllowList MustCreate(bool allowLoopback, params string[] addresses)
     {
         Assert.True(ModbusIpAllowList.TryCreate(allowLoopback, addresses, out var list, out var errors),

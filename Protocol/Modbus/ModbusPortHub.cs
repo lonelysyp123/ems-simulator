@@ -13,7 +13,8 @@ using NModbus.Device;
 namespace EssSimulator.Protocol.Modbus
 {
     /// <summary>
-    /// Modbus TCP 共享传输层：每个端口只建立一个 TcpListener 与一个 NModbus SlaveNetwork，
+    /// Modbus TCP 共享传输层：每个端口一个 TcpListener。连接由异步会话收帧，
+    /// 空闲等待时不占线程池工作线程。从站网络只负责挂载和寄存器处理，不调用 ListenAsync。
     /// 同端口不同从站号注册为独立从站；同端口同从站号的多个设备共享同一个从站寄存器镜像
     /// （挂载前经 <see cref="AddressOverlapValidator"/> 校验地址不重叠）。
     /// 可选来源 IP 白名单在 Accept 时过滤；空名单不限制。
@@ -202,7 +203,7 @@ namespace EssSimulator.Protocol.Modbus
             return host;
         }
 
-        /// <summary>单个端口的监听宿主：一个对外 TcpListener + 一个 NModbus 从站网络。</summary>
+        /// <summary>单个端口的监听宿主：一个对外 TcpListener，收包由 <see cref="ModbusTcpSession"/> 完成。</summary>
         private sealed class PortListenerHost : IDisposable
         {
             private static readonly TimeSpan DenyLogInterval = TimeSpan.FromSeconds(10);
@@ -215,10 +216,9 @@ namespace EssSimulator.Protocol.Modbus
             private readonly ModbusIpAllowList _allowList;
             private readonly NModbus.ModbusFactory _factory = new();
             private readonly Dictionary<byte, SharedSlaveSlot> _slots = new();
-            private readonly ConcurrentBag<TcpClient> _pipedClients = new();
+            private readonly ConcurrentBag<TcpClient> _clients = new();
 
             private TcpListener? _publicListener;
-            private TcpListener? _nmodbusListener;
             private CancellationTokenSource? _cts;
 
             public PortListenerHost(int port, ModbusIpAllowList allowList)
@@ -233,31 +233,12 @@ namespace EssSimulator.Protocol.Modbus
 
             public void Start()
             {
-                if (_allowList.IsUnrestricted)
-                {
-                    var listener = new TcpListener(IPAddress.Any, Port);
-                    listener.Start();
-                    _publicListener = listener;
-                    _nmodbusListener = listener;
-                    Network = _factory.CreateSlaveNetwork(listener);
-                    Network.ListenAsync();
-                }
-                else
-                {
-                    var loopback = new TcpListener(IPAddress.Loopback, 0);
-                    loopback.Start();
-                    _nmodbusListener = loopback;
-                    int innerPort = ((IPEndPoint)loopback.LocalEndpoint).Port;
-                    Network = _factory.CreateSlaveNetwork(loopback);
-                    Network.ListenAsync();
-
-                    var pub = new TcpListener(IPAddress.Any, Port);
-                    pub.Start();
-                    _publicListener = pub;
-                    _cts = new CancellationTokenSource();
-                    _ = Task.Run(() => AcceptLoopAsync(innerPort, _cts.Token));
-                }
-
+                var listener = new TcpListener(IPAddress.Any, Port);
+                listener.Start();
+                _publicListener = listener;
+                Network = _factory.CreateSlaveNetwork(listener);
+                _cts = new CancellationTokenSource();
+                _ = Task.Run(() => AcceptLoopAsync(_cts.Token));
                 IsListening = true;
             }
 
@@ -303,14 +284,8 @@ namespace EssSimulator.Protocol.Modbus
                 Network = null;
                 try { _publicListener?.Stop(); }
                 catch { /* 忽略释放异常 */ }
-                if (!ReferenceEquals(_publicListener, _nmodbusListener))
-                {
-                    try { _nmodbusListener?.Stop(); }
-                    catch { /* 忽略释放异常 */ }
-                }
                 _publicListener = null;
-                _nmodbusListener = null;
-                while (_pipedClients.TryTake(out var client))
+                while (_clients.TryTake(out var client))
                 {
                     try { client.Close(); }
                     catch { /* 忽略释放异常 */ }
@@ -320,7 +295,7 @@ namespace EssSimulator.Protocol.Modbus
                 _cts = null;
             }
 
-            private async Task AcceptLoopAsync(int innerPort, CancellationToken ct)
+            private async Task AcceptLoopAsync(CancellationToken ct)
             {
                 var listener = _publicListener;
                 if (listener == null)
@@ -360,22 +335,29 @@ namespace EssSimulator.Protocol.Modbus
                         continue;
                     }
 
-                    TcpClient inner;
-                    try
-                    {
-                        inner = new TcpClient { NoDelay = true };
-                        await inner.ConnectAsync(IPAddress.Loopback, innerPort, ct).ConfigureAwait(false);
-                    }
-                    catch
+                    client.NoDelay = true;
+                    _clients.Add(client);
+                    var network = Network;
+                    if (network == null)
                     {
                         Reject(client);
                         continue;
                     }
 
-                    client.NoDelay = true;
-                    _pipedClients.Add(client);
-                    _pipedClients.Add(inner);
-                    _ = PumpAsync(client, inner, ct);
+                    _ = ServeAsync(client, network, ct);
+                }
+            }
+
+            private async Task ServeAsync(TcpClient client, NModbus.IModbusSlaveNetwork network, CancellationToken ct)
+            {
+                try
+                {
+                    await ModbusTcpSession.RunAsync(client.GetStream(), network, _factory, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    try { client.Close(); }
+                    catch { /* 会话结束 */ }
                 }
             }
 
@@ -399,30 +381,6 @@ namespace EssSimulator.Protocol.Modbus
                 catch { /* 拒绝连接时忽略关闭异常 */ }
             }
 
-            private static async Task PumpAsync(TcpClient a, TcpClient b, CancellationToken ct)
-            {
-                try
-                {
-                    var sa = a.GetStream();
-                    var sb = b.GetStream();
-                    var t1 = sa.CopyToAsync(sb, ct);
-                    var t2 = sb.CopyToAsync(sa, ct);
-                    await Task.WhenAny(t1, t2).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // 监听关闭
-                }
-                catch
-                {
-                    // 对端断开
-                }
-                finally
-                {
-                    try { a.Close(); } catch { /* ignore */ }
-                    try { b.Close(); } catch { /* ignore */ }
-                }
-            }
         }
 
         /// <summary>同 (端口, 从站号) 的共享从站槽位：一个寄存器镜像 + 多个挂载设备。</summary>

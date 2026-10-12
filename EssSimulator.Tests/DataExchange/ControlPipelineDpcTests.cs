@@ -4,6 +4,7 @@ using EssSimulator.DataExchange.Adapters;
 using EssSimulator.DataExchange.Catalog;
 using EssSimulator.DataExchange.Effects;
 using EssSimulator.DataExchange.Pipeline;
+using EssSimulator.EssDeviceSimModel;
 using EssSimulator.Protocol.Modbus;
 
 namespace EssSimulator.Tests.DataExchange;
@@ -195,6 +196,63 @@ public class ControlPipelineDpcTests
         finally
         {
             ControlPointCapture.Reset();
+        }
+    }
+
+    [Fact]
+    public void RunOnce_DefersModelWriteUntilPlantStep_AndFeedbackKeepsRegister()
+    {
+        PlantControlMailbox.Reset();
+        PlantControlMailbox.DeferralEnabled = true;
+        try
+        {
+            var binding = new PointBinding
+            {
+                Entry = Yk3Binding().Entry,
+                ParamName = "yk3",
+                Target = new DataTarget { RootKey = "emu1", PropertyPath = "PcsList[0].pcsOnOffSwitch" },
+                Semantics = ControlSemantics.Hold,
+                Effect = ControlEffectId.None
+            };
+            var catalog = new PointCatalog
+            {
+                ServerName = "simEmu1",
+                TelemetryPoints = Array.Empty<PointBinding>(),
+                ControlPoints = new[] { binding },
+                DefaultValues = new Dictionary<string, object>()
+            };
+            var simulation = new FakeSimulationAdapter();
+            var modbus = new FakeModbusAdapter();
+            var shadow = new ShadowStore();
+            string path = binding.Target.FullPath;
+            simulation.Write(path, false);
+            shadow.CommitControl("yk3", 0);
+            modbus.WritePoints(new Dictionary<string, object>
+            {
+                { "yk3", ModbusPointCodec.Encode(true, binding.Entry, applyScale: true) }
+            });
+
+            var control = new ControlPipeline(
+                catalog, simulation, modbus, CreateParser(),
+                shadow, new ControlEffectRegistry(), "simEmu1", logControlChanges: false);
+            control.RunOnce();
+
+            Assert.False(Convert.ToBoolean(simulation.Read(path)!));
+            Assert.True(PlantControlMailbox.IsPending(path));
+            var register = modbus.ReadParsedPoint("yk3");
+
+            var feedback = new ControlFeedbackPipeline(
+                catalog, simulation, modbus, shadow, "simEmu1", logFeedback: false);
+            feedback.RunOnce();
+
+            Assert.Same(register, modbus.ReadParsedPoint("yk3"));
+            PlantControlMailbox.Flush();
+            Assert.True(Convert.ToBoolean(simulation.Read(path)!));
+            Assert.False(PlantControlMailbox.IsPending(path));
+        }
+        finally
+        {
+            PlantControlMailbox.Reset();
         }
     }
 

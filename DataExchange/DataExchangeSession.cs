@@ -34,6 +34,7 @@ namespace EssSimulator.DataExchange
         private readonly ControlEffectRegistry _effects;
 
         private readonly object _controlGate = new();
+        private readonly ControlDrainCoalescer _controlDrain = new();
         private volatile bool _running;
         private bool _hadPreviousSession;
         private Thread? _telemetryThread;
@@ -121,26 +122,26 @@ namespace EssSimulator.DataExchange
             if (!_running)
                 return;
 
-            ThreadPool.UnsafeQueueUserWorkItem(_ =>
+            // bank slaveId == base；簇从站 = base + rackIndex + 1
+            if (_rackControlPipeline != null && slaveId > _deviceInfo.slaveId)
+                _controlDrain.SignalRack(slaveId - _deviceInfo.slaveId - 1, DrainSignaled);
+            else
+                _controlDrain.SignalBank(DrainSignaled);
+        }
+
+        private void DrainSignaled(bool bank, IReadOnlyList<int> racks)
+        {
+            try
             {
-                try
-                {
-                    // bank slaveId == base；簇从站 = base + rackIndex + 1
-                    if (_rackControlPipeline != null && slaveId > _deviceInfo.slaveId)
-                    {
-                        int rackId = slaveId - _deviceInfo.slaveId - 1;
-                        DrainRackControlPipeline(rackId);
-                    }
-                    else
-                    {
-                        DrainControlPipeline();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _log.Error($"Event-driven control drain error [{_deviceInfo.name}] slave={slaveId}", ex);
-                }
-            }, null);
+                if (bank)
+                    DrainControlPipeline();
+                foreach (var rackId in racks)
+                    DrainRackControlPipeline(rackId);
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Event-driven control drain error [{_deviceInfo.name}]", ex);
+            }
         }
 
         private bool TryWriteControlRegister(string name, object value, out object appliedModbusValue)

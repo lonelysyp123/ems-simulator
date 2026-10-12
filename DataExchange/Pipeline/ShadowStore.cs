@@ -3,38 +3,61 @@ namespace EssSimulator.DataExchange.Pipeline
     /// <summary>遥测 / 控制 shadow，仅在值变化时触发 I/O。</summary>
     public sealed class ShadowStore
     {
+        private readonly object _gate = new();
         private readonly Dictionary<string, object?> _telemetry = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, object?> _control = new(StringComparer.OrdinalIgnoreCase);
 
-        public void SeedTelemetry(string paramName, object? value) =>
-            _telemetry[paramName] = value;
+        public void SeedTelemetry(string paramName, object? value)
+        {
+            lock (_gate)
+                _telemetry[paramName] = value;
+        }
 
-        public void SeedControl(string paramName, object? value) =>
-            _control[paramName] = value;
+        public void SeedControl(string paramName, object? value)
+        {
+            lock (_gate)
+                _control[paramName] = value;
+        }
 
         public bool TelemetryChanged(string paramName, object? newValue)
         {
-            if (_telemetry.TryGetValue(paramName, out var prev) && ValuesEqual(prev, newValue))
-                return false;
+            lock (_gate)
+            {
+                if (_telemetry.TryGetValue(paramName, out var prev) && ValuesEqual(prev, newValue))
+                    return false;
 
-            _telemetry[paramName] = newValue;
-            return true;
+                _telemetry[paramName] = newValue;
+                return true;
+            }
         }
 
         public bool TryDetectControlChange(string paramName, object? incoming, out object? previous)
         {
-            _control.TryGetValue(paramName, out previous);
-            return !ValuesEqual(previous, incoming);
+            lock (_gate)
+            {
+                _control.TryGetValue(paramName, out previous);
+                return !ValuesEqual(previous, incoming);
+            }
         }
 
-        public void CommitControl(string paramName, object? value) =>
-            _control[paramName] = value;
+        public void CommitControl(string paramName, object? value)
+        {
+            lock (_gate)
+                _control[paramName] = value;
+        }
 
-        public void InvalidateTelemetry(string paramName) =>
-            _telemetry.Remove(paramName);
+        public void InvalidateTelemetry(string paramName)
+        {
+            lock (_gate)
+                _telemetry.Remove(paramName);
+        }
 
         /// <summary>清空遥测 shadow（Modbus 重连后 SlaveDataStore 重建，需强制全量回写）。</summary>
-        public void ClearTelemetry() => _telemetry.Clear();
+        public void ClearTelemetry()
+        {
+            lock (_gate)
+                _telemetry.Clear();
+        }
 
         public static bool ValuesEqual(object? a, object? b)
         {

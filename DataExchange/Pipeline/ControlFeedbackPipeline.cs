@@ -1,5 +1,6 @@
 using EssSimulator.DataExchange.Adapters;
 using EssSimulator.DataExchange.Catalog;
+using EssSimulator.EssDeviceSimModel;
 using log4net;
 
 namespace EssSimulator.DataExchange.Pipeline
@@ -41,6 +42,10 @@ namespace EssSimulator.DataExchange.Pipeline
             {
                 try
                 {
+                    // 设定已收下、模型还没在本拍步进里更新时，不要用旧模型值覆盖 EMS 刚写的寄存器。
+                    if (PlantControlMailbox.IsPending(binding.Target.FullPath))
+                        continue;
+
                     var raw = _simulation.Read(binding.Target.FullPath);
                     if (raw == null)
                         continue;
@@ -97,6 +102,15 @@ namespace EssSimulator.DataExchange.Pipeline
                 _log.Warn($"Feedback readback failed for {paramName}: {ex.Message}");
             }
 
+            // 整数寄存器按系数四舍五入后，回读是本次写入的量化结果。
+            // shadow 必须记回读值，否则下一次控制扫描会把它当成新命令。
+            object? shadowValue = applied;
+            if (!readbackOk && TryAcceptQuantizedReadback(paramName, applied, readback))
+            {
+                readbackOk = true;
+                shadowValue = readback;
+            }
+
             if (_logFeedback)
             {
                 _log.Debug(
@@ -110,8 +124,77 @@ namespace EssSimulator.DataExchange.Pipeline
                 return false;
             }
 
-            _shadow.CommitControl(paramName, applied);
+            _shadow.CommitControl(paramName, shadowValue);
             return true;
+        }
+
+        /// <summary>
+        /// 回读等于 round(applied × scale) / scale，且偏差不超过半个量化单位时，视为本次反馈写成功。
+        /// 遥测覆盖等偏离量化结果的回读不接受。
+        /// </summary>
+        private bool TryAcceptQuantizedReadback(string paramName, object applied, object? readback)
+        {
+            if (readback == null || applied is bool || readback is bool)
+                return false;
+
+            var binding = _catalog.FindControl(paramName);
+            int scale = binding?.Entry.Scale ?? 0;
+            if (binding == null || scale <= 1 || !IsIntegerRegister(binding.Entry))
+                return false;
+
+            if (!TryToDouble(applied, out double written) || !TryToDouble(readback, out double echoed))
+                return false;
+            if (!double.IsFinite(written) || !double.IsFinite(echoed))
+                return false;
+
+            double expected = Math.Round(written * scale, MidpointRounding.ToEven) / scale;
+            if (Math.Abs(echoed - expected) > 1e-6)
+                return false;
+
+            double halfQuantum = 0.5 / scale;
+            return Math.Abs(written - echoed) <= halfQuantum + 1e-9;
+        }
+
+        private static bool IsIntegerRegister(MapEntry entry)
+        {
+            switch (entry.Type?.Trim().ToLowerInvariant())
+            {
+                case "u16":
+                case "int16":
+                case "s16":
+                case "u32":
+                case "int32":
+                case "s32":
+                case "u64":
+                case "int64":
+                case "s64":
+                    return true;
+                case "float":
+                case "single":
+                case "double":
+                case "bool":
+                    return false;
+                default:
+                    return entry.Size is 16 or 32 or 64;
+            }
+        }
+
+        private static bool TryToDouble(object value, out double number)
+        {
+            switch (value)
+            {
+                case double d:
+                    number = d;
+                    return true;
+                case float f:
+                    number = f;
+                    return true;
+                case int or long or short or byte or uint or ulong or ushort:
+                    number = Convert.ToDouble(value);
+                    return true;
+                default:
+                    return double.TryParse(value.ToString(), out number);
+            }
         }
 
         private string FeedbackLogPrefix =>
