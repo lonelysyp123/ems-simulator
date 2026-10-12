@@ -97,7 +97,8 @@ namespace EssSimulator.Display
             {
                 var o = SimServer.GetExtIfVariableVal(path);
                 if (o == null) return fallback;
-                return Convert.ToDouble(o);
+                double value = Convert.ToDouble(o);
+                return double.IsFinite(value) ? value : fallback;
             }
             catch (Exception ex)
             {

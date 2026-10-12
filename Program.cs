@@ -394,14 +394,16 @@ namespace EssSimulator
                  .AllowCredentials();
             }));
 
-            // SignalR
-            builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 64 * 1024);
+            // SignalR。PayloadSerializerOptions 与 HTTP JsonOptions 是两份，都要收非有限数。
+            builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 64 * 1024)
+                .AddJsonProtocol(o => FiniteNumberJson.Apply(o.PayloadSerializerOptions));
 
             // JSON 序列化：保留枚举名/数值，camelCase 由 System.Text.Json 默认处理
             builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(o =>
             {
                 o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
                 o.SerializerOptions.IncludeFields = true;
+                FiniteNumberJson.Apply(o.SerializerOptions);
             });
 
             // 核心仿真模型（单例 + 托管服务）
