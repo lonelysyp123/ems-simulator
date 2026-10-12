@@ -1,3 +1,4 @@
+using EssSimulator.Display;
 using EssSimulator.EssDeviceSimModel.Model;
 
 namespace EssSimulator.Tests.Model;
@@ -152,6 +153,27 @@ public class AcQuantityConverterTests
         Assert.Equal(1.0, AcQuantityConverter.ComputeSignedPowerFactor(1000, 0), 1e-9);
         Assert.Equal(1.0, AcQuantityConverter.ComputeSignedPowerFactor(-1000, 0), 1e-9);
         Assert.Equal(1.0, AcQuantityConverter.ComputeSignedPowerFactor(0, 0), 1e-9);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 10, 0)]
+    [InlineData(1000, double.NaN, 0)]
+    [InlineData(1000, 10, double.NaN)]
+    [InlineData(double.PositiveInfinity, 10, 0)]
+    [InlineData(double.NegativeInfinity, 10, 0)]
+    public void ComputePower_NonFiniteInput_IsZero(double voltage, double current, double phaseAngleDeg)
+    {
+        Assert.Equal(0, AcQuantityConverter.ComputeActivePowerKw(voltage, current, phaseAngleDeg));
+        Assert.Equal(0, AcQuantityConverter.ComputeReactivePowerKvar(voltage, current, phaseAngleDeg));
+        Assert.Equal(1, AcQuantityConverter.ComputePowerFactor(voltage, current, phaseAngleDeg));
+    }
+
+    [Fact]
+    public void AcPhasorSnapshot_NaNVoltage_ActivePowerIsZero()
+    {
+        var snap = new AcPhasorSnapshot(double.NaN, 10, 0, 50);
+        Assert.Equal(0, snap.ActivePowerKw);
+        Assert.Equal(0, snap.ReactivePowerKvar);
     }
 
     [Fact]

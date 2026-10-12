@@ -131,6 +131,8 @@ namespace EssSimulator.EssDeviceSimModel.Model
 
         public static double ComputeActivePowerKw(double lineVoltageV, double lineCurrentA, double phaseAngleDeg)
         {
+            if (!InputsFinite(lineVoltageV, lineCurrentA, phaseAngleDeg))
+                return 0;
             if (lineVoltageV <= 1e-9 || Math.Abs(lineCurrentA) <= 1e-9)
                 return 0;
 
@@ -140,6 +142,8 @@ namespace EssSimulator.EssDeviceSimModel.Model
 
         public static double ComputeReactivePowerKvar(double lineVoltageV, double lineCurrentA, double phaseAngleDeg)
         {
+            if (!InputsFinite(lineVoltageV, lineCurrentA, phaseAngleDeg))
+                return 0;
             if (lineVoltageV <= 1e-9 || Math.Abs(lineCurrentA) <= 1e-9)
                 return 0;
 
@@ -147,20 +151,30 @@ namespace EssSimulator.EssDeviceSimModel.Model
                    * Math.Sin(phaseAngleDeg * Math.PI / 180.0);
         }
 
-        public static double ComputeApparentPowerKva(double lineVoltageV, double lineCurrentA) =>
-            Math.Abs(ComputeActivePowerKw(lineVoltageV, lineCurrentA, 0))
-            > 1e-9 || Math.Abs(lineCurrentA) > 1e-9
-                ? Math.Abs(lineVoltageV * lineCurrentA * ElectricalConventions.Sqrt3) / 1000.0
-                : 0;
+        public static double ComputeApparentPowerKva(double lineVoltageV, double lineCurrentA)
+        {
+            if (!double.IsFinite(lineVoltageV) || !double.IsFinite(lineCurrentA))
+                return 0;
+            return Math.Abs(ComputeActivePowerKw(lineVoltageV, lineCurrentA, 0))
+                > 1e-9 || Math.Abs(lineCurrentA) > 1e-9
+                    ? Math.Abs(lineVoltageV * lineCurrentA * ElectricalConventions.Sqrt3) / 1000.0
+                    : 0;
+        }
 
         public static double ComputePowerFactor(double lineVoltageV, double lineCurrentA, double phaseAngleDeg)
         {
+            if (!InputsFinite(lineVoltageV, lineCurrentA, phaseAngleDeg))
+                return 1.0;
+
             double apparentKva = ComputeApparentPowerKva(lineVoltageV, lineCurrentA);
             if (apparentKva <= 1e-9)
                 return 1.0;
 
             return ComputeActivePowerKw(lineVoltageV, lineCurrentA, phaseAngleDeg) / apparentKva;
         }
+
+        private static bool InputsFinite(double lineVoltageV, double lineCurrentA, double phaseAngleDeg) =>
+            double.IsFinite(lineVoltageV) && double.IsFinite(lineCurrentA) && double.IsFinite(phaseAngleDeg);
 
         /// <summary>
         /// 电表/联调用有符号功率因数：幅值 = |P|/S，符号与无功 Q 同号（与充放电方向无关）。
