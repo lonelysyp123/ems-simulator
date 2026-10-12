@@ -245,8 +245,8 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 return;
             foreach (var pv in _legacyEss.PvUnits)
             {
-                totalActiveKw += pv.ActivePowerKw;
-                totalReactiveKvar += pv.ReactivePowerKvar;
+                totalActiveKw += pv.HvActivePowerKw;
+                totalReactiveKvar += pv.HvReactivePowerKvar;
             }
         }
 

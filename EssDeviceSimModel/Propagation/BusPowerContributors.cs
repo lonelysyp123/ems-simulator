@@ -43,7 +43,7 @@ namespace EssSimulator.EssDeviceSimModel.Propagation
         public string ContributorId => _unit.DeviceId;
 
         public BusPowerContribution GetBusPowerContribution(DeviceStepContext context) =>
-            new(_unit.ActivePowerKw, _unit.ReactivePowerKvar);
+            new(_unit.HvActivePowerKw, _unit.HvReactivePowerKvar);
     }
 
     /// <summary>

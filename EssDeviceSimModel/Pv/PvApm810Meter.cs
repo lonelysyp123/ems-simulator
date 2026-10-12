@@ -2,7 +2,7 @@ using EssSimulator.EssDeviceSimModel.Model;
 
 namespace EssSimulator.EssDeviceSimModel.Pv
 {
-    /// <summary>Acrel APM810 三相电表。发电为正有功；馈网记入反向电能。</summary>
+    /// <summary>Acrel APM810 三相电表。发电为正有功并记入反向电能；受电为负并记入正向电能。</summary>
     public sealed class PvApm810Meter
     {
         public string DeviceId { get; }
@@ -49,7 +49,9 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         public void Sample(double lineVoltageV, double activePowerKw, double reactivePowerKvar, double frequencyHz, TimeSpan step)
         {
-            double pKw = Math.Max(0, activePowerKw);
+            double pKw = activePowerKw;
+            double exportKw = Math.Max(0, pKw);
+            double importKw = Math.Max(0, -pKw);
             double qKvar = reactivePowerKvar;
             double sKva = Math.Sqrt(pKw * pKw + qKvar * qKvar);
             double vLine = Math.Max(0, lineVoltageV);
@@ -57,6 +59,7 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             double i = vLine > 1 && sKva > 1e-9 ? sKva * 1000.0 / (vLine * Math.Sqrt(3.0)) : 0;
             double pf = AcQuantityConverter.ComputeSignedPowerFactor(pKw, qKvar);
             double pW = pKw * 1000.0;
+            double exportW = exportKw * 1000.0;
             double qVar = qKvar * 1000.0;
             double sVa = sKva * 1000.0;
 
@@ -65,8 +68,8 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             PhaseACurrent = PhaseBCurrent = PhaseCCurrent = i;
             PhaseAActivePowerW = PhaseBActivePowerW = PhaseCActivePowerW = pW / 3.0;
             TotalActivePowerW = pW;
-            FeedInPowerM1W = pW;
-            FeedInPowerM2W = pW;
+            FeedInPowerM1W = exportW;
+            FeedInPowerM2W = exportW;
             PhaseAReactivePowerVar = PhaseBReactivePowerVar = PhaseCReactivePowerVar = qVar / 3.0;
             TotalReactivePowerVar = qVar;
             PhaseAApparentPowerVa = PhaseBApparentPowerVa = PhaseCApparentPowerVa = sVa / 3.0;
@@ -75,7 +78,8 @@ namespace EssSimulator.EssDeviceSimModel.Pv
             FrequencyHz = frequencyHz;
 
             double hours = Math.Max(0, step.TotalHours);
-            ReverseActiveEnergyKwh += pKw * hours;
+            ReverseActiveEnergyKwh += exportKw * hours;
+            ForwardActiveEnergyKwh += importKw * hours;
             if (qKvar >= 0)
                 ForwardReactiveEnergyKvarh += qKvar * hours;
             else

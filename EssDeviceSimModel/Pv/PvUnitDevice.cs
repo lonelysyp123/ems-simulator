@@ -1,5 +1,6 @@
 using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel;
+using EssSimulator.EssDeviceSimModel.Model;
 
 namespace EssSimulator.EssDeviceSimModel.Pv
 {
@@ -85,7 +86,11 @@ namespace EssSimulator.EssDeviceSimModel.Pv
                 UnitXfSecondaryV = runtime.UnitXfSecondaryV,
                 UnitXfRatedKva = runtime.UnitXfRatedKva > 0
                     ? runtime.UnitXfRatedKva
-                    : invCount * runtime.InverterRatedPowerKw
+                    : invCount * runtime.InverterRatedPowerKw,
+                UnitXfNoLoadLossW = runtime.UnitXfNoLoadLossW,
+                UnitXfLoadLossW = runtime.UnitXfLoadLossW,
+                UnitXfImpedancePercent = runtime.UnitXfImpedancePercent,
+                UnitXfNoLoadCurrentPercent = runtime.UnitXfNoLoadCurrentPercent
             };
         }
 
@@ -99,6 +104,13 @@ namespace EssSimulator.EssDeviceSimModel.Pv
         public double AvailableDcPowerKw => _inverters.Sum(inv => inv.AvailableDcPowerKw);
         public double ActivePowerKw => _inverters.Sum(inv => inv.GetCurrentState().ActivePower);
         public double ReactivePowerKvar => _inverters.Sum(inv => inv.GetCurrentState().ReactivePower);
+        /// <summary>箱变高压侧有功（kW）。并网时为逆变器交流功率减去铁损和铜损，可为负。</summary>
+        public double HvActivePowerKw { get; private set; }
+        /// <summary>箱变高压侧无功（kvar）。并网时等于逆变器无功。</summary>
+        public double HvReactivePowerKvar { get; private set; }
+        public double IronLossKw { get; private set; }
+        public double CopperLossKw { get; private set; }
+        public double TransformerLoadRatio { get; private set; }
 
         public int ArrayAInverterCount => (_inverters.Length + 1) / 2;
         public int ArrayBInverterCount => _inverters.Length - ArrayAInverterCount;
@@ -266,13 +278,37 @@ namespace EssSimulator.EssDeviceSimModel.Pv
 
         private void FinishStation(double ambientC, DateTime timeStamp, TimeSpan timeStep)
         {
-            double loadPu = RatedPowerKw > 0 ? Math.Clamp(ActivePowerKw / RatedPowerKw, 0, 1.2) : 0;
-            Transformer.Update(ambientC, loadPu);
-
+            double pLv = ActivePowerKw;
+            double qLv = ReactivePowerKvar;
             double lvV = _gridAvailable ? _config.UnitXfSecondaryV : 0;
             double hvV = _gridAvailable ? _config.UnitXfPrimaryV : 0;
-            MeterLv.Sample(lvV, ActivePowerKw, ReactivePowerKvar, _gridFrequency, timeStep);
-            MeterHv.Sample(hvV, ActivePowerKw, ReactivePowerKvar, _gridFrequency, timeStep);
+
+            double loadRatio = 0;
+            double ironW = 0;
+            double copperW = 0;
+            if (_gridAvailable)
+            {
+                double apparentKva = Math.Sqrt(pLv * pLv + qLv * qLv);
+                loadRatio = TransformerLoss.LoadRatioFromApparentKva(apparentKva, _config.UnitXfRatedKva);
+                var loss = TransformerLoss.Compute(
+                    _config.UnitXfNoLoadLossW,
+                    _config.UnitXfLoadLossW,
+                    hvV,
+                    _config.UnitXfPrimaryV,
+                    loadRatio);
+                ironW = loss.IronLossW;
+                copperW = loss.CopperLossW;
+            }
+
+            IronLossKw = ironW / 1000.0;
+            CopperLossKw = copperW / 1000.0;
+            TransformerLoadRatio = loadRatio;
+            HvActivePowerKw = _gridAvailable ? pLv - (ironW + copperW) / 1000.0 : 0;
+            HvReactivePowerKvar = _gridAvailable ? qLv : 0;
+
+            Transformer.Update(ambientC, Math.Clamp(loadRatio, 0, 1.2));
+            MeterLv.Sample(lvV, Math.Max(0, pLv), qLv, _gridFrequency, timeStep);
+            MeterHv.Sample(hvV, HvActivePowerKw, HvReactivePowerKvar, _gridFrequency, timeStep);
 
             Pid1.Update(ambientC);
             Pid2.Update(ambientC);

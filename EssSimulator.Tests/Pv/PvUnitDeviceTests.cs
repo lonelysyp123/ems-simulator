@@ -1,6 +1,9 @@
 using EssSimulator.Configuration;
 using EssSimulator.EssDeviceSimModel;
+using EssSimulator.EssDeviceSimModel.Model;
+using EssSimulator.EssDeviceSimModel.Propagation;
 using EssSimulator.EssDeviceSimModel.Pv;
+using EssSimulator.EssDeviceSimModel.Solver;
 
 namespace EssSimulator.Tests.Pv;
 
@@ -22,6 +25,8 @@ public class PvUnitDeviceTests
         Assert.Equal(35000, new PvUnitConfig().UnitXfPrimaryV);
         Assert.Equal(690, new PvUnitConfig().UnitXfSecondaryV);
         Assert.Equal(5120, new PvUnitConfig().UnitXfRatedKva);
+        Assert.Equal(100, new PvUnitConfig().UnitXfNoLoadLossW);
+        Assert.Equal(200, new PvUnitConfig().UnitXfLoadLossW);
     }
 
     [Fact]
@@ -78,6 +83,16 @@ public class PvUnitDeviceTests
         Assert.True(unit.MeterLv.FeedInPowerM1W > 0);
         Assert.True(unit.MeterHv.PhaseACurrent > 0);
         Assert.True(unit.MeterHv.PhaseACurrent < unit.MeterLv.PhaseACurrent);
+        Assert.True(unit.MeterHv.TotalActivePowerW < unit.MeterLv.TotalActivePowerW);
+
+        double p = unit.ActivePowerKw;
+        double q = unit.ReactivePowerKvar;
+        double apparent = Math.Sqrt(p * p + q * q);
+        double copperKw = 0.2 * Math.Pow(apparent / 5120.0, 2);
+        Assert.Equal(0.1, unit.IronLossKw, 6);
+        Assert.Equal(copperKw, unit.CopperLossKw, 6);
+        Assert.Equal(p - 0.1 - copperKw, unit.HvActivePowerKw, 6);
+        Assert.Equal(q, unit.HvReactivePowerKvar, 6);
     }
 
     [Fact]
@@ -124,6 +139,10 @@ public class PvUnitDeviceTests
         Assert.InRange(unit.Logger.DailyYieldKwh, 16 * 318, 16 * 322);
         Assert.InRange(unit.MeterLv.ReverseActiveEnergyKwh, 16 * 318, 16 * 322);
         Assert.Equal(0, unit.MeterLv.ForwardActiveEnergyKwh, 3);
+        Assert.InRange(
+            unit.MeterLv.ReverseActiveEnergyKwh - unit.MeterHv.ReverseActiveEnergyKwh,
+            0.2, 0.5);
+        Assert.Equal(0, unit.MeterHv.ForwardActiveEnergyKwh, 6);
     }
 
     [Fact]
@@ -343,6 +362,59 @@ public class PvUnitDeviceTests
         Assert.Equal(-25, unit.Inverters[0].ReactivePowerSettingKvar);
         Assert.Equal(0, unit.Inverters[1].ReactivePowerSettingKvar);
         Assert.Equal(200, unit.Logger.SubarrayActivePowerKw);
+    }
+
+    [Fact]
+    public void IdleOnGrid_DrawsIronLossOnHvSide()
+    {
+        var unit = StartDefault();
+        unit.Update(0, 25, DateTime.UtcNow, TimeSpan.FromHours(1));
+
+        Assert.Equal(0, unit.ActivePowerKw, 3);
+        Assert.Equal(0, unit.Logger.TotalActivePowerW, 3);
+        Assert.Equal(0, unit.MeterLv.TotalActivePowerW, 3);
+        Assert.Equal(0.1, unit.IronLossKw, 6);
+        Assert.Equal(0, unit.CopperLossKw, 6);
+        Assert.Equal(-0.1, unit.HvActivePowerKw, 6);
+        Assert.Equal(-100, unit.MeterHv.TotalActivePowerW, 3);
+        Assert.Equal(0, unit.MeterHv.FeedInPowerM1W, 3);
+        Assert.Equal(0.1, unit.MeterHv.ForwardActiveEnergyKwh, 6);
+        Assert.Equal(0, unit.MeterHv.ReverseActiveEnergyKwh, 6);
+    }
+
+    [Fact]
+    public void Bus35_ReceivesHvPowerAfterTransformerLoss()
+    {
+        var unit = StartDefault();
+        unit.Update(0, 25, DateTime.UtcNow, TimeSpan.FromSeconds(1));
+
+        var simCfg = new SimulatorConfig { Devices = { new EssUnitConfig() } };
+        var pcsCfg = new PcsPhysicalConfig();
+        var pccCfg = new PccConfig();
+        var network = NetworkTopologyBuilder.Build(
+            simCfg, pcsCfg, new TransformerConfig(), new UnitTransformerConfig(), new LoadConfig(), pccCfg);
+        var graph = new RadialNetworkGraph(network, pccCfg, pcsCfg, new[] { unit });
+        graph.Bus35.ResetPowerAggregation();
+        graph.Bus35.CollectFromContributors(new DeviceStepContext());
+
+        Assert.Equal(-0.1, unit.HvActivePowerKw, 6);
+        Assert.Equal(unit.HvActivePowerKw, graph.Bus35.TotalActivePowerKw, 6);
+        Assert.Equal(unit.HvReactivePowerKvar, graph.Bus35.TotalReactivePowerKvar, 6);
+    }
+
+    [Fact]
+    public void GridUnavailable_ClearsTransformerLossAndHvPower()
+    {
+        var unit = StartDefault();
+        unit.UpdateGridState(690, 50, isUtilityGridAvailable: false);
+        unit.Update(1000, 25, DateTime.UtcNow, TimeSpan.FromHours(1));
+
+        Assert.Equal(0, unit.HvActivePowerKw, 6);
+        Assert.Equal(0, unit.HvReactivePowerKvar, 6);
+        Assert.Equal(0, unit.IronLossKw, 6);
+        Assert.Equal(0, unit.CopperLossKw, 6);
+        Assert.Equal(0, unit.MeterHv.TotalActivePowerW, 3);
+        Assert.Equal(0, unit.MeterHv.ForwardActiveEnergyKwh, 6);
     }
 
     [Fact]

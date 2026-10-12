@@ -408,6 +408,12 @@ namespace EssSimulator.Configuration
         public double UnitXfPrimaryV { get; set; } = 35000;
         public double UnitXfSecondaryV { get; set; } = 690;
         public double UnitXfRatedKva { get; set; } = 5120;
+        /// <summary>箱变空载损耗（W），对齐 <see cref="UnitTransformerConfig.NoLoadLoss"/>。</summary>
+        public double UnitXfNoLoadLossW { get; set; } = 100;
+        /// <summary>箱变负载损耗（W），对齐 <see cref="UnitTransformerConfig.LoadLoss"/>。</summary>
+        public double UnitXfLoadLossW { get; set; } = 200;
+        public double UnitXfImpedancePercent { get; set; } = 5;
+        public double UnitXfNoLoadCurrentPercent { get; set; } = 2;
         public double DcVoltageMin { get; set; } = 500;
         public double DcVoltageMax { get; set; } = 1500;
         public string ModuleModel { get; set; } = "TSM-NEG21C.20Q";
