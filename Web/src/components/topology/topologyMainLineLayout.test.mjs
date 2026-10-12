@@ -558,6 +558,52 @@ describe('buildTopologyMainLineLayout coupling downstreams', () => {
     assert.equal(layout.unknowns[0].busId, 'bus')
     assert.equal(layout.units.length, 1)
   })
+
+  it('hangs an svg node on the bus instead of the unknown box', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 0, { outputVoltage: 35000 }),
+        node('bus', 'ac_bus', '35kV', 0, { nominalVoltage: 35000 }),
+        node('svg1', 'svg', '站用SVG', 160, { ratedCapacityKvar: 10000, acVoltage: 35000 }),
+        node('pv1', 'pv_unit', 'PV-1', 0, { inverterCount: 8 })
+      ],
+      edges: [edge('grid', 'bus'), edge('bus', 'pv1'), edge('bus', 'svg1')]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    assert.equal(layout.svgs.length, 1)
+    assert.equal(layout.svgs[0].id, 'svg1')
+    assert.equal(layout.svgs[0].busId, 'bus')
+    assert.equal(layout.unknowns.length, 0)
+  })
+
+  it('keeps an svg on the bus it connects to when a lower-voltage feeder bus exists', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 0, { outputVoltage: 220000 }),
+        node('hv', 'ac_bus', '220kV', 0, { nominalVoltage: 220000 }),
+        node('xf', 'transformer', '主变', 0, { primaryVoltage: 220000, secondaryVoltage: 35000 }),
+        node('lv', 'ac_bus', '35kV', 200, { nominalVoltage: 35000 }),
+        node('pv1', 'pv_unit', 'PV-1', 200, { inverterCount: 8 }),
+        node('svg1', 'svg', 'SVG', 400, { ratedCapacityKvar: 10000, acVoltage: 220000 })
+      ],
+      edges: [
+        edge('grid', 'hv'),
+        edge('hv', 'xf'), edge('xf', 'lv'),
+        edge('lv', 'pv1'),
+        edge('hv', 'svg1')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    const hv = layout.buses.find(b => b.id === 'hv')
+    const lv = layout.buses.find(b => b.id === 'lv')
+    const svg = layout.svgs[0]
+    assert.equal(svg.busId, 'hv')
+    assert.equal(svg.busY, hv.y)
+    assert.notEqual(svg.busY, lv.y)
+    assert.ok(svg.x >= hv.x1 && svg.x <= hv.x2)
+    assert.ok(svg.x > lv.x2)
+    assert.ok(layout.height >= svg.busY + svg.stub + svg.cardH)
+  })
 })
 
 describe('buildTopologyMainLineLayout series breaker on transformer branch', () => {

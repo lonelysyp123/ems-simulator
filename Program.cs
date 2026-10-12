@@ -317,6 +317,10 @@ namespace EssSimulator
 
                     if (topologyOverlay.PvUnits != null)
                         opt.PvUnits = topologyOverlay.PvUnits;
+
+                    opt.EnableSvg = topologyOverlay.EnableSvg;
+                    if (topologyOverlay.EnableSvg && topologyOverlay.SvgRatedCapacityKvar > 0)
+                        opt.SvgRatedCapacityKvar = topologyOverlay.SvgRatedCapacityKvar;
                 }
 
                 var edition = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()

@@ -20,6 +20,8 @@ namespace EssSimulator.Web.Topology
         public int NodeCount { get; set; }
         public int EmuCount { get; set; }
         public int PvCount { get; set; }
+        /// <summary>写死测试工程为 true，工程库不能编辑、复制或删除。</summary>
+        public bool ReadOnly { get; set; }
     }
 
     /// <summary>由组态工程生成、启动时覆盖 appsettings 对应节的运行时补丁。</summary>
@@ -38,6 +40,10 @@ namespace EssSimulator.Web.Topology
         public PcsPhysicalConfig? Pcs { get; set; }
         /// <summary>组态「负载」节点映射的站用负载计划（有功仅允许 ≤0）。</summary>
         public LoadConfig? Load { get; set; }
+        /// <summary>工程里有 SVG 节点时为真。应用后覆盖 appsettings 的 EnableSvg。</summary>
+        public bool EnableSvg { get; set; }
+        /// <summary>SVG 额定容量（kvar）。未放置节点时为 0。</summary>
+        public double SvgRatedCapacityKvar { get; set; }
         public List<string> Notes { get; set; } = new();
     }
 

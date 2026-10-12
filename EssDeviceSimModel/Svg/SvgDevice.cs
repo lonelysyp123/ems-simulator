@@ -11,7 +11,13 @@ namespace EssSimulator.EssDeviceSimModel.Svg
     public sealed class SvgDevice : ISinglePortDevice
     {
         public const double LagSeconds = 0.02;
+
+        /// <summary>满载损耗占额定无功的比例。空载加上随电流平方增加的部分，在额定无功时合计为此值。</summary>
         public const double LossFraction = 0.008;
+
+        /// <summary>开机后的空载损耗（控制与冷却）占额定无功的比例，与实际无功无关。</summary>
+        public const double NoLoadLossFraction = 0.0015;
+
         public const double VoltageMinPu = 0.85;
         public const double VoltageMaxPu = 1.15;
 
@@ -59,7 +65,7 @@ namespace EssSimulator.EssDeviceSimModel.Svg
         public double RatedCapacityKvar => _ratedKvar;
         public double AvailableReactiveUpperKvar { get; private set; }
 
-        /// <summary>运行损耗，从电网取电时为负（kW）。</summary>
+        /// <summary>运行损耗，从电网取电时为负（kW）。开机且母线有电压时至少为空载损耗，随无功平方增加，满载达到额定的 <see cref="LossFraction"/>。</summary>
         public double ActivePowerKw { get; private set; }
 
         public void ApplyMeasurement(double lineVoltageV, double frequencyHz, TimeSpan step)
@@ -76,23 +82,21 @@ namespace EssSimulator.EssDeviceSimModel.Svg
             if (!on || !voltageOk || !frequencyOk)
             {
                 RunState = on ? (ushort)2 : (ushort)0;
-                ClearOutput();
+                // 闭锁且母线仍有电压时，辅助电源继续取空载损耗；关机或失压则无法交换功率。
+                double activeKw = on && voltage > 1 ? NoLoadActivePowerKw() : 0;
+                ClearReactive(activeKw, voltage);
                 WritePort(voltage, frequency);
                 return;
             }
 
             RunState = 1;
-            double qAvail = _ratedKvar * (voltage / _nominalVoltageV);
-            AvailableReactiveUpperKvar = qAvail;
-            double target = Math.Clamp(ReactiveSetpointKvar, -qAvail, qAvail);
+            AvailableReactiveUpperKvar = _ratedKvar;
+            double target = Math.Clamp(ReactiveSetpointKvar, -_ratedKvar, _ratedKvar);
             double blend = LagBlend(step);
             _qKvar += (target - _qKvar) * blend;
             ReactivePowerKvar = _qKvar;
-            ActivePowerKw = -LossFraction * _ratedKvar;
-            double current = voltage > 1
-                ? Math.Abs(_qKvar) * 1000.0 / (ElectricalConventions.Sqrt3 * voltage)
-                : 0;
-            PhaseACurrentA = PhaseBCurrentA = PhaseCCurrentA = current;
+            ActivePowerKw = LoadActivePowerKw(_qKvar);
+            ApplyPhaseCurrent(voltage, ActivePowerKw, _qKvar);
             PowerFactor = ComputePowerFactor(ActivePowerKw, _qKvar);
             WritePort(voltage, frequency);
         }
@@ -101,14 +105,36 @@ namespace EssSimulator.EssDeviceSimModel.Svg
         {
         }
 
-        private void ClearOutput()
+        private void ClearReactive(double activeKw, double voltage)
         {
             _qKvar = 0;
             ReactivePowerKvar = 0;
-            ActivePowerKw = 0;
-            PhaseACurrentA = PhaseBCurrentA = PhaseCCurrentA = 0;
+            ActivePowerKw = activeKw;
             AvailableReactiveUpperKvar = 0;
-            PowerFactor = 1;
+            ApplyPhaseCurrent(voltage, activeKw, 0);
+            PowerFactor = ComputePowerFactor(activeKw, 0);
+        }
+
+        /// <summary>P = -[P0 + (Pfull − P0)(Q/Qrated)²]，取电为负。</summary>
+        private double LoadActivePowerKw(double reactiveKvar)
+        {
+            if (_ratedKvar <= 0)
+                return 0;
+            double ratio = reactiveKvar / _ratedKvar;
+            double p0 = NoLoadLossFraction * _ratedKvar;
+            double pFull = LossFraction * _ratedKvar;
+            return -(p0 + (pFull - p0) * ratio * ratio);
+        }
+
+        private double NoLoadActivePowerKw() => -NoLoadLossFraction * _ratedKvar;
+
+        private void ApplyPhaseCurrent(double voltage, double activeKw, double reactiveKvar)
+        {
+            double apparent = Math.Sqrt(activeKw * activeKw + reactiveKvar * reactiveKvar);
+            double current = voltage > 1
+                ? apparent * 1000.0 / (ElectricalConventions.Sqrt3 * voltage)
+                : 0;
+            PhaseACurrentA = PhaseBCurrentA = PhaseCCurrentA = current;
         }
 
         private void WritePort(double voltage, double frequency)

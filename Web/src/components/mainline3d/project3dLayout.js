@@ -45,6 +45,7 @@ export const TOPOLOGY_TEMPLATE_3D = {
   split_transformer: 'primitive',
   ac_meter: 'primitive',
   load: 'primitive',
+  svg: 'primitive',
   bms: 'primitive',
   dc_bus: 'primitive',
   pcs: 'primitive',
@@ -163,7 +164,8 @@ export const DEVICE_PORTS = {
   split_transformer: { front: 1.6, back: 1.6, boxFront: 1.25, boxBack: 1.25, scaled: true },
   pcs: { front: 1.05, back: 1.0 },
   bms: { only: -1.45 },
-  load: { front: 0.75, back: 0.75 }
+  load: { front: 0.75, back: 0.75 },
+  svg: { front: 0.75, back: 0.75 }
 }
 
 /** 端口 z 偏移（含方向）：单口设备恒定；双口设备按对端方位选择面向对端的口 */
@@ -1042,6 +1044,7 @@ function collectSldNodeIds(sld) {
   for (const b of sld.buses || []) add(b.id)
   for (const m of sld.meters || []) add(m.id)
   for (const l of sld.loads || []) add(l.id)
+  for (const s of sld.svgs || []) add(s.id)
   for (const u of sld.units || []) {
     add(u.emu?.id)
     add(u.pv?.id)
@@ -1225,6 +1228,19 @@ function fromTopology(topology, unitsSnap, pvSnap) {
       z: toZ(l.busY + (l.stub || 0) + (l.symbolH || 0) / 2, origin),
       node: l.node,
       label: l.label,
+      labelOffset: { x: 1.6, y: 2.2, z: 0 }
+    })
+  }
+
+  for (const s of sld.svgs || []) {
+    addItem(items, {
+      key: `node-${s.id}`,
+      templateId: 'svg',
+      kind: 'svg',
+      x: toX(s.x, origin),
+      z: toZ(s.busY + (s.stub || 0) + (s.symbolH || 0) / 2, origin),
+      node: s.node,
+      label: s.label,
       labelOffset: { x: 1.6, y: 2.2, z: 0 }
     })
   }

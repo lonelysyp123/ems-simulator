@@ -33,7 +33,9 @@ public class SvgBusContributionTests
         svg.ReactiveSetpointKvar = 5000;
         var running = Collect(graph, TimeSpan.FromSeconds(1));
         Assert.Equal(5000, running.Q - baseline.Q, 1);
-        Assert.Equal(-SvgDevice.LossFraction * 10000, running.P - baseline.P, 1);
+        double p0 = SvgDevice.NoLoadLossFraction * 10000;
+        double pFull = SvgDevice.LossFraction * 10000;
+        Assert.Equal(-(p0 + (pFull - p0) * 0.25), running.P - baseline.P, 2);
 
         svg.RunCommand = 0;
         var stopped = Collect(graph, TimeSpan.FromMilliseconds(100));

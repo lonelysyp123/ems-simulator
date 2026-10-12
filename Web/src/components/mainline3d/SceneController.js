@@ -1079,6 +1079,12 @@ export class SceneController {
           item.label || item.node?.label || '负载',
           `${(Number(snap.loadActivePowerKw) || 0).toFixed(1)} kW`
         ]
+      } else if (kind === 'svg') {
+        const rated = Number(item.node?.parameters?.ratedCapacityKvar)
+        const cap = Number.isFinite(rated) && rated >= 1000
+          ? `${(rated / 1000).toFixed(1)} Mvar`
+          : `${Number.isFinite(rated) ? rated.toFixed(0) : '—'} kvar`
+        lines = [item.label || item.node?.label || 'SVG', cap]
       } else if (kind === 'unit-title') {
         title = true
         const u = (snap.units || []).find(x => x.unitIndex === a.unitIndex)

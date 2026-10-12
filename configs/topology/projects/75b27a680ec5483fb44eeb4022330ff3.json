@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "id": "75b27a680ec5483fb44eeb4022330ff3",
   "name": "\u5E38\u7528\u6DF7\u5408\u7535\u7AD9-2*5.5MW\u50A8\u80FD\u002B2*10MW\u5149\u4F0F",
-  "updatedAtUtc": "2026-09-14T02:45:58.285392Z",
+  "updatedAtUtc": "2026-09-30T02:48:10.93782Z",
   "nodes": [
     {
       "id": "2593d2cb86911a01d32668b",
@@ -725,6 +725,18 @@
         "noLoadLossW": 80,
         "loadLossW": 400,
         "emuId": "590fd132de7cc1a041e7799e"
+      }
+    },
+    {
+      "id": "db959662955931a0f03536f2",
+      "templateId": "svg",
+      "label": "SVG",
+      "x": 1340,
+      "y": -220,
+      "parameters": {
+        "acVoltage": 220000,
+        "ratedCapacityKvar": 10000,
+        "name": "SVG"
       }
     }
   ],
@@ -1470,6 +1482,27 @@
       "fromPortId": "dc_neg",
       "toNodeId": "4f4ce0eb4eae881a01d37e742",
       "toPortId": "dc_neg"
+    },
+    {
+      "id": "4518900ade754143a9d1ebf8b0e05a04",
+      "fromNodeId": "79e7424468e281a01d32a6c0",
+      "fromPortId": "a2",
+      "toNodeId": "db959662955931a0f03536f2",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "2cb015f0c9314640aa76c2b3c33c4649",
+      "fromNodeId": "79e7424468e281a01d32a6c0",
+      "fromPortId": "b2",
+      "toNodeId": "db959662955931a0f03536f2",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "2355592c297d470aabb15babb8bb22cd",
+      "fromNodeId": "79e7424468e281a01d32a6c0",
+      "fromPortId": "c2",
+      "toNodeId": "db959662955931a0f03536f2",
+      "toPortId": "ac_c"
     }
   ]
 }

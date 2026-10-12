@@ -143,16 +143,25 @@
               </text>
             </g>
 
-            <g v-if="svgCard" :transform="`translate(${svgCard.x}, ${svgCard.y})`">
-              <line class="bus-line bus-thick" :x1="svgCard.fromX - svgCard.x" y1="0" x2="0" y2="0" />
-              <line class="bus-line" x1="0" y1="0" x2="0" y2="24" />
-              <foreignObject x="-78" y="24" width="156" height="150">
+            <g v-for="s in layout.svgs" :key="`svg-sym-${s.id}`">
+              <line class="bus-line" :x1="s.x" :y1="s.busY" :x2="s.x" :y2="s.busY + s.stub" />
+              <foreignObject
+                v-if="snap.svgPresent"
+                :x="s.x - (s.cardW || 156) / 2"
+                :y="s.busY + s.stub"
+                :width="s.cardW || 156"
+                :height="s.cardH || 150"
+              >
                 <SvgStationCard
                   :snap="snap"
                   @svg-run="v => $emit('svg-run', v)"
                   @svg-set-reactive="v => $emit('svg-set-reactive', v)"
                 />
               </foreignObject>
+              <template v-else>
+                <rect :x="s.x - 22" :y="s.busY + s.stub" width="44" height="22" rx="3" fill="#f3fbf6" stroke="#3d9a6a" />
+                <text :x="s.x" :y="s.busY + s.stub + 15" text-anchor="middle" class="label-text">{{ s.label }}</text>
+              </template>
             </g>
 
             <g v-for="(load, li) in layout.loads" :key="`load-${load.id}`">
@@ -367,6 +376,7 @@ const layout = computed(() => {
     transformers: l.transformers || l.stationXfmrs || [],
     meters: l.meters || [],
     loads: l.loads || [],
+    svgs: l.svgs || [],
     unknowns: l.unknowns || [],
     stemBreakers: l.stemBreakers || [],
     tieBreakers: l.tieBreakers || [],
@@ -378,21 +388,8 @@ const zoomPercent = computed(() => Math.round(zoom.value * 100))
 const panLayerStyle = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px)`
 }))
-const svgCard = computed(() => {
-  if (!props.snap.svgPresent) return null
-  const y = layout.value.yBusLv ?? 0
-  const bus = (layout.value.buses || []).find(b => Math.abs((b.y ?? 0) - y) < 0.5)
-  const fromX = bus?.x2 ?? layout.value.busRight ?? 0
-  return { x: fromX + 88, y, fromX }
-})
-const viewWidth = computed(() => {
-  const base = layout.value.width || 720
-  return svgCard.value ? Math.max(base, svgCard.value.x + 100) : base
-})
-const viewHeight = computed(() => {
-  const base = layout.value.height || 320
-  return svgCard.value ? Math.max(base, svgCard.value.y + 190) : base
-})
+const viewWidth = computed(() => layout.value.width || 720)
+const viewHeight = computed(() => layout.value.height || 320)
 const renderWidth = computed(() => Math.round(viewWidth.value * zoom.value))
 const renderHeight = computed(() => Math.round(viewHeight.value * zoom.value))
 
@@ -989,6 +986,19 @@ const BmsCard = defineComponent({
 .svg-device-box.pv-xfmr-box .power-input { height: 18px; padding: 0 3px; }
 .svg-device-box.pv-xfmr-box .act-btn { height: 18px; padding: 0 4px; line-height: 16px; }
 .svg-device-box.pv-xfmr-box .box-actions { margin-top: 3px; }
+.svg-device-box.svg-station-box {
+  background: #f3fbf6; border: 1px solid #3d9a6a; color: #303133;
+  padding: 3px 5px; font-size: 10px; line-height: 1.2;
+  height: auto;
+}
+.svg-device-box.svg-station-box .box-title { margin-bottom: 1px; white-space: nowrap; }
+.svg-device-box.svg-station-box .box-title-meta { font-weight: 500; color: #606266; }
+.svg-device-box.svg-station-box .box-line { margin-bottom: 0; line-height: 1.2; }
+.svg-device-box.svg-station-box .box-controls { margin-top: 3px; padding-top: 0; }
+.svg-device-box.svg-station-box .power-row { margin-top: 3px; height: 18px; }
+.svg-device-box.svg-station-box .power-input { height: 18px; padding: 0 3px; }
+.svg-device-box.svg-station-box .act-btn { height: 18px; padding: 0 4px; line-height: 16px; }
+.svg-device-box.svg-station-box .box-actions { margin-top: 3px; }
 .svg-device-box .box-title { font-weight: 700; margin-bottom: 3px; color: #1e3a5f; }
 .svg-device-box .box-line { white-space: normal; overflow: visible; margin-bottom: 1px; }
 .svg-device-box .box-line.muted { color: #909399; }

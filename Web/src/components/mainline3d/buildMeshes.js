@@ -711,6 +711,16 @@ export function createLoadBank() {
   return g
 }
 
+/** 站用 SVG 柜 */
+export function createSvgCabinet() {
+  const g = new THREE.Group()
+  const body = new THREE.MeshStandardMaterial({ color: 0x3d9a6a, metalness: 0.15, roughness: 0.5 })
+  g.add(box(1.4, 1.8, 0.9, body, 1.05))
+  g.add(box(1.6, 0.12, 1.1, MAT.concrete(), 0.06))
+  g.userData.kind = 'svg'
+  return g
+}
+
 /** 母线横管（单挂省略时由布局不生成此项） */
 export function createBusBar(item) {
   const g = new THREE.Group()
@@ -871,6 +881,7 @@ const TEMPLATE_MODELS = {
   },
   ac_meter: () => createAcMeter(),
   load: () => createLoadBank(),
+  svg: () => createSvgCabinet(),
   bms: (item) => createBmsContainer(item.panelKey),
   emu: () => null,
   pv_unit: () => null,
@@ -956,7 +967,7 @@ export function buildStation(layout) {
 
     const labelKinds = new Set([
       'grid', 'main-breaker', 'stem-breaker', 'tie-breaker', 'branch-breaker', 'station-xf', 'bus-bar', 'bus-node', 'dc-bus',
-      'meter', 'load', 'unit-title', 'unit-breaker', 'unit-xf',
+      'meter', 'load', 'svg', 'unit-title', 'unit-breaker', 'unit-xf',
       'pv-title', 'pv-breaker', 'pv-xf', 'pv-array'
     ])
     if (labelKinds.has(item.kind) || item.templateId === 'label') {

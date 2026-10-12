@@ -787,6 +787,34 @@ public class TopologyValidatorTests
     }
 
     [Fact]
+    public void Svg_connects_to_energized_35kv_bus_and_rejects_a_second_one()
+    {
+        var p = Energized35kVPlant(Node("svg1", "svg", "SVG-1"));
+
+        var r = Connect(p, Edge("svg1", "ac_a", "bus35", "a2"));
+        Assert.True(r.Ok, r.Message);
+        var save = Save(p);
+        Assert.True(save.Ok, save.Message);
+
+        p.Nodes.Add(Node("svg2", "svg", "SVG-2"));
+        save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("SVG_DUPLICATE", save.Code);
+    }
+
+    [Fact]
+    public void Svg_rejects_voltage_mismatch_with_bus()
+    {
+        var p = Energized35kVPlant(Node("svg1", "svg", "SVG-1",
+            new Dictionary<string, object?> { ["acVoltage"] = 10000d }));
+
+        Assert.True(Connect(p, Edge("svg1", "ac_a", "bus35", "a2")).Ok);
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("SVG_BUS_MISMATCH", save.Code);
+    }
+
+    [Fact]
     public void Pv_unit_connects_to_energized_35kv_bus()
     {
         var p = Energized35kVPlant(Node("pv1", "pv_unit", "光伏单元-1"));

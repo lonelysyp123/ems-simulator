@@ -1,6 +1,6 @@
 /** 组态左侧调色板：模板按分类分组、搜索过滤。 */
 
-export const PALETTE_CATEGORY_ORDER = ['电源', '母线', '开关', '变电', '测量', '负荷', '储能', '光伏']
+export const PALETTE_CATEGORY_ORDER = ['电源', '母线', '开关', '变电', '测量', '负荷', '无功', '储能', '光伏']
 
 function norm(s) {
   return String(s || '').trim().toLowerCase()

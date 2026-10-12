@@ -14,6 +14,7 @@ const SIZE = {
   split_transformer: { w: 160, h: 120 },
   ac_meter: { w: 110, h: 72 },
   load: { w: 110, h: 72 },
+  svg: { w: 120, h: 84 },
   emu: { w: 140, h: 96 },
   pcs: { w: 120, h: 96 },
   pv_unit: { w: 140, h: 96 },
@@ -65,7 +66,7 @@ export function formatVoltage(v) {
  * - passthrough: 断路器（电气透明，沿连通继续）
  * - coupling: 变压器等绕组设备（沿其余已接线母线分叉为 N 路下游，不限两绕组）
  * - feeder: 发电支路（PCS / 光伏），在母线下展开
- * - tap: 电表 / 负载等母线挂件
+ * - tap: 电表 / 负载 / SVG 等母线挂件
  * - dc / virtual: 直流侧或虚拟节点，一次图站侧不直接遍历
  * - unknown: 未登记模板，仍作为挂件画出
  */
@@ -77,6 +78,7 @@ export const SLD_ROLES = {
   split_transformer: 'coupling',
   ac_meter: 'tap',
   load: 'tap',
+  svg: 'tap',
   pcs: 'feeder',
   pv_unit: 'feeder',
   bms: 'dc',
@@ -107,6 +109,7 @@ export function templateColor(templateId) {
       return '#2980b9'
     case 'ac_meter': return '#8e44ad'
     case 'load': return '#c0392b'
+    case 'svg': return '#3d9a6a'
     case 'emu': return '#16a085'
     case 'emu_group': return '#0f8a9d'
     case 'pcs': return '#0e7a6a'

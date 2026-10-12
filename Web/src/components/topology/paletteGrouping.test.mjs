@@ -15,6 +15,7 @@ const builtins = [
   tpl('split_transformer', '双耳变压器', '变电'),
   tpl('ac_meter', '电表', '测量'),
   tpl('load', '站用负载', '负荷'),
+  tpl('svg', 'SVG', '无功'),
   tpl('emu', 'EMU储能单元', '储能'),
   tpl('emu_group', 'EMU分组', '储能'),
   tpl('pcs', 'PCS变流器', '储能'),

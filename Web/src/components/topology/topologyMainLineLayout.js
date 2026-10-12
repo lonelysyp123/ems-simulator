@@ -626,6 +626,8 @@ export function buildTopologyMainLineLayout(topology) {
   const XFMR_SPAN = 44
   const METER_H = 72
   const LOAD_SYMBOL_H = 36
+  const SVG_CARD_W = 168
+  const SVG_CARD_H = 112
   const METER_HALF_W = 32
 
   const grid = nodes.find(n => n.templateId === 'grid') || null
@@ -776,6 +778,7 @@ export function buildTopologyMainLineLayout(topology) {
     transformers: [],
     meters: [],
     loads: [],
+    svgs: [],
     unknowns: [],
     tieBreakers: [],
     branchBreakers: [],
@@ -810,13 +813,15 @@ export function buildTopologyMainLineLayout(topology) {
     const hasTieBrk = slots.some(s => s.item.kind === 'buslink' && s.item.bl.breaker)
     const hasMeter = taps.some(t => t.node.templateId === 'ac_meter')
     const hasLoad = taps.some(t => t.node.templateId === 'load')
+    const hasSvg = taps.some(t => t.node.templateId === 'svg')
     const hasUnknown = taps.some(t => sldRole(t.node.templateId) === 'unknown')
     const equipH = Math.max(
       hasXfmr ? XFMR_SPAN : 0,
       hasTieBrk ? BRK_SPAN : 0,
       hasMeter ? METER_H : 0,
       hasUnknown ? METER_H : 0,
-      hasLoad ? LOAD_SYMBOL_H + LINK_STUB : 0
+      hasLoad ? LOAD_SYMBOL_H + LINK_STUB : 0,
+      hasSvg ? LOAD_SYMBOL_H + LINK_STUB : 0
     )
     const yEquip = yBus + LINK_STUB
     const structXs = []
@@ -988,6 +993,20 @@ export function buildTopologyMainLineLayout(topology) {
           symbolH: LOAD_SYMBOL_H,
           label: n.label || n.parameters?.name || '负载'
         })
+      } else if (n.templateId === 'svg') {
+        scene.wires.push({ x1: tapX, y1: yBus, x2: tapX, y2: yBus + LINK_STUB })
+        scene.svgs.push({
+          id: n.id,
+          node: n,
+          busId: frame.node?.id || null,
+          x: tapX,
+          busY: yBus,
+          stub: LINK_STUB,
+          symbolH: LOAD_SYMBOL_H,
+          cardW: SVG_CARD_W,
+          cardH: SVG_CARD_H,
+          label: n.label || n.parameters?.name || 'SVG'
+        })
       } else {
         scene.wires.push({ x1: tapX, y1: yBus, x2: tapX, y2: yEquip })
         scene.unknowns.push({
@@ -1140,6 +1159,10 @@ export function buildTopologyMainLineLayout(topology) {
   for (const l of scene.loads) {
     maxX = Math.max(maxX, l.x + 80)
   }
+  for (const s of scene.svgs) {
+    maxX = Math.max(maxX, s.x + (s.cardW || 0) / 2 + 16)
+    maxY = Math.max(maxY, s.busY + (s.stub || 0) + (s.cardH || s.symbolH || 0) + 16)
+  }
   for (const u of scene.unknowns) {
     maxX = Math.max(maxX, u.x + METER_HALF_W + 16)
     maxY = Math.max(maxY, u.y + u.h + 16)
@@ -1157,6 +1180,7 @@ export function buildTopologyMainLineLayout(topology) {
     transformers: scene.transformers,
     meters: scene.meters,
     loads: scene.loads,
+    svgs: scene.svgs,
     unknowns: scene.unknowns,
     tieBreakers: scene.tieBreakers,
     branchBreakers: scene.branchBreakers,

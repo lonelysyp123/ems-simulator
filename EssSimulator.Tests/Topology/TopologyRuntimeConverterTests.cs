@@ -258,6 +258,45 @@ public class TopologyRuntimeConverterTests
         Assert.Equal(690, overlay.UnitTransformer.SecondaryVoltage);
         Assert.NotNull(overlay.Pcs);
         Assert.Equal(320, overlay.Pcs!.RatedPower);
+        Assert.False(overlay.EnableSvg);
+    }
+
+    [Fact]
+    public void Convert_enables_svg_from_the_single_node()
+    {
+        var project = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("pv1", "pv_unit", "光伏单元-1"),
+                Node("svg1", "svg", "站用SVG", new Dictionary<string, object?> { ["ratedCapacityKvar"] = 8000d })
+            }
+        };
+
+        var (overlay, validation) = TopologyRuntimeConverter.Convert(project);
+        Assert.True(validation.Ok, validation.Message);
+        Assert.True(overlay!.EnableSvg);
+        Assert.Equal(8000, overlay.SvgRatedCapacityKvar);
+        Assert.Contains(overlay.Notes, n => n.Contains("站用SVG") && n.Contains("8000"));
+    }
+
+    [Fact]
+    public void Convert_rejects_a_second_svg()
+    {
+        var project = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("pv1", "pv_unit", "光伏单元-1"),
+                Node("svg1", "svg", "SVG-1"),
+                Node("svg2", "svg", "SVG-2")
+            }
+        };
+
+        var (overlay, validation) = TopologyRuntimeConverter.Convert(project);
+        Assert.False(validation.Ok);
+        Assert.Null(overlay);
+        Assert.Equal("SVG_DUPLICATE", validation.Code);
     }
 
     [Fact]
@@ -332,7 +371,9 @@ public class TopologyRuntimeConverterTests
         var parameters = new Dictionary<string, object?>(TopologyTemplates.Get("pv_unit")!.DefaultParameters)
         {
             ["inverterCount"] = 20d,
-            ["unitXfRatedKva"] = 6400d
+            ["unitXfRatedKva"] = 6400d,
+            ["unitXfNoLoadLossW"] = 150d,
+            ["unitXfLoadLossW"] = 320d
         };
         var project = new TopologyProject
         {
@@ -350,6 +391,8 @@ public class TopologyRuntimeConverterTests
         Assert.True(validation.Ok, validation.Message);
         Assert.Equal(20, overlay!.PvUnits[0].InverterCount);
         Assert.Equal(6400, overlay.PvUnits[0].UnitXfRatedKva);
+        Assert.Equal(150, overlay.PvUnits[0].UnitXfNoLoadLossW);
+        Assert.Equal(320, overlay.PvUnits[0].UnitXfLoadLossW);
         Assert.Equal("TSM-NEG21C.20Q", overlay.PvUnits[0].ModuleModel);
         Assert.Equal(0, overlay.PvUnits[0].GroundAlbedo);
         Assert.Equal(0, overlay.PvUnits[0].OperatingYears);

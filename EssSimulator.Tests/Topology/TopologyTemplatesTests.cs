@@ -6,6 +6,23 @@ namespace EssSimulator.Tests.Topology;
 public class TopologyTemplatesTests
 {
     [Fact]
+    public void All_includes_svg_named_SVG()
+    {
+        var t = TopologyTemplates.Get("svg");
+        Assert.NotNull(t);
+        Assert.Equal("SVG", t!.Name);
+        Assert.Equal("无功", t.Category);
+        Assert.False(t.IsVoltageSource);
+        Assert.Equal(3, t.Ports.Count);
+        Assert.Collection(t.Ports,
+            p => { Assert.Equal("ac_a", p.Id); Assert.Equal("A", p.Phase); Assert.Equal("top", p.Side); Assert.Equal("acVoltage", p.VoltageParam); },
+            p => { Assert.Equal("ac_b", p.Id); Assert.Equal("B", p.Phase); },
+            p => { Assert.Equal("ac_c", p.Id); Assert.Equal("C", p.Phase); });
+        Assert.Equal(35000d, TopologyParamHelper.GetDouble(t.DefaultParameters, "acVoltage"));
+        Assert.Equal(10000d, TopologyParamHelper.GetDouble(t.DefaultParameters, "ratedCapacityKvar"));
+    }
+
+    [Fact]
     public void All_includes_pv_unit_named_光伏单元()
     {
         var t = TopologyTemplates.Get("pv_unit");
@@ -28,6 +45,8 @@ public class TopologyTemplatesTests
         Assert.Equal(690d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfSecondaryV"));
         Assert.Equal(35000d, TopologyParamHelper.GetDouble(t.DefaultParameters, "acVoltage"));
         Assert.Equal(5120d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfRatedKva"));
+        Assert.Equal(100d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfNoLoadLossW"));
+        Assert.Equal(200d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfLoadLossW"));
         Assert.Equal("TSM-NEG21C.20Q", TopologyParamHelper.GetString(t.DefaultParameters, "moduleModel"));
         Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "operatingYears"));
         Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "groundAlbedo"));

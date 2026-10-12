@@ -1,6 +1,6 @@
 namespace EssSimulator.Web.Topology
 {
-    /// <summary>内置组态基础模板（电网 / 母线 / 断路器 / 变压器 / 电表 / 负载 / EMU 虚拟单元 / PCS / 光伏单元 / BMS / 直流母线）。</summary>
+    /// <summary>内置组态基础模板（电网 / 母线 / 断路器 / 变压器 / 电表 / 负载 / SVG / EMU 虚拟单元 / PCS / 光伏单元 / BMS / 直流母线）。</summary>
     public static class TopologyTemplates
     {
         public static IReadOnlyList<TopologyTemplate> All { get; } = BuildAll();
@@ -45,6 +45,7 @@ namespace EssSimulator.Web.Topology
             BuildSplitTransformer(),
             BuildAcMeter(),
             BuildLoad(),
+            BuildSvg(),
             BuildEmu(),
             BuildEmuGroup(),
             BuildPcs(),
@@ -320,6 +321,37 @@ namespace EssSimulator.Web.Topology
         };
 
         /// <summary>
+        /// 站用 SVG：并联在交流母线下侧，只做恒无功。全站一台。
+        /// 开关机和无功设定在主接线卡片上，不写进组态参数。
+        /// </summary>
+        private static TopologyTemplate BuildSvg() => new()
+        {
+            Id = "svg",
+            Name = "SVG",
+            Category = "无功",
+            Description = "静止无功发生器，并联在交流母线。正无功为容性发出。额定容量默认 10 Mvar，交流侧默认 35 kV，须与所接母线电压一致。全站只能放一台。",
+            IsVoltageSource = false,
+            Ports =
+            {
+                new() { Id = "ac_a", Label = "AC-A", Kind = "ac_phase", Phase = "A", Side = "top", Offset = 0.2, VoltageParam = "acVoltage" },
+                new() { Id = "ac_b", Label = "AC-B", Kind = "ac_phase", Phase = "B", Side = "top", Offset = 0.5, VoltageParam = "acVoltage" },
+                new() { Id = "ac_c", Label = "AC-C", Kind = "ac_phase", Phase = "C", Side = "top", Offset = 0.8, VoltageParam = "acVoltage" }
+            },
+            Parameters =
+            {
+                new() { Key = "acVoltage", Label = "交流侧线电压", Type = "number", Unit = "V", Min = 100, Description = "接入母线电压等级，须与母线匹配" },
+                new() { Key = "ratedCapacityKvar", Label = "额定容量", Type = "number", Unit = "kvar", Min = 1, Description = "运行时无功上限固定为此容量" },
+                new() { Key = "name", Label = "名称", Type = "string" }
+            },
+            DefaultParameters = new Dictionary<string, object?>
+            {
+                ["acVoltage"] = 35000d,
+                ["ratedCapacityKvar"] = 10000d,
+                ["name"] = "SVG"
+            }
+        };
+
+        /// <summary>
         /// EMU 储能单元（虚拟）：无图形、无端口，作为 PCS / 断路器 / 电表的归属容器；
         /// 设备通过 emuId 参数下拉框归入。单元变参数属单元级，在此配置。
         /// </summary>
@@ -436,6 +468,10 @@ namespace EssSimulator.Web.Topology
                 new() { Key = "unitXfPrimaryV", Label = "箱变一次电压", Type = "number", Unit = "V" },
                 new() { Key = "unitXfSecondaryV", Label = "箱变二次电压", Type = "number", Unit = "V", Description = "逆变器交流侧，默认 690 V（与储能 PCS 相同）" },
                 new() { Key = "unitXfRatedKva", Label = "箱变额定容量", Type = "number", Unit = "kVA", Min = 1, Description = "默认 16×320 kW = 5120 kVA" },
+                new() { Key = "unitXfNoLoadLossW", Label = "箱变空载损耗", Type = "number", Unit = "W", Min = 0, Description = "单耳 35kV/690V，对齐储能单元变默认 100 W" },
+                new() { Key = "unitXfLoadLossW", Label = "箱变负载损耗", Type = "number", Unit = "W", Min = 0, Description = "对齐储能单元变默认 200 W" },
+                new() { Key = "unitXfImpedancePercent", Label = "箱变短路阻抗", Type = "number", Unit = "%", Min = 0, Description = "对齐储能单元变默认 5%，本期不参与压降" },
+                new() { Key = "unitXfNoLoadCurrentPercent", Label = "箱变空载电流", Type = "number", Unit = "%", Min = 0, Description = "对齐储能单元变默认 2%，并网时不注入励磁无功" },
                 new() { Key = "moduleModel", Label = "组件型号", Type = "string" },
                 new() { Key = "operatingYears", Label = "投运年限", Type = "number", Unit = "年", Min = 0, Description = "0 为新产品；满 1 年后按组件首年/逐年衰减缩放电流" },
                 new() { Key = "groundAlbedo", Label = "地面反照率", Type = "number", Min = 0, Max = 1, Description = "方阵 A/B 反照率初值；0 关闭双面增益。G_rear = 反照率 × 平面辐照" },
@@ -455,6 +491,10 @@ namespace EssSimulator.Web.Topology
                 ["unitXfPrimaryV"] = 35000d,
                 ["unitXfSecondaryV"] = 690d,
                 ["unitXfRatedKva"] = 5120d,
+                ["unitXfNoLoadLossW"] = 100d,
+                ["unitXfLoadLossW"] = 200d,
+                ["unitXfImpedancePercent"] = 5d,
+                ["unitXfNoLoadCurrentPercent"] = 2d,
                 ["moduleModel"] = EssDeviceSimModel.Pv.TrinaPvModuleCatalog.Neg21c20qModel,
                 ["operatingYears"] = 0d,
                 ["groundAlbedo"] = 0d,

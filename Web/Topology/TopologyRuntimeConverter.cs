@@ -8,6 +8,7 @@ namespace EssSimulator.Web.Topology
     /// 母线/电表连线解析为运行时母线 Id，供电表按实际挂点采样；
     /// 储能单元数 = 含 PCS 的 EMU 虚拟节点数，每单元 PCS 数 = 通过 emuId 归入该 EMU 的 PCS 节点数；
     /// 光伏单元展开为 overlay.PvUnits，运行时挂在 35 kV 母线送电。
+    /// 工程中的 SVG 节点启用站用 SVG，并带上额定容量。
     /// 工程须至少包含一个含 PCS 的 EMU 或光伏单元。
     /// </summary>
     public static class TopologyRuntimeConverter
@@ -39,6 +40,10 @@ namespace EssSimulator.Web.Topology
                 .ToList();
             if (emusWithPcs.Count == 0 && pvUnits.Count == 0)
                 return (null, Fail("NO_GENERATION_UNIT", "工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元"));
+
+            var svgCheck = TopologyValidator.ValidateSvgNodes(project);
+            if (svgCheck != null)
+                return (null, svgCheck);
 
             foreach (var pv in pvUnits)
             {
@@ -220,6 +225,15 @@ namespace EssSimulator.Web.Topology
             overlay.Notes.Add(loadNode == null
                 ? "负载：组态无负载节点，初始化 P/Q = 0 / 0"
                 : $"负载「{loadNode.Label}」→ 概览绑定 · P {loadP:0.##} kW · Q {loadQ:0.##} kvar（有功仅消耗）");
+
+            var svgNode = project.Nodes.FirstOrDefault(n => n.TemplateId == "svg");
+            if (svgNode != null)
+            {
+                overlay.EnableSvg = true;
+                overlay.SvgRatedCapacityKvar = TopologyParamHelper.GetDouble(
+                    svgNode.Parameters, "ratedCapacityKvar", 10000);
+                overlay.Notes.Add($"SVG「{svgNode.Label}」→ {overlay.SvgRatedCapacityKvar:0.#} kvar");
+            }
 
             var pvCount = pvUnits.Count;
             int pvIndex = 0;
@@ -587,6 +601,10 @@ namespace EssSimulator.Web.Topology
                 UnitXfPrimaryV = TopologyParamHelper.GetDouble(p, "unitXfPrimaryV", 35000),
                 UnitXfSecondaryV = TopologyParamHelper.GetDouble(p, "unitXfSecondaryV", 690),
                 UnitXfRatedKva = TopologyParamHelper.GetDouble(p, "unitXfRatedKva", invCount * ratedKw),
+                UnitXfNoLoadLossW = TopologyParamHelper.GetDouble(p, "unitXfNoLoadLossW", 100),
+                UnitXfLoadLossW = TopologyParamHelper.GetDouble(p, "unitXfLoadLossW", 200),
+                UnitXfImpedancePercent = TopologyParamHelper.GetDouble(p, "unitXfImpedancePercent", 5),
+                UnitXfNoLoadCurrentPercent = TopologyParamHelper.GetDouble(p, "unitXfNoLoadCurrentPercent", 2),
                 DcVoltageMin = TopologyParamHelper.GetDouble(p, "dcVoltageMin", 500),
                 DcVoltageMax = TopologyParamHelper.GetDouble(p, "dcVoltageMax", 1500),
                 ModuleModel = TopologyParamHelper.GetString(p, "moduleModel", "TSM-NEG21C.20Q"),

@@ -72,7 +72,7 @@
 
       <g v-if="snap.svgPresent" :transform="`translate(${svgCardX}, ${busY})`">
         <line class="bus-line" x1="0" y1="0" x2="0" y2="24" />
-        <foreignObject x="-78" y="24" width="156" height="150">
+        <foreignObject x="-84" y="24" width="168" height="112">
           <SvgStationCard
             :snap="snap"
             @svg-run="v => $emit('svg-run', v)"
@@ -688,6 +688,23 @@ const ChannelBranch = defineComponent({
   border: 1px solid #e6a23c;
   color: #303133;
 }
+.svg-device-box.svg-station-box {
+  background: #f3fbf6;
+  border: 1px solid #3d9a6a;
+  color: #303133;
+  padding: 3px 5px;
+  font-size: 10px;
+  line-height: 1.2;
+  height: auto;
+}
+.svg-device-box.svg-station-box .box-title { margin-bottom: 1px; white-space: nowrap; }
+.svg-device-box.svg-station-box .box-title-meta { font-weight: 500; color: #606266; }
+.svg-device-box.svg-station-box .box-line { margin-bottom: 0; line-height: 1.2; }
+.svg-device-box.svg-station-box .box-controls { margin-top: 3px; padding-top: 0; }
+.svg-device-box.svg-station-box .power-row { margin-top: 3px; height: 18px; }
+.svg-device-box.svg-station-box .power-input { height: 18px; padding: 0 3px; }
+.svg-device-box.svg-station-box .act-btn { height: 18px; padding: 0 4px; line-height: 16px; }
+.svg-device-box.svg-station-box .box-actions { margin-top: 3px; }
 .svg-device-box .box-title {
   font-weight: 700;
   margin-bottom: 3px;

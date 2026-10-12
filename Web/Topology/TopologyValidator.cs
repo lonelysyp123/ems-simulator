@@ -97,6 +97,9 @@ namespace EssSimulator.Web.Topology
             var emuResult = ValidateEmuBusVoltage(fromNode, fromTpl, fromPort, toNode, toTpl, toPort, newEdge);
             if (!emuResult.Ok) return emuResult;
 
+            var svgVoltage = ValidateSvgBusVoltage(fromNode, fromPort, toNode, toPort, newEdge);
+            if (!svgVoltage.Ok) return svgVoltage;
+
             // DC：单线 dc 只能接到 dc_pos（约定正极）或另一 dc；禁止接到 dc_neg
             var dcResult = ValidateDcPolarity(fromPort, toPort, newEdge);
             if (!dcResult.Ok) return dcResult;
@@ -401,6 +404,63 @@ namespace EssSimulator.Web.Topology
                 return Fail(
                     pv ? "PV_BUS_MISMATCH" : "PCS_BUS_MISMATCH",
                     $"{(pv ? "光伏单元" : "PCS")}「{unit.Label}」交流侧 {unitV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配",
+                    newEdge.Id);
+            }
+
+            return Ok();
+        }
+
+        /// <summary>全站一台 SVG，额定容量须大于 0。通过时返回 null。</summary>
+        internal static TopologyValidationResult? ValidateSvgNodes(TopologyProject project)
+        {
+            var nodes = project.Nodes.Where(n => n.TemplateId == "svg").ToList();
+            if (nodes.Count > 1)
+            {
+                return Fail(
+                    "SVG_DUPLICATE",
+                    "全站只能有一台 SVG",
+                    details: nodes.Select(n => n.Label).ToList(),
+                    problemNodeIds: nodes.Select(n => n.Id).ToList());
+            }
+
+            if (nodes.Count == 1)
+            {
+                double rated = TopologyParamHelper.GetDouble(nodes[0].Parameters, "ratedCapacityKvar", 0);
+                if (rated <= 0)
+                {
+                    return Fail(
+                        "SVG_RATED",
+                        $"SVG「{nodes[0].Label}」额定容量须大于 0 kvar",
+                        problemNodeIds: new List<string> { nodes[0].Id });
+                }
+            }
+
+            return null;
+        }
+
+        private static TopologyValidationResult ValidateSvgBusVoltage(
+            TopologyNode a, TopologyPortDef aPort,
+            TopologyNode b, TopologyPortDef bPort,
+            TopologyEdge newEdge)
+        {
+            TopologyNode? svg = null;
+            TopologyPortDef? svgPort = null;
+            TopologyNode? bus = null;
+            if (a.TemplateId == "svg" && b.TemplateId == "ac_bus")
+            { svg = a; svgPort = aPort; bus = b; }
+            else if (b.TemplateId == "svg" && a.TemplateId == "ac_bus")
+            { svg = b; svgPort = bPort; bus = a; }
+            else return Ok();
+
+            if (!svgPort!.Kind.StartsWith("ac")) return Ok();
+
+            double svgV = TopologyParamHelper.GetDouble(svg!.Parameters, "acVoltage", 0);
+            double busV = TopologyParamHelper.GetDouble(bus!.Parameters, "nominalVoltage", 0);
+            if (busV > 1 && !VoltageMatches(busV, svgV))
+            {
+                return Fail(
+                    "SVG_BUS_MISMATCH",
+                    $"SVG「{svg.Label}」交流侧 {svgV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配",
                     newEdge.Id);
             }
 
@@ -893,6 +953,10 @@ namespace EssSimulator.Web.Topology
                 return Fail("NO_GENERATION_UNIT", "工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元",
                     details: details, problemNodeIds: project.Nodes.Select(n => n.Id).ToList());
             }
+
+            var svgCheck = ValidateSvgNodes(project);
+            if (svgCheck != null)
+                return svgCheck;
 
             var work = CloneProject(project);
             work.Edges.Clear();

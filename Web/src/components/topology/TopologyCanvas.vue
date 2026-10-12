@@ -69,6 +69,12 @@
             <circle :cx="sizeOf(node).w * 0.28" cy="82" r="12" />
             <circle :cx="sizeOf(node).w * 0.72" cy="82" r="12" />
           </g>
+          <g v-if="node.templateId === 'svg'" fill="none" stroke="#fff" stroke-width="1.8">
+            <rect :x="sizeOf(node).w * 0.28" y="26" :width="sizeOf(node).w * 0.44" height="28" rx="3" />
+            <path
+              :d="`M ${sizeOf(node).w * 0.36} 40 Q ${sizeOf(node).w * 0.44} 32 ${sizeOf(node).w * 0.5} 40 T ${sizeOf(node).w * 0.64} 40`"
+            />
+          </g>
           <g v-if="node.templateId === 'pv_unit'" fill="none" stroke="#fff" stroke-width="1.6">
             <rect :x="sizeOf(node).w * 0.22" y="28" :width="sizeOf(node).w * 0.56" height="36" rx="2" />
             <line :x1="sizeOf(node).w * 0.22" y1="40" :x2="sizeOf(node).w * 0.78" y2="40" />
@@ -307,6 +313,11 @@ function voltageHint(node) {
     const pKw = Number(p.activePowerKw || 0)
     const qKvar = Number(p.reactivePowerKvar || 0)
     return `P ${pKw.toFixed(1)}kW · Q ${qKvar.toFixed(1)}kvar`
+  }
+  if (node.templateId === 'svg') {
+    const q = Number(p.ratedCapacityKvar || 0)
+    const qLabel = Math.abs(q) >= 1000 ? `${(q / 1000).toFixed(1)} Mvar` : `${q.toFixed(0)} kvar`
+    return `${formatVoltage(p.acVoltage)} · ${qLabel}`
   }
   return ''
 }
