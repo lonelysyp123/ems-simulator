@@ -165,6 +165,32 @@ public class TopologyStoreWorkflowTests : IDisposable
         Assert.Equal(1, listed.First(p => p.Id == saved.Id).EmuCount);
     }
 
+    [Fact]
+    public void ApplyFrozenStation_writes_mode_without_canvas_file()
+    {
+        var overlay = Mw300EssStation.ApplyToStore(_store);
+        Assert.Equal(60, overlay.EssUnits.Count);
+
+        var projectFile = Path.Combine(_root, "configs", "topology", "projects", Mw300EssStation.Id + ".json");
+        Assert.False(File.Exists(projectFile));
+
+        var mode = _store.LoadRuntimeMode();
+        Assert.True(mode.EngineeringMode);
+        Assert.Equal(Mw300EssStation.Id, mode.ActiveProjectId);
+
+        var listed = Mw300EssStation.WithBuiltin(_store.ListProjects());
+        var row = listed.Single(p => p.Id == Mw300EssStation.Id);
+        Assert.True(row.ReadOnly);
+        Assert.Equal(60, row.EmuCount);
+
+        File.WriteAllText(
+            Path.Combine(_root, "configs", "topology", "generated", "runtime-overlay.json"),
+            "{}");
+        var loaded = TopologyOverlayLoader.TryLoad(_root);
+        Assert.Equal(60, loaded!.EssUnits.Count);
+        Assert.Equal(Mw300EssStation.Id, loaded.SourceProjectId);
+    }
+
     private sealed class FakeEnv : IWebHostEnvironment
     {
         public FakeEnv(string contentRoot) => ContentRootPath = contentRoot;

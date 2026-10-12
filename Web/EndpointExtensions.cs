@@ -1,4 +1,5 @@
 using EssSimulator.Configuration;
+using EssSimulator.EssDeviceSimModel;
 using EssSimulator.Core;
 using EssSimulator.Display;
 using EssSimulator.EssSimModelApi.Mappers;
@@ -28,6 +29,23 @@ namespace EssSimulator.Web
 
             app.MapGet("/api/mainline", (TopologyStore topologyStore) =>
                 Results.Ok(MainLineEnricher.Build(topologyStore)));
+
+            app.MapGet("/api/battery/calc-mode", () =>
+                Results.Ok(new { cellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled }));
+
+            app.MapPost("/api/battery/calc-mode", (BatteryCalcModeRequest req, IOptions<SimulatorConfig> sim) =>
+            {
+                if (!Mw300EssStation.TrySetCellPhysics(sim.Value.StationProfileId, req?.CellPhysicsEnabled ?? true))
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = Mw300EssStation.LockedMessage,
+                        cellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled
+                    });
+                }
+
+                return Results.Ok(new { cellPhysicsEnabled = BatteryCalcMode.CellPhysicsEnabled });
+            });
 
             app.MapGet("/api/battery/{unit}", (int unit) =>
             {

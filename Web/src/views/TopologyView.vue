@@ -1275,6 +1275,11 @@ function applyNarrow(mq) {
 }
 
 onMounted(async () => {
+  if (route.query.id === 'mw300-ess-test') {
+    ElMessage.warning('300MW 纯储能测试工程的拓扑已写死，不能在组态里修改')
+    await router.push('/projects')
+    return
+  }
   try {
     await reload()
   } catch (e) {

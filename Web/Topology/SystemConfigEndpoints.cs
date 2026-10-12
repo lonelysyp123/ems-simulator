@@ -11,6 +11,34 @@ namespace EssSimulator.Web.Topology
 {
     public static class SystemConfigEndpoints
     {
+        private static IResult ApplyFrozenStation(
+            SystemApplyRequest req,
+            TopologyStore store,
+            IHostApplicationLifetime lifetime)
+        {
+            var overlay = Mw300EssStation.ApplyToStore(store);
+            if (req.ConfirmRestart)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(500);
+                    WriteRestartSentinel();
+                    lifetime.StopApplication();
+                });
+            }
+
+            return Results.Ok(new SystemApplyResponse
+            {
+                Ok = true,
+                Restarting = req.ConfirmRestart,
+                Overlay = overlay,
+                Message = req.ConfirmRestart
+                    ? $"已应用工程「{Mw300EssStation.Name}」（储能 {overlay.EssUnits.Count}），模拟器即将重启"
+                    : "已写入 300MW 测试工程（需重启后生效）",
+                Details = overlay.Notes
+            });
+        }
+
         /// <summary>
         /// 在程序目录下创建 .restart 哨兵文件，通知启动脚本（start.bat）本次退出属于
         /// "重新初始化"而非手动关闭，脚本检测到后会自动拉起后端。
@@ -115,7 +143,7 @@ namespace EssSimulator.Web.Topology
                     Source = eng ? "topology" : "appsettings",
                     RuntimeUnitCount = simCfg.Value.EffectiveEssUnitCount,
                     RuntimePvUnitCount = simCfg.Value.PvUnitCount,
-                    Projects = projects.ToList(),
+                    Projects = Mw300EssStation.WithBuiltin(projects).ToList(),
                     Pointmaps = BuildPointmapSummary(),
                     OverlaySummary = overlay == null ? null : new TopologyRuntimeOverlay
                     {
@@ -124,12 +152,15 @@ namespace EssSimulator.Web.Topology
                         GeneratedAtUtc = overlay.GeneratedAtUtc,
                         EssUnits = overlay.EssUnits,
                         PvUnits = overlay.PvUnits,
+                        EnableSvg = overlay.EnableSvg,
+                        SvgRatedCapacityKvar = overlay.SvgRatedCapacityKvar,
                         Notes = overlay.Notes
                     }
                 });
             });
 
-            g.MapGet("/projects", (TopologyStore store) => Results.Ok(store.ListProjects()));
+            g.MapGet("/projects", (TopologyStore store) =>
+                Results.Ok(Mw300EssStation.WithBuiltin(store.ListProjects())));
 
             g.MapPost("/apply", (
                 SystemApplyRequest req,
@@ -181,6 +212,9 @@ namespace EssSimulator.Web.Topology
                         Ok = false,
                         Message = "工程模式下必须选择一个组态工程"
                     });
+
+                if (Mw300EssStation.IsThis(req.ProjectId))
+                    return ApplyFrozenStation(req, store, lifetime);
 
                 var project = store.LoadNamedProject(req.ProjectId!);
                 if (project == null)

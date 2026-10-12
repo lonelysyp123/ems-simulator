@@ -80,15 +80,16 @@
               <template #default="{ row }">
                 <el-tag v-if="isRunning(row)" type="warning" size="small">运行中</el-tag>
                 <el-tag v-else-if="row.id === projectId" type="success" size="small">已选用</el-tag>
+                <el-tag v-else-if="row.readOnly" type="info" size="small">只读测试</el-tag>
                 <el-tag v-else type="info" size="small" effect="plain">已保存</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="300" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" :disabled="busy" @click="onSelectForRun(row)">选用</el-button>
-                <el-button link type="primary" :disabled="busy" @click="onEdit(row)">修改</el-button>
-                <el-button link type="primary" :disabled="busy" @click="onCopy(row)">复制</el-button>
-                <el-button link type="danger" :disabled="busy" @click="onDelete(row)">删除</el-button>
+                <el-button v-if="!row.readOnly" link type="primary" :disabled="busy" @click="onEdit(row)">修改</el-button>
+                <el-button v-if="!row.readOnly" link type="primary" :disabled="busy" @click="onCopy(row)">复制</el-button>
+                <el-button v-if="!row.readOnly" link type="danger" :disabled="busy" @click="onDelete(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>

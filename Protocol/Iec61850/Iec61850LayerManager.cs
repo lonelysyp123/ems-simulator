@@ -1,6 +1,7 @@
 using EssSimulator.Configuration;
 using EssSimulator.Core;
 using EssSimulator.LocalControl;
+using EssSimulator.Web.Topology;
 using log4net;
 
 namespace EssSimulator.Protocol.Iec61850
@@ -66,11 +67,20 @@ namespace EssSimulator.Protocol.Iec61850
             get { lock (_gate) { return _bindings.LoadError; } }
         }
 
+        public static bool ShouldStartMms(SimulatorConfig? cfg) =>
+            cfg != null && !Mw300EssStation.IsThis(cfg.StationProfileId);
+
         public void StartAll(SimulatorConfig cfg)
         {
             lock (_gate)
             {
                 StopAllUnlocked();
+                if (!ShouldStartMms(cfg))
+                {
+                    Log.Info("[IEC61850] 300MW 测试工程不启动 MMS");
+                    return;
+                }
+
                 _bindings = ProtocolBindings.Load();
                 if (_bindings.LoadError != null)
                     Log.Warn(_bindings.LoadError);

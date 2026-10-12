@@ -1,4 +1,7 @@
+using EssSimulator.Configuration;
 using EssSimulator.Protocol.Modbus;
+using EssSimulator.Web.Topology;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -42,20 +45,24 @@ namespace EssSimulator.Web
             var g = app.MapGroup("/api/protocol-ports");
 
             // 查询：全部设备的默认/当前端口与从站号、在线状态、错误信息
-            g.MapGet("/", () =>
+            g.MapGet("/", (IOptions<SimulatorConfig> sim) =>
             {
                 var manager = ProtocolLayerManager.Instance;
                 return Results.Ok(new
                 {
                     devices = manager.GetSnapshot(),
                     overridesError = manager.OverridesError,
-                    groups = BuildPortGroups(manager)
+                    groups = BuildPortGroups(manager),
+                    locked = !Mw300EssStation.AllowsPortOverride(sim.Value.StationProfileId)
                 });
             });
 
             // 保存：校验通过后写入 protocol-ports.json（重启后生效；也可随后调用 apply 立即生效）
-            g.MapPut("/", (ProtocolPortChangeRequest req) =>
+            g.MapPut("/", (ProtocolPortChangeRequest req, IOptions<SimulatorConfig> sim) =>
             {
+                if (!Mw300EssStation.AllowsPortOverride(sim.Value.StationProfileId))
+                    return Results.BadRequest(new { ok = false, message = Mw300EssStation.LockedMessage });
+
                 var manager = ProtocolLayerManager.Instance;
                 if (req?.Entries == null || req.Entries.Count == 0)
                     return Results.BadRequest(new { ok = false, message = "修改内容为空" });
@@ -79,7 +86,8 @@ namespace EssSimulator.Web
                 if (errors.Count > 0)
                     return Results.BadRequest(new { ok = false, message = "端口计划校验失败", errors });
 
-                ProtocolPortPlan.SaveOverrides(plan.Entries);
+                if (!Mw300EssStation.TryPersistPortOverrides(sim.Value.StationProfileId, plan.Entries, clear: false, out var locked))
+                    return Results.BadRequest(new { ok = false, message = locked });
                 return Results.Ok(new
                 {
                     ok = true,
@@ -131,9 +139,10 @@ namespace EssSimulator.Web
             });
 
             // 恢复默认：删除覆盖文件，可选同时热重建
-            g.MapPost("/reset", (ProtocolPortResetRequest? req) =>
+            g.MapPost("/reset", (ProtocolPortResetRequest? req, IOptions<SimulatorConfig> sim) =>
             {
-                ProtocolPortPlan.ClearOverrides();
+                if (!Mw300EssStation.TryPersistPortOverrides(sim.Value.StationProfileId, null, clear: true, out var locked))
+                    return Results.BadRequest(new { ok = false, message = locked });
                 if (req?.Rebuild == true)
                 {
                     var result = ProtocolLayerManager.Instance.Rebuild();

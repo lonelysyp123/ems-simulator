@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EssSimulator.Configuration;
 using EssSimulator.LocalControl;
+using EssSimulator.Web.Topology;
 
 namespace EssSimulator.Protocol.Modbus
 {
@@ -168,7 +169,13 @@ namespace EssSimulator.Protocol.Modbus
         /// <summary>加载计划：默认值 + protocol-ports.json 覆盖（覆盖文件缺失/损坏时退回默认并记录原因）。</summary>
         public static ProtocolPortPlan Load(SimulatorConfig cfg, out string? overridesError)
         {
-            var plan = BuildDefault(cfg);
+            if (cfg != null && Mw300EssStation.IsThis(cfg.StationProfileId))
+            {
+                overridesError = null;
+                return Mw300EssStation.BuildPortPlan();
+            }
+
+            var plan = BuildDefault(cfg!);
             overridesError = null;
 
             var path = ResolveOverridesPath();

@@ -49,11 +49,17 @@ namespace EssSimulator.Web.Topology
             var overlayPath = Path.Combine(contentRoot, "configs", "topology", "generated", "runtime-overlay.json");
             try
             {
-                if (!File.Exists(modePath) || !File.Exists(overlayPath))
+                if (!File.Exists(modePath))
                     return null;
 
                 var mode = JsonSerializer.Deserialize<TopologyRuntimeMode>(File.ReadAllText(modePath), JsonOpts);
                 if (mode?.EngineeringMode != true)
+                    return null;
+
+                if (Mw300EssStation.IsThis(mode.ActiveProjectId))
+                    return Mw300EssStation.BuildOverlay();
+
+                if (!File.Exists(overlayPath))
                     return null;
 
                 var overlay = JsonSerializer.Deserialize<TopologyRuntimeOverlay>(File.ReadAllText(overlayPath), JsonOpts);

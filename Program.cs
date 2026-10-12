@@ -276,7 +276,7 @@ namespace EssSimulator
             var editionEarly = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
                 ?? new EditionConfig();
             editionEarly.ApplyPresets();
-            if (topologyOverlay != null && !editionEarly.AllowTopologyEditor)
+            if (topologyOverlay != null && !Mw300EssStation.PassesEditorGate(topologyOverlay, editionEarly))
             {
                 Console.WriteLine("[Topology] 当前档位未开放组态编辑，已忽略工程 overlay，改用 appsettings");
                 topologyOverlay = null;
@@ -321,20 +321,26 @@ namespace EssSimulator
                     opt.EnableSvg = topologyOverlay.EnableSvg;
                     if (topologyOverlay.EnableSvg && topologyOverlay.SvgRatedCapacityKvar > 0)
                         opt.SvgRatedCapacityKvar = topologyOverlay.SvgRatedCapacityKvar;
+                    if (Mw300EssStation.IsThis(topologyOverlay.SourceProjectId))
+                        opt.StationProfileId = Mw300EssStation.Id;
                 }
 
                 var edition = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
                     ?? new EditionConfig();
                 edition.ApplyPresets();
-                // 仅社区版（LockTopology）裁剪单元；商业版不改拓扑，只靠 API 功能开关区分高级能力
-                if (edition.LockTopology && edition.MaxEssUnits > 0 && opt.Devices is { Count: > 0 }
-                    && opt.Devices.Count > edition.MaxEssUnits)
+                // 仅社区版（LockTopology）裁剪单元；300MW 测试工程和商业版不裁剪
+                if (opt.Devices is { Count: > 0 })
                 {
                     int before = opt.Devices.Count;
-                    opt.Devices = opt.Devices.Take(edition.MaxEssUnits).ToList();
-                    Console.WriteLine(
-                        $"[Edition] {edition.Name}: EssUnits 已从 {before} 裁剪为 {opt.Devices.Count}（MaxEssUnits={edition.MaxEssUnits}）");
+                    opt.Devices = Mw300EssStation.ApplyUnitCap(opt.Devices, opt.StationProfileId, edition);
+                    if (opt.Devices.Count != before)
+                    {
+                        Console.WriteLine(
+                            $"[Edition] {edition.Name}: EssUnits 已从 {before} 裁剪为 {opt.Devices.Count}（MaxEssUnits={edition.MaxEssUnits}）");
+                    }
                 }
+
+                Mw300EssStation.ApplyRuntimePolicy(opt.StationProfileId);
             });
             builder.Services.PostConfigure<WebConfig>(web =>
             {
@@ -358,6 +364,8 @@ namespace EssSimulator
             {
                 if (topologyOverlay.Pcs != null)
                     builder.Services.PostConfigure<PcsPhysicalConfig>(pcs => CopyPcs(topologyOverlay.Pcs, pcs));
+                if (Mw300EssStation.IsThis(topologyOverlay.SourceProjectId) && topologyOverlay.Pcs != null)
+                    builder.Services.PostConfigure<PcsPhysicalConfig>(pcs => pcs.MaxCurrent = topologyOverlay.Pcs.MaxCurrent);
                 if (topologyOverlay.Transformer != null)
                     builder.Services.PostConfigure<TransformerConfig>(t => CopyTransformer(topologyOverlay.Transformer, t));
                 if (topologyOverlay.UnitTransformer != null)

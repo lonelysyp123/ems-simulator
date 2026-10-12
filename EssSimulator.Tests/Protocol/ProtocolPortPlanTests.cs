@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EssSimulator.Configuration;
 using EssSimulator.Protocol.Modbus;
+using EssSimulator.Web.Topology;
 
 namespace EssSimulator.Tests;
 
@@ -158,6 +159,41 @@ public class ProtocolPortPlanTests : IDisposable
         // 未覆盖条目保持默认
         Assert.Equal(1502, loaded.Find("simBms1")!.Port);
         Assert.True(loaded.Find("simBms1")!.IsDefault);
+    }
+
+    [Fact]
+    public void Load_Mw300_IgnoresOverridesFile()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(OverridesPath)!);
+        File.WriteAllText(OverridesPath, """
+            { "entries": [ { "name": "simBms1", "port": 1999, "slaveId": 9 } ] }
+            """);
+
+        var loaded = ProtocolPortPlan.Load(
+            new SimulatorConfig { StationProfileId = Mw300EssStation.Id },
+            out var error);
+
+        Assert.Null(error);
+        Assert.Equal(10001, loaded.Find("simBms1")!.Port);
+        Assert.Equal(10, loaded.Find("simBms1")!.SlaveId);
+        Assert.True(File.Exists(OverridesPath));
+    }
+
+    [Fact]
+    public void TryPersistPortOverrides_FrozenStationLeavesFileUntouched()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(OverridesPath)!);
+        File.WriteAllText(OverridesPath, """{ "entries": [] }""");
+        var before = File.ReadAllText(OverridesPath);
+
+        Assert.False(Mw300EssStation.TryPersistPortOverrides(
+            Mw300EssStation.Id, entries: null, clear: true, out var error));
+        Assert.Equal(Mw300EssStation.LockedMessage, error);
+        Assert.Equal(before, File.ReadAllText(OverridesPath));
+
+        Assert.True(Mw300EssStation.TryPersistPortOverrides(
+            stationProfileId: null, entries: null, clear: true, out _));
+        Assert.False(File.Exists(OverridesPath));
     }
 
     [Fact]

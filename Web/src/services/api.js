@@ -16,6 +16,10 @@ export async function getHealth() { return (await api.get('/health')).data }
 export async function getMainLine() { return (await api.get('/mainline')).data }
 export async function getBattery(unit) { return (await api.get(`/battery/${unit}`)).data }
 export async function getCells(unit, cluster) { return (await api.get(`/cells/${unit}/${cluster}`)).data }
+export async function getBatteryCalcMode() { return (await api.get('/battery/calc-mode')).data }
+export async function postBatteryCalcMode(cellPhysicsEnabled) {
+  return (await api.post('/battery/calc-mode', { cellPhysicsEnabled })).data
+}
 export async function getRackThresholds(unit, rack = 0) {
   return (await api.get(`/bms/${unit}/rack-thresholds`, { params: { rack } })).data
 }

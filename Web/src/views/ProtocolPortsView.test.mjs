@@ -13,4 +13,11 @@ describe('ProtocolPortsView type labels', () => {
     assert.match(labels, /4:\s*'光伏 Logger'/)
     assert.match(labels, /5:\s*'光伏电表'/)
   })
+
+  it('locks port edits when the 300MW test station is active', () => {
+    assert.match(source, /const portsLocked = ref\(false\)/)
+    assert.match(source, /portsLocked\.value = !!data\.locked/)
+    assert.match(source, /:disabled="portsLocked \|\| !dirty"/)
+    assert.match(source, /:disabled="portsLocked" @click="resetDefaults"/)
+  })
 })

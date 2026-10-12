@@ -433,6 +433,11 @@ namespace EssSimulator.Configuration
         public List<EssUnitConfig> Devices { get; set; } = new();
         public List<PvUnitRuntimeConfig> PvUnits { get; set; } = new();
 
+        /// <summary>
+        /// 写死测试工程 Id。空表示普通工程，端口计划仍按 appsettings 与 protocol-ports.json。
+        /// </summary>
+        public string StationProfileId { get; set; } = "";
+
         /// <summary>是否投入站用 SVG。默认关闭，不改变既有母线功率。</summary>
         public bool EnableSvg { get; set; }
 

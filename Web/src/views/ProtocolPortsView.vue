@@ -51,12 +51,20 @@
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
         <span>协议端口配置</span>
         <span>
-          <el-button size="small" type="primary" :loading="saving" :disabled="!dirty" @click="save">保存配置</el-button>
-          <el-button size="small" type="success" :loading="applying" @click="applyNow">立即生效</el-button>
-          <el-button size="small" @click="resetDefaults">恢复默认</el-button>
+          <el-button size="small" type="primary" :loading="saving" :disabled="portsLocked || !dirty" @click="save">保存配置</el-button>
+          <el-button size="small" type="success" :loading="applying" :disabled="portsLocked" @click="applyNow">立即生效</el-button>
+          <el-button size="small" :disabled="portsLocked" @click="resetDefaults">恢复默认</el-button>
           <el-button size="small" text @click="reload">刷新</el-button>
         </span>
       </div>
+      <el-alert
+        v-if="portsLocked"
+        title="300MW 测试工程的端口已写死，不能修改"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom:8px"
+      />
       <el-alert
         v-if="overridesError"
         :title="overridesError"
@@ -104,12 +112,12 @@
         <el-table-column prop="pointMapFile" label="点表" width="130" />
         <el-table-column label="端口" width="150">
           <template #default="{ row }">
-            <el-input-number v-model="row.port" :min="1" :max="65535" :step="1" size="small" controls-position="right" style="width:120px" @change="markDirty" />
+            <el-input-number v-model="row.port" :min="1" :max="65535" :step="1" size="small" controls-position="right" style="width:120px" :disabled="portsLocked" @change="markDirty" />
           </template>
         </el-table-column>
         <el-table-column label="从站号" width="130">
           <template #default="{ row }">
-            <el-input-number v-model="row.slaveId" :min="1" :max="247" :step="1" size="small" controls-position="right" style="width:100px" @change="markDirty" />
+            <el-input-number v-model="row.slaveId" :min="1" :max="247" :step="1" size="small" controls-position="right" style="width:100px" :disabled="portsLocked" @change="markDirty" />
           </template>
         </el-table-column>
         <el-table-column label="默认" width="110">
@@ -136,7 +144,7 @@
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
         <span>PCS IEC 61850</span>
         <span>
-          <el-button size="small" type="primary" :loading="saving61850" :disabled="!dirty61850" @click="save61850">保存并生效</el-button>
+          <el-button size="small" type="primary" :loading="saving61850" :disabled="portsLocked || !dirty61850" @click="save61850">保存并生效</el-button>
           <el-button size="small" text @click="reload61850">刷新</el-button>
         </span>
       </div>
@@ -152,17 +160,17 @@
         <el-table-column prop="iedName" label="IED" width="140" />
         <el-table-column label="MMS 端口" width="150">
           <template #default="{ row }">
-            <el-input-number v-model="row.port" :min="1" :max="65535" :step="1" size="small" controls-position="right" style="width:120px" @change="mark61850Dirty" />
+            <el-input-number v-model="row.port" :min="1" :max="65535" :step="1" size="small" controls-position="right" style="width:120px" :disabled="portsLocked" @change="mark61850Dirty" />
           </template>
         </el-table-column>
         <el-table-column label="Modbus" width="100" align="center">
           <template #default="{ row }">
-            <el-checkbox v-model="row.modbus" @change="mark61850Dirty" />
+            <el-checkbox v-model="row.modbus" :disabled="portsLocked" @change="mark61850Dirty" />
           </template>
         </el-table-column>
         <el-table-column label="IEC 61850" width="110" align="center">
           <template #default="{ row }">
-            <el-checkbox v-model="row.iec61850" @change="mark61850Dirty" />
+            <el-checkbox v-model="row.iec61850" :disabled="portsLocked" @change="mark61850Dirty" />
           </template>
         </el-table-column>
         <el-table-column label="状态" width="90">
@@ -188,6 +196,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 const devices = ref([])
 const overridesError = ref('')
+const portsLocked = ref(false)
 const dirty = ref(false)
 const saving = ref(false)
 const applying = ref(false)
@@ -297,6 +306,7 @@ async function reload() {
     const data = await getProtocolPorts()
     devices.value = data.devices || []
     overridesError.value = data.overridesError || ''
+    portsLocked.value = !!data.locked
     dirty.value = false
     await Promise.all([reload61850(), reloadAllowlist()])
   } catch (e) {

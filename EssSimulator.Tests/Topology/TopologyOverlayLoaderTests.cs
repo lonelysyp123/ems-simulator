@@ -70,6 +70,28 @@ public class TopologyOverlayLoaderTests
     }
 
     [Fact]
+    public void TryLoad_mw300_uses_code_even_when_overlay_file_differs_or_is_missing()
+    {
+        using var garbage = new TempTopologyRoot(
+            engineeringMode: true,
+            overlay: new TopologyRuntimeOverlay { SourceProjectName = "被人改过" },
+            activeProjectId: Mw300EssStation.Id);
+        var fromGarbage = TopologyOverlayLoader.TryLoad(garbage.Root);
+        Assert.NotNull(fromGarbage);
+        Assert.Equal(Mw300EssStation.Id, fromGarbage!.SourceProjectId);
+        Assert.Equal(60, fromGarbage.EssUnits.Count);
+
+        using var missing = new TempTopologyRoot(
+            engineeringMode: true,
+            overlay: null,
+            activeProjectId: Mw300EssStation.Id,
+            writeOverlay: false);
+        var fromMissing = TopologyOverlayLoader.TryLoad(missing.Root);
+        Assert.NotNull(fromMissing);
+        Assert.Equal(60, fromMissing!.EssUnits.Count);
+    }
+
+    [Fact]
     public void TryLoad_returns_null_when_json_corrupt()
     {
         using var tmp = new TempTopologyRoot(engineeringMode: true, overlay: UsableOverlay());
@@ -197,7 +219,11 @@ public class TopologyOverlayLoaderTests
         public string Root { get; }
         public string OverlayPath { get; }
 
-        public TempTopologyRoot(bool engineeringMode, TopologyRuntimeOverlay overlay)
+        public TempTopologyRoot(
+            bool engineeringMode,
+            TopologyRuntimeOverlay? overlay,
+            string? activeProjectId = null,
+            bool writeOverlay = true)
         {
             Root = Path.Combine(Path.GetTempPath(), "ess-overlay-" + Guid.NewGuid().ToString("N"));
             var generated = Path.Combine(Root, "configs", "topology", "generated");
@@ -205,8 +231,13 @@ public class TopologyOverlayLoaderTests
             OverlayPath = Path.Combine(generated, "runtime-overlay.json");
             File.WriteAllText(
                 Path.Combine(Root, "configs", "topology", "runtime-mode.json"),
-                JsonSerializer.Serialize(new TopologyRuntimeMode { EngineeringMode = engineeringMode }, JsonOpts));
-            File.WriteAllText(OverlayPath, JsonSerializer.Serialize(overlay, JsonOpts));
+                JsonSerializer.Serialize(new TopologyRuntimeMode
+                {
+                    EngineeringMode = engineeringMode,
+                    ActiveProjectId = activeProjectId
+                }, JsonOpts));
+            if (writeOverlay && overlay != null)
+                File.WriteAllText(OverlayPath, JsonSerializer.Serialize(overlay, JsonOpts));
         }
 
         public void Dispose()
