@@ -26,7 +26,14 @@ namespace EssSimulator.EssSimModelApi.Bms
         private const float BlackStartMaxCoolingSetpointC = 25f;
         private const double VoltageEnergizedThresholdV = 1.0;
 
+        /// <summary>
+        /// 黑启动命令的边沿检测缓存（按 BMS 通道号）。进程内只有一座在跑的电站在用，
+        /// 换仿真实例时必须清空，否则会拿上一实例的命令把新实例的第一条命令吃掉。
+        /// </summary>
         private static readonly Dictionary<int, ushort> LastBlackStartCommand = new();
+
+        /// <summary>清空边沿缓存。宿主复位 / 重新创建仿真实例后调用。</summary>
+        internal static void ResetCommandEdgeCache() => LastBlackStartCommand.Clear();
 
         public static void ApplyForChannel(int bmsIndex)
         {

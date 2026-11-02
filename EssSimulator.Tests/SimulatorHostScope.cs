@@ -25,6 +25,8 @@ public sealed class SimulatorHostScope : IDisposable
         UiSnapshotNotifier.Reset();
         ExternalControlGate.Reset();
         PlantControlMailbox.Reset();
+        // 黑启动命令是按通道号做边沿检测的进程级缓存，换实例不清会把首条命令吃掉
+        EssSimulator.EssSimModelApi.Bms.BmsLinkEngine.ResetCommandEdgeCache();
     }
 }
 
