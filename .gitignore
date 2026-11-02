@@ -473,12 +473,15 @@ wwwroot/
 # 本地提示词草稿（复制到其它对话用，不是产品代码）
 CSharp仿真策略迁移提示词.md
 
-# 组态：工程库、设备库、当前画布、工程模式与应用后的 overlay 均入库
-# （组态界面编辑的实际工程，需合并到 develop）：
-#   configs/topology/projects/*.json
-#   configs/topology/library/*.json
-#   configs/topology/project.json
-#   configs/topology/runtime-mode.json
-#   configs/topology/generated/runtime-overlay.json
-# 仅忽略本机设备型号选型（每人/每台机器可能不同，由工程配置页写入）
+# 组态：
+# - 仍入库（运行时读取 / 发布需要）：
+#     configs/topology/library/*.json                 设备库
+#     configs/topology/runtime-mode.json              工程模式开关与激活工程
+#     configs/topology/generated/runtime-overlay.json 应用后的运行时补丁
+# - 不入库（组态页打开/保存都会重写，属本机编辑状态；仿真不读它们）：
+#     configs/topology/project.json                   当前画布
+#     configs/topology/projects/*.json                命名工程库
+# - 本机设备型号选型（每人/每台机器可能不同，由工程配置页写入）
+configs/topology/project.json
+configs/topology/projects/
 configs/topology/device-models.json
