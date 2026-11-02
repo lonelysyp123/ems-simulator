@@ -112,24 +112,6 @@ public class Mw300EssStationTests
     }
 
     [Fact]
-    public void EditionCap_KeepsFrozenStation_ClipsOrdinaryProjects()
-    {
-        var edition = new EditionConfig { Name = "Community" };
-        edition.ApplyPresets();
-        var frozen = Mw300EssStation.BuildOverlay();
-        var ordinary = new TopologyRuntimeOverlay
-        {
-            SourceProjectId = "ordinary",
-            EssUnits = frozen.EssUnits.ToList()
-        };
-
-        Assert.True(Mw300EssStation.PassesEditorGate(frozen, edition));
-        Assert.False(Mw300EssStation.PassesEditorGate(ordinary, edition));
-        Assert.Equal(60, Mw300EssStation.ApplyUnitCap(frozen.EssUnits, Mw300EssStation.Id, edition).Count);
-        Assert.Equal(2, Mw300EssStation.ApplyUnitCap(ordinary.EssUnits, null, edition).Count);
-    }
-
-    [Fact]
     public void ShouldStartMms_IsOffForFrozenProfile()
     {
         Assert.False(Iec61850LayerManager.ShouldStartMms(

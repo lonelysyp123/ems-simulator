@@ -19,7 +19,7 @@
 
 | 配置段 | 绑定类型 | 说明 |
 |--------|----------|------|
-| `Simulator` | `SimulatorConfig` | 运行时、协议端口、Web、档位、授权；`PvUnits` 通常由组态 overlay 写入 |
+| `Simulator` | `SimulatorConfig` | 运行时、协议端口、Web；`PvUnits` 通常由组态 overlay 写入 |
 | `EssUnits` | `List<EssUnitConfig>` → `SimulatorConfig.Devices` | 储能单元清单（每单元 PCS/BMS 台数可配，未配默认 2） |
 | `DataExchange` | `DataExchangeOptions` | simEmu / simBms / simEm 遥测与控制轮询 |
 | `Pcc` | `PccConfig` | 220kV 并网点无功—电压模型 |
@@ -186,24 +186,9 @@
 - `StaticFiles`：是否托管 `wwwroot/`
 - `SnapshotIntervalMs`：SignalR 主接线推送周期
 - `ApiKeyEnabled` / `ApiKey`：保护 `/api/*`（`/api/health` 豁免）；密钥可用环境变量 `Simulator__Web__ApiKey`
-- `DroopSliceCaptureEnabled` / `DroopSliceMaxCount`：白盒切片采集（社区版会被档位关掉）
+- `DroopSliceCaptureEnabled` / `DroopSliceMaxCount`：白盒切片采集
 
 详见 [B/S 架构说明](./B-S架构说明.md)。
-
-### Simulator.Edition
-
-- `Name`：`Community`/`社区版`、`Commercial`/`商业版`、`Custom`/`定制版`
-- `AllowDroopSlices` / `AllowMainline3d` / `AllowTopologyEditor`：高级 UI/API；社区版 `ApplyPresets` 强制关闭
-- `LockTopology` / `MaxEssUnits`：社区版锁定单元上限
-
-详见 [产品分档与交付边界](./产品分档与交付边界.md)。
-
-### Simulator.License
-
-- `Required`：是否校验 `license.txt`（商业/定制默认需要；社区/演示/开发根配置通常为 false）
-- `FileName`：授权文件名，默认 `license.txt`
-
-详见 [授权说明](./授权说明.md)。
 
 ---
 
@@ -388,7 +373,6 @@ PT/CT 变比由一次/二次值自动计算，用于电表读数换算。
 
 ## 相关文件
 
-- 配置类：`Configuration/SimulatorConfig.cs`、`EditionConfig.cs`、`WebConfig.cs`、`LicenseConfig.cs`
+- 配置类：`Configuration/SimulatorConfig.cs`、`WebConfig.cs`
 - 绑定逻辑：`Program.cs`（`EssUnits` → `SimulatorConfig.Devices`；组态 overlay 覆盖 `EssUnits` / `PvUnits` 等）
-- 档位模板：`configs/社区版.appsettings.json`、`商业版`、`定制版`、`演示版`（旧名充值版仍可存在，发布映射为商业版）
 - Modbus IP 白名单：`configs/modbus-allowlist.json`

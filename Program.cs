@@ -4,7 +4,6 @@ using EssSimulator.DataExchange.Config;
 using EssSimulator.Display;
 using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssSimModelApi;
-using EssSimulator.Licensing;
 using EssSimulator.LocalControl;
 using EssSimulator.Protocol.Modbus;
 using EssSimulator.Web;
@@ -142,45 +141,6 @@ namespace EssSimulator
             LogManager.GetLogger(typeof(Program)).Warn("初始化等待超时，仍将启动 Web 服务。若 dpc 初始读取异常，请稍后重试。");
         }
 
-        private static bool EnforceLicenseOrExit(IConfiguration configuration)
-        {
-            var edition = configuration.GetSection(EditionConfig.Section).Get<EditionConfig>() ?? new EditionConfig();
-            edition.ApplyPresets();
-            var lic = configuration.GetSection(LicenseConfig.Section).Get<LicenseConfig>() ?? new LicenseConfig();
-            bool hasExplicit = configuration.GetSection(LicenseConfig.Section)
-                .GetSection(nameof(LicenseConfig.Required)).Exists();
-            bool required = hasExplicit ? lic.Required : !edition.IsCommunity;
-            if (!required)
-                return true;
-
-            string fileName = string.IsNullOrWhiteSpace(lic.FileName) ? "license.txt" : lic.FileName.Trim();
-            string cwdPath = Path.Combine(Directory.GetCurrentDirectory(), fileName);
-            string basePath = Path.Combine(AppContext.BaseDirectory, fileName);
-            string path = File.Exists(cwdPath) ? cwdPath : basePath;
-
-            var result = LicenseGuard.ValidateFile(path);
-            if (result.IsValid)
-            {
-                LogManager.GetLogger(typeof(Program)).Info($"[License] {result.Message}");
-                Console.WriteLine($"[License] {result.Message}");
-                return true;
-            }
-
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("======== 授权校验失败，无法启动 ========");
-            Console.Error.WriteLine(result.Message);
-            Console.Error.WriteLine($"本机机器码: {result.LocalMachineId}");
-            Console.Error.WriteLine();
-            Console.Error.WriteLine("请按下列步骤获取授权：");
-            Console.Error.WriteLine("  1) 运行: ./EssSimulator --machine-id   （或 scripts/license/get-machine-id.sh）");
-            Console.Error.WriteLine("  2) 将机器码发给软件提供方，获取 license.txt");
-            Console.Error.WriteLine($"  3) 将 license.txt 放到程序运行目录后重新启动");
-            Console.Error.WriteLine("======================================");
-            Console.Error.WriteLine();
-            Environment.ExitCode = 2;
-            return false;
-        }
-
         private static void LogProtocolCreateInfo(SimulatorConfig cfg)
         {
             var log = LogManager.GetLogger(typeof(Program));
@@ -214,14 +174,6 @@ namespace EssSimulator
 
         static async Task Main(string[] args)
         {
-            // 仅打印机器码（供用户申请授权，无需完整启动）
-            if (args.Any(a => string.Equals(a, "--machine-id", StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(a, "machine-id", StringComparison.OrdinalIgnoreCase)))
-            {
-                Console.WriteLine(MachineIdProvider.GetMachineId());
-                return;
-            }
-
             // 配置 log4net
             try
             {
@@ -267,20 +219,8 @@ namespace EssSimulator
             builder.Configuration.AddEnvironmentVariables();
             if (args is { Length: > 0 }) builder.Configuration.AddCommandLine(args);
 
-            // 授权校验（社区版默认不要求；商业版/定制版要求运行目录或程序目录存在 license.txt）
-            if (!EnforceLicenseOrExit(builder.Configuration))
-                return;
-
             // 组态工程模式：若已应用 overlay，则覆盖 EssUnits / Pcc / 变压器等
             var topologyOverlay = TopologyOverlayLoader.TryLoad(builder.Environment.ContentRootPath);
-            var editionEarly = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
-                ?? new EditionConfig();
-            editionEarly.ApplyPresets();
-            if (topologyOverlay != null && !Mw300EssStation.PassesEditorGate(topologyOverlay, editionEarly))
-            {
-                Console.WriteLine("[Topology] 当前档位未开放组态编辑，已忽略工程 overlay，改用 appsettings");
-                topologyOverlay = null;
-            }
             if (topologyOverlay != null)
             {
                 Console.WriteLine(
@@ -289,20 +229,6 @@ namespace EssSimulator
 
             // 绑定配置节
             builder.Services.Configure<SimulatorConfig>(builder.Configuration.GetSection(SimulatorConfig.Section));
-            builder.Services.Configure<EditionConfig>(builder.Configuration.GetSection(EditionConfig.Section));
-            builder.Services.Configure<LicenseConfig>(builder.Configuration.GetSection(LicenseConfig.Section));
-            builder.Services.PostConfigure<EditionConfig>(edition => edition.ApplyPresets());
-            builder.Services.PostConfigure<LicenseConfig>(lic =>
-            {
-                var edition = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
-                    ?? new EditionConfig();
-                edition.ApplyPresets();
-                // 未显式配置 Required 时：社区版免授权，其它档位默认需要
-                bool hasExplicit = builder.Configuration.GetSection(LicenseConfig.Section)
-                    .GetSection(nameof(LicenseConfig.Required)).Exists();
-                if (!hasExplicit)
-                    lic.Required = !edition.IsCommunity;
-            });
             builder.Services.PostConfigure<SimulatorConfig>(opt =>
             {
                 var units = builder.Configuration.GetSection(EssUnitsConfig.Section).Get<List<EssUnitConfig>>();
@@ -325,30 +251,7 @@ namespace EssSimulator
                         opt.StationProfileId = Mw300EssStation.Id;
                 }
 
-                var edition = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
-                    ?? new EditionConfig();
-                edition.ApplyPresets();
-                // 仅社区版（LockTopology）裁剪单元；300MW 测试工程和商业版不裁剪
-                if (opt.Devices is { Count: > 0 })
-                {
-                    int before = opt.Devices.Count;
-                    opt.Devices = Mw300EssStation.ApplyUnitCap(opt.Devices, opt.StationProfileId, edition);
-                    if (opt.Devices.Count != before)
-                    {
-                        Console.WriteLine(
-                            $"[Edition] {edition.Name}: EssUnits 已从 {before} 裁剪为 {opt.Devices.Count}（MaxEssUnits={edition.MaxEssUnits}）");
-                    }
-                }
-
                 Mw300EssStation.ApplyRuntimePolicy(opt.StationProfileId);
-            });
-            builder.Services.PostConfigure<WebConfig>(web =>
-            {
-                var edition = builder.Configuration.GetSection(EditionConfig.Section).Get<EditionConfig>()
-                    ?? new EditionConfig();
-                edition.ApplyPresets();
-                if (!edition.AllowDroopSlices)
-                    web.DroopSliceCaptureEnabled = false;
             });
             builder.Services.Configure<PcsPhysicalConfig>(builder.Configuration.GetSection(PcsPhysicalConfig.Section));
             builder.Services.Configure<TransformerConfig>(builder.Configuration.GetSection(TransformerConfig.Section));

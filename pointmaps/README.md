@@ -90,7 +90,7 @@ EMU 不参与电气求解，分层仅为协议聚合视图：组内 PCS 与扁�
 
 | 目录 | 说明 | 主要差异 |
 |------|------|----------|
-| [common](./common/) | 默认联调 / **商业发布** | develop 命名 `bms_bank`；精简 `bms_rack` |
+| [common](./common/) | 默认联调 | develop 命名 `bms_bank`；精简 `bms_rack` |
 | [lc](./lc/) | LocalControl | param 命名 `bms_bank` + `lc.csv` |
 | [battery](./battery/) | 电芯级遥测 | 全量 `bms_rack`（Pack/电芯数据点） |
 
@@ -104,14 +104,9 @@ EMU 不参与电气求解，分层仅为协议聚合视图：组内 PCS 与扁�
 ## 发布（开发脚本）
 
 ```bash
-./scripts/publish-linux.sh battery
-./scripts/publish-linux.sh lc
-./scripts/publish-windows.sh common
+./scripts/publish-linux.sh
+./scripts/publish-windows.sh
 ```
 
-或环境变量：`POINTMAP_VERSION=lc ./scripts/publish-linux.sh`
-
-**商业发布**（`scripts/commercial/`）固定 `common`，不可覆盖。
-
-可选值：`common`、`lc`、`battery`（与目录名一致）。
-发布脚本会同时将 `pointmaps/models/` 整目录复制到输出目录，供运行期型号选型使用。
+发布脚本会把 `pointmaps/models/` 整目录复制到输出目录，运行期按型号选型解析；
+上面的 `common` / `lc` / `battery` 目录属于旧版兜底，不再由发布脚本选择。

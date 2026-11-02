@@ -20,7 +20,7 @@
   - 全站 `simEm` 1500、`simSel` 2001、`simSvg` 2201
 - **不读端口覆盖。** 该工程的 `ProtocolPortPlan.Load` 直接返回 `BuildPortPlan()`，不读 `configs/protocol-ports.json`。IEC 61850 不按 PCS 启动。
 - **电池固定簇等效。** 启动时 `BatteryCalcMode.CellPhysicsEnabled = false`。这份工程激活时，切换逐芯的接口拒绝写入。
-- **档位限制不裁剪它。** 社区版会在 `AllowTopologyEditor == false` 时丢弃 overlay，并在 `MaxEssUnits == 2` 时裁剪单元。该工程 Id 绕过这两处，避免 300 MW 被静默变成 2 个单元。普通工程的裁剪逻辑不变。
+- **不被配置裁剪。** 该工程 Id 走内置 overlay，不读磁盘 overlay，也不参与按单元数的裁剪，避免 300 MW 被静默改小。
 - **磁盘上可以有一份生成结果，但不能当输入。** 应用时允许把 `BuildOverlay()` 写到 `runtime-overlay.json` 供查看。下次启动仍以代码为准。工程库不创建可编辑的 `projects/{id}.json`。
 - **主接线不改。** 60 个单元仍走现有主接线渲染。本计划不做按段折叠。
 
@@ -63,7 +63,7 @@ Task 1 与 Task 2 互不依赖，可以并行。Task 3 依赖 Task 1。Task 4 �
 
 - [x] 激活该 Id 时，改过的 overlay JSON 和 `protocol-ports.json` 都不生效
 - [x] 其它工程仍从 JSON 和覆盖文件加载
-- [x] 社区版档位不会把该工程裁成 2 个单元
+- [x] 该工程不会被配置裁成 2 个单元
 
 ### Phase 3: 禁止人为修改
 
@@ -92,7 +92,7 @@ Task 1 与 Task 2 互不依赖，可以并行。Task 3 依赖 Task 1。Task 4 �
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| 社区版丢弃或裁剪 overlay，300 MW 变成 2 单元 | High | Task 3 对该 Id 绕过 `AllowTopologyEditor` 和 `MaxEssUnits`；用测试锁住 |
+| 配置裁剪 overlay，300 MW 变成 2 单元 | High | Task 3 对该 Id 走内置 overlay；用测试锁住 |
 | `protocol-ports.json` 里的同名条目在切回普通工程时仍生效 | Med | 测试工程的 Load 不读、PUT 不写该文件；普通工程行为保持现有测试 |
 | 120 路 IEC 61850 把进程打满 | High | Task 4 在该工程不启动 MMS |
 | 60 万节电芯逐芯积分 | High | Task 5 强制簇等效，并拒绝运行中切回逐芯 |
@@ -149,7 +149,7 @@ Task 1 与 Task 2 互不依赖，可以并行。Task 3 依赖 Task 1。Task 4 �
 
 ## Task 3: 按工程 Id 加载代码拓扑
 
-**Description:** `activeProjectId` 为 `mw300-ess-test` 时，加载器返回 `BuildOverlay()`，磁盘上的 overlay 内容不参与。`Program` 把该 overlay 应用到 `SimulatorConfig`，并写入 `StationProfileId`。此 Id 不因社区版关闭组态编辑而被丢弃，也不被 `MaxEssUnits` 裁剪。其它工程的加载和裁剪保持现状。
+**Description:** `activeProjectId` 为 `mw300-ess-test` 时，加载器返回 `BuildOverlay()`，磁盘上的 overlay 内容不参与。`Program` 把该 overlay 应用到 `SimulatorConfig`，并写入 `StationProfileId`。此 Id 走内置 overlay，不读磁盘内容。其它工程的加载逻辑保持现状。
 
 **Acceptance criteria:**
 - [ ] 模式文件指向该 Id 时，即使 overlay JSON 缺失或内容是别的工程，加载结果仍是 60 个单元

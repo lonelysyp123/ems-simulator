@@ -135,27 +135,6 @@ namespace EssSimulator.Web.Topology
             return plan;
         }
 
-        public static bool PassesEditorGate(TopologyRuntimeOverlay? overlay, EditionConfig edition)
-        {
-            if (overlay == null)
-                return false;
-            if (IsThis(overlay.SourceProjectId))
-                return true;
-            return edition.AllowTopologyEditor;
-        }
-
-        public static List<EssUnitConfig> ApplyUnitCap(
-            IReadOnlyList<EssUnitConfig> units,
-            string? stationProfileId,
-            EditionConfig edition)
-        {
-            if (IsThis(stationProfileId))
-                return units.ToList();
-            if (edition.LockTopology && edition.MaxEssUnits > 0 && units.Count > edition.MaxEssUnits)
-                return units.Take(edition.MaxEssUnits).ToList();
-            return units.ToList();
-        }
-
         public static void ApplyRuntimePolicy(string? stationProfileId)
         {
             if (IsThis(stationProfileId))

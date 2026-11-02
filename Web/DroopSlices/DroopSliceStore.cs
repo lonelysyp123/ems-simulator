@@ -16,15 +16,11 @@ namespace EssSimulator.Web.DroopSlices
         private long _sequence;
         private int _maxCount;
         private bool _enabled;
-        private readonly bool _allowFeature;
 
-        public DroopSliceStore(IOptions<WebConfig> webCfg, IOptions<EditionConfig> editionCfg)
+        public DroopSliceStore(IOptions<WebConfig> webCfg)
         {
             var cfg = webCfg.Value;
-            var edition = editionCfg.Value;
-            edition.ApplyPresets();
-            _allowFeature = edition.AllowDroopSlices;
-            _enabled = _allowFeature && cfg.DroopSliceCaptureEnabled;
+            _enabled = cfg.DroopSliceCaptureEnabled;
             _maxCount = Math.Clamp(cfg.DroopSliceMaxCount, 10, 5000);
             _current = this;
             ControlPointCapture.Current = this;
@@ -32,23 +28,13 @@ namespace EssSimulator.Web.DroopSlices
 
         public static DroopSliceStore? Current => _current;
 
-        /// <summary>当前档位是否允许白盒切片功能。</summary>
-        public bool FeatureAllowed => _allowFeature;
-
         public bool Enabled
         {
             get { lock (_gate) return _enabled; }
             set
             {
                 lock (_gate)
-                {
-                    if (!_allowFeature)
-                    {
-                        _enabled = false;
-                        return;
-                    }
                     _enabled = value;
-                }
             }
         }
 
@@ -153,7 +139,6 @@ namespace EssSimulator.Web.DroopSlices
                 return new
                 {
                     enabled = _enabled,
-                    featureAllowed = _allowFeature,
                     count = _items.Count,
                     maxCount = _maxCount,
                     latestSequence = _sequence

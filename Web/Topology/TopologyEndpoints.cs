@@ -12,7 +12,6 @@ namespace EssSimulator.Web.Topology
         public static IEndpointRouteBuilder MapTopologyEndpoints(this IEndpointRouteBuilder app)
         {
             var g = app.MapGroup("/api/topology");
-            g.AddEndpointFilter(EditionTopologyGate);
 
             g.MapGet("/templates", () => Results.Ok(TopologyTemplates.All));
 
@@ -219,20 +218,6 @@ namespace EssSimulator.Web.Topology
                     : Results.NotFound(new { message = "工程不存在" }));
 
             return app;
-        }
-
-        private static async ValueTask<object?> EditionTopologyGate(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
-        {
-            var edition = ctx.HttpContext.RequestServices.GetRequiredService<IOptions<EditionConfig>>().Value;
-            edition.ApplyPresets();
-            if (!edition.AllowTopologyEditor)
-            {
-                return Results.Json(
-                    new { message = "当前产品档位不包含组态编辑功能" },
-                    statusCode: StatusCodes.Status403Forbidden);
-            }
-
-            return await next(ctx);
         }
     }
 

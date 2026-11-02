@@ -43,17 +43,17 @@
 
 ### 方式 A：运行发布包（联调、演示）
 
-每个版本在 **[Releases](https://github.com/lonelysyp123/ems-simulator/releases)** 页提供免授权演示版：
-Windows x64（zip）、Linux x64（tar.gz）、macOS Apple Silicon（tar.gz），**自包含，无需安装 .NET 运行时**。
+每个版本在 **[Releases](https://github.com/lonelysyp123/ems-simulator/releases)** 页提供自包含发布包：
+Windows x64（zip）、Linux x64（tar.gz）、macOS Apple Silicon（tar.gz），**无需安装 .NET 运行时**。
 
 ```bash
 # Windows：解压后双击 start.bat
 
 # Linux
-tar -xzf EssSimulator-demo-linux-x64.tar.gz && cd linux-x64 && ./start.sh
+tar -xzf EssSimulator-linux-x64.tar.gz && cd linux-x64 && ./start.sh
 
 # macOS（Apple Silicon）：首次运行需解除隔离
-tar -xzf EssSimulator-demo-osx-arm64.tar.gz && cd osx-arm64 && ./解除隔离.sh && ./start.sh
+tar -xzf EssSimulator-osx-arm64.tar.gz && cd osx-arm64 && ./解除隔离.sh && ./start.sh
 ```
 
 启动后打开 **http://127.0.0.1:5050** 即可看到主接线。
@@ -95,7 +95,7 @@ curl -s http://127.0.0.1:5050/api/health     # {"status":"ok","ready":true,...}
 - **点表驱动**：`FunctionCode / Address / Type / Scale / ParamName / ModelSim` 六列 CSV，`ModelSim` 支持 `model=4|arg1=<对象路径>` 直接绑定 DTO，另支持 `sum` / `max` 聚合；
 - **设备型号可选**：同一设备类型下多套点表（如 BMS 的 `standard` / `g2_pro` / `g2_4mwh`），界面切换、重启生效；
 - **组态编辑器**：拖拽搭拓扑、一键生成 1–20 单元径向电站、多工程管理，保存后生成运行时 overlay 直接驱动仿真；
-- **多档位交付**：同一套代码用配置切换社区版 / 商业版 / 定制版。
+- **开源可改**：GPL-3.0，点表、设备模型、协议映射都可以按现场需求自己扩。
 
 ## 对外接口
 
@@ -132,7 +132,7 @@ curl -s http://127.0.0.1:5050/api/health     # {"status":"ok","ready":true,...}
 | 命令输入 | `esscmd` / `dpc` / `breaker` / `dpctest` 控制台 |
 | 协议端口 / IEC 61850 | 端口热重建、MMS 与 GOOSE 报文查看 |
 | EMS 策略 / 第三方 EMS | 内置 EMS 策略闭环、外部 EMS 直连数据模型 |
-| 白盒切片 | Droop 过程切片采样与回放（商业版） |
+| 白盒切片 | Droop 过程切片采样与回放 |
 
 ## 适用对象
 
@@ -140,17 +140,6 @@ curl -s http://127.0.0.1:5050/api/health     # {"status":"ok","ready":true,...}
 - **PCS / BMS / 光伏设备厂商**：与 EMS 的协议一致性联调；
 - **系统集成商 / EPC**：投标演示、项目培训、交付前预演；
 - **高校 / 培训机构**：储能与光伏系统教学实验。
-
-## 产品档位
-
-| 档位 | 拓扑规模 | 组态编辑 | 3D | 授权 |
-|---|---|---|---|---|
-| 社区版 | 锁定，默认 ≤ 2 单元 | 关闭 | 关闭 | 不需要 |
-| 演示版 | 2 单元（功能全开） | 开启 | 开启 | 不需要 |
-| 商业版 | 不限 | 开启 | 开启 | 需 `license.txt` |
-| 定制版 | 不限，可加特殊设备 | 开启 | 开启 | 需 `license.txt` |
-
-同一套代码，改 `Simulator.Edition.Name` 即可切换；详见 [产品分档与交付边界](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/产品分档与交付边界.md)。
 
 ## 目录结构
 
@@ -161,11 +150,10 @@ DataExchange/        点目录 + 遥测/控制/反馈三管道（Shadow 去重�
 Protocol/            Modbus 从站与端口调度；Iec61850/（MMS IED、入向 GOOSE）；Ptp/
 Web/                 ASP.NET 端点、SignalR、组态（Topology/）、快照；前端源码 Web/src/
 LocalControl/        LC 聚合协议与点表片段拼装
-Configuration/       配置类型定义（Runtime / Protocol / Web / Edition / License）
-Licensing/           机器码与 license.txt 校验
+Configuration/       配置类型定义（Runtime / Protocol / Web）
 pointmaps/           点表 CSV（models/{设备类型}/{型号}/）
-configs/             各档位 appsettings 模板、组态工程、端口绑定、IP 白名单
-scripts/             开发与发布脚本（commercial/ 为打包）、license/ 签发工具
+configs/             EMS 策略、组态工程、协议绑定、Modbus IP 白名单
+scripts/             开发与发布脚本（publish-{windows,linux,macos}.sh）
 EssSimulator.Tests/  xUnit 测试
 ```
 
@@ -186,15 +174,12 @@ EssSimulator.Tests/  xUnit 测试
 |---|---|
 | [系统设计说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/系统设计说明.md) | 技术栈、分层、数据流、储能/光伏设备模型、设计原则 |
 | [B/S 架构说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/B-S架构说明.md) | Web 后端、Vue 前端、HTTP / SignalR 通道 |
-| [项目编译说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/项目编译说明.md) | 开发/商业脚本、dist 产物、档位差异 |
+| [项目编译说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/项目编译说明.md) | 编译、打包脚本、dist 产物布局、自动发布流程 |
 
-**交付与运维**
+**测试与运维**
 
 | 文档 | 说明 |
 |---|---|
-| [产品分档与交付边界](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/产品分档与交付边界.md) | 社区版 / 商业版 / 定制版 / 演示版的能力边界 |
-| [授权说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/授权说明.md) | 机器码、`license.txt` 签发与校验 |
-| [充值版授权网关约定](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/充值版授权网关约定.md) | 仓外计费/鉴权（旧名「充值版」现映射为商业版托管） |
 | [测试报告](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/测试报告.md) | 性能与 DataExchange 手动测试记录 |
 
 **产品与延伸阅读**
@@ -202,7 +187,7 @@ EssSimulator.Tests/  xUnit 测试
 | 文档 | 说明 |
 |---|---|
 | [产品介绍](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/marketing/产品介绍.md) | 对外短文案与能力清单 |
-| [演示录屏脚本](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/marketing/演示录屏脚本.md) | 演示版录屏分镜 |
+| [演示录屏脚本](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/marketing/演示录屏脚本.md) | 演示录屏分镜 |
 | [为什么需要仿真](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/blog/储能仿真系统-困境和思考.md) | 联调阶段的现实困境与仿真难在哪里 |
 | [真实与虚拟](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/blog/储能仿真系统-真实和虚拟.md) | 哪些是"像真电站一样动"，哪些是虚拟环境才有的便利 |
 
@@ -216,16 +201,17 @@ dotnet test                                   # xUnit，覆盖潮流、控制桥
 cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，dotnet publish 自动带上
 ```
 
-发布脚本：`scripts/commercial/publish-{windows,linux,macos}.sh`（自包含单文件，按档位打 zip / tar.gz）。
+发布脚本：`scripts/publish-{windows,linux,macos}.sh`（自包含单文件，出 zip / tar.gz）；打 `v*` tag 由 GitHub Actions 自动发布到 Releases。
 
-## 第三方组件与许可
+## 许可证
 
-- IEC 61850 功能依赖 **libiec61850**（GPLv3）及其 .NET 封装，随仓提供 Windows / macOS 原生库；
-- 其余依赖见 [EssSimulator.csproj](https://github.com/lonelysyp123/ems-simulator/blob/master/EssSimulator.csproj)（NModbus、CsvHelper、log4net 等）；
-- **本仓库当前未附带开源许可证文件**。如需将代码用于商业项目或再分发，请先与作者确认授权范围。
+本项目以 **[GPL-3.0](https://github.com/lonelysyp123/ems-simulator/blob/master/LICENSE)** 发布：可自由使用、修改、分发，分发衍生作品时需同样以 GPL-3.0 开源。
+
+- IEC 61850 功能依赖 **libiec61850**（GPLv3）及其 .NET 封装，随仓提供 Windows / macOS 原生库，与本项目许可证一致；
+- 其余依赖见 [EssSimulator.csproj](https://github.com/lonelysyp123/ems-simulator/blob/master/EssSimulator.csproj)（NModbus、CsvHelper、log4net 等），均为宽松许可。
 
 ## 反馈与贡献
 
 - 问题与建议请开 [Issue](https://github.com/lonelysyp123/ems-simulator/issues)，**点表相关问题请附 CSV 片段 + 端口 + 日志**，定位会快很多；
+- 欢迎 PR：新设备点表、新协议适配、文档修正都很有价值；
 - 分支约定：`master` 为发布分支，`develop` 为集成分支，功能分支用 `feature_*` / `fix_*`，合入后删除；
-- 商业发布脚本说明见 [scripts/commercial/README.md](https://github.com/lonelysyp123/ems-simulator/blob/master/scripts/commercial/README.md)。

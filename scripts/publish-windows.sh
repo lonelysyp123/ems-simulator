@@ -24,6 +24,28 @@ copy_runtime_files() {
     echo "    $f"
   done
   copy_pointmaps_to "$OUT"
+  # 组态工程/设备库与协议绑定：组态编辑器、端口页依赖这些文件
+  rm -rf "$OUT/configs"
+  mkdir -p "$OUT/configs"
+  for c in protocol-bindings.json ems-strategy.json; do
+    if [[ -f "$ROOT/configs/$c" ]]; then
+      cp -f "$ROOT/configs/$c" "$OUT/configs/$c"
+      echo "    configs/$c"
+    fi
+  done
+  if [[ -d "$ROOT/configs/topology" ]]; then
+    cp -R "$ROOT/configs/topology" "$OUT/configs/topology"
+    rm -f "$OUT/configs/topology/generated/runtime-overlay.json"
+    cat > "$OUT/configs/topology/runtime-mode.json" <<'JSON'
+{
+  "engineeringMode": false,
+  "activeProjectId": null,
+  "activeProjectName": null,
+  "updatedAtUtc": "1970-01-01T00:00:00Z"
+}
+JSON
+    echo "    configs/topology/"
+  fi
   if [[ -d "$ROOT/docs" ]]; then
     rm -rf "$OUT/docs"
     cp -R "$ROOT/docs" "$OUT/docs"

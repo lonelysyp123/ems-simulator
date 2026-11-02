@@ -56,7 +56,6 @@ namespace EssSimulator.Web.Topology
         public static IEndpointRouteBuilder MapSystemConfigEndpoints(this IEndpointRouteBuilder app)
         {
             var g = app.MapGroup("/api/system");
-            g.AddEndpointFilter(EditionTopologyGate);
 
             // 设备型号/点表选择独立于组态编辑功能，不受档位门拦截
             var dm = app.MapGroup("/api/system");
@@ -165,14 +164,10 @@ namespace EssSimulator.Web.Topology
             g.MapPost("/apply", (
                 SystemApplyRequest req,
                 TopologyStore store,
-                IHostApplicationLifetime lifetime,
-                IOptions<EditionConfig> editionOpts) =>
+                IHostApplicationLifetime lifetime) =>
             {
                 if (req == null)
                     return Results.BadRequest(new SystemApplyResponse { Ok = false, Message = "请求体为空" });
-
-                var edition = editionOpts.Value;
-                edition.ApplyPresets();
 
                 if (!req.EngineeringMode)
                 {
@@ -248,16 +243,6 @@ namespace EssSimulator.Web.Topology
                         Message = validation.Message,
                         Details = validation.Details
                     });
-
-                if (edition.LockTopology && edition.MaxEssUnits > 0 && overlay.EssUnits.Count > edition.MaxEssUnits)
-                {
-                    return Results.BadRequest(new SystemApplyResponse
-                    {
-                        Ok = false,
-                        Message = $"当前产品档位最多 {edition.MaxEssUnits} 个储能单元，工程含 {overlay.EssUnits.Count} 个 EMU",
-                        Details = validation.Details
-                    });
-                }
 
                 store.SaveOverlay(overlay);
                 store.SaveRuntimeMode(new TopologyRuntimeMode
@@ -357,20 +342,6 @@ namespace EssSimulator.Web.Topology
                 summary.Add(entry);
             }
             return summary;
-        }
-
-        private static async ValueTask<object?> EditionTopologyGate(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
-        {
-            var edition = ctx.HttpContext.RequestServices.GetRequiredService<IOptions<EditionConfig>>().Value;
-            edition.ApplyPresets();
-            if (!edition.AllowTopologyEditor)
-            {
-                return Results.Json(
-                    new { message = "当前产品档位不包含组态编辑功能" },
-                    statusCode: StatusCodes.Status403Forbidden);
-            }
-
-            return await next(ctx);
         }
     }
 }
