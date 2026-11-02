@@ -33,7 +33,7 @@ IEC 61850 MMS（默认 8102 起）+ L2 GOOSE 订阅 ← IEDScout 等
 
 | 字段 | 默认 | 说明 |
 |------|------|------|
-| `HttpPort` | 5050 | Web 服务监听端口（macOS 勿用 5000，易被 AirPlay 占用） |
+| `HttpPort` | 5050 | Web 服务监听端口 |
 | `HttpBaseUrl` | `http://0.0.0.0` | 监听地址（`0.0.0.0` 全网卡） |
 | `StaticFiles` | true | 是否托管 `wwwroot/` 前端文件 |
 | `CorsOrigins` | `[]` | 额外允许的 CORS 来源（dev 自动放行 5173） |
@@ -53,7 +53,7 @@ Simulator__Web__HttpPort=5050 Simulator__Web__ApiKey=secret dotnet EssSimulator
 ### 生产/发布包
 
 ```bash
-./start.sh        # Linux，自动打开浏览器
+start.bat        # Windows，启动后自动打开浏览器
 start.bat         # Windows
 # 浏览器访问 http://localhost:5050
 ```
@@ -77,7 +77,7 @@ cd Web && npm install && npm run dev
 
 ```bash
 ./scripts/publish-windows.sh   # 自动 npm install + build + dotnet publish
-./scripts/publish-linux.sh
+./scripts/publish-windows.sh
 ```
 
 发布产物包含 `wwwroot/`（前端）、`EssSimulator[.exe]`、`appsettings.json`、点表 CSV、`autotest.json` 等。

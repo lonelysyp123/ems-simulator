@@ -104,7 +104,6 @@ EMU 不参与电气求解，分层仅为协议聚合视图：组内 PCS 与扁�
 ## 发布（开发脚本）
 
 ```bash
-./scripts/publish-linux.sh
 ./scripts/publish-windows.sh
 ```
 

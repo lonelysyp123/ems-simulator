@@ -7,7 +7,7 @@
 [![CI](https://github.com/lonelysyp123/ems-simulator/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/lonelysyp123/ems-simulator/actions/workflows/ci.yml)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-1f6feb)
 ![IEC 61850](https://img.shields.io/badge/IEC-61850%20MMS-1f6feb)
 
@@ -44,24 +44,19 @@
 
 ### 方式 A：运行发布包（联调、演示）
 
-每个版本在 **[Releases](https://github.com/lonelysyp123/ems-simulator/releases)** 页提供自包含发布包：
-Windows x64（zip）、Linux x64（tar.gz）、macOS Apple Silicon（tar.gz），**无需安装 .NET 运行时**。
+每个版本在 **[Releases](https://github.com/lonelysyp123/ems-simulator/releases)** 页提供 **Windows x64** 自包含包（zip），
+**无需安装 .NET 运行时**。
 
-```bash
-# Windows：解压后双击 start.bat
-
-# Linux
-tar -xzf EssSimulator-linux-x64.tar.gz && cd linux-x64 && ./start.sh
-
-# macOS（Apple Silicon）：首次运行需解除隔离
-tar -xzf EssSimulator-osx-arm64.tar.gz && cd osx-arm64 && ./解除隔离.sh && ./start.sh
+```powershell
+# 解压后双击 start.bat，或直接运行 EssSimulator.exe
 ```
 
 启动后打开 **http://127.0.0.1:5050** 即可看到主接线。
 
 ### 方式 B：从源码运行（开发、二次开发）
 
-需要 **.NET 8 SDK** + **Node 18+**。
+需要 **.NET 8 SDK** + **Node 18+**。开发机不限系统（macOS / Linux 均可编译与调试），
+**发布目标只有 Windows x64**。
 
 ```bash
 git clone https://github.com/lonelysyp123/ems-simulator.git
@@ -154,7 +149,7 @@ LocalControl/        LC 聚合协议与点表片段拼装
 Configuration/       配置类型定义（Runtime / Protocol / Web）
 pointmaps/           点表 CSV（models/{设备类型}/{型号}/）
 configs/             EMS 策略、组态工程、协议绑定、Modbus IP 白名单
-scripts/             开发与发布脚本（publish-{windows,linux,macos}.sh）
+scripts/             开发与发布脚本（publish-windows.sh、dev-up.sh、test/）
 EssSimulator.Tests/  xUnit 测试
 ```
 
@@ -202,13 +197,13 @@ dotnet test                                   # xUnit，覆盖潮流、控制桥
 cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，dotnet publish 自动带上
 ```
 
-发布脚本：`scripts/publish-{windows,linux,macos}.sh`（自包含单文件，出 zip / tar.gz）；打 `v*` tag 由 GitHub Actions 自动发布到 Releases。
+发布脚本：`scripts/publish-windows.sh`（自包含单文件，出 `EssSimulator-win-x64.zip`）；打 `v*` tag 由 GitHub Actions 自动发布到 Releases。
 
 ## 许可证
 
 本项目以 **[GPL-3.0](https://github.com/lonelysyp123/ems-simulator/blob/master/LICENSE)** 发布：可自由使用、修改、分发，分发衍生作品时需同样以 GPL-3.0 开源。
 
-- IEC 61850 功能依赖 **libiec61850**（GPLv3）及其 .NET 封装，随仓提供 Windows / macOS 原生库，与本项目许可证一致；
+- IEC 61850 功能依赖 **libiec61850**（GPLv3）及其 .NET 封装，Windows 原生库随包分发；macOS / Linux 原生库仅供开发机本地调试，不随包；
 - 其余依赖见 [EssSimulator.csproj](https://github.com/lonelysyp123/ems-simulator/blob/master/EssSimulator.csproj)（NModbus、CsvHelper、log4net 等），均为宽松许可。
 
 ## 反馈与贡献

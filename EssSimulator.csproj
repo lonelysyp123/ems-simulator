@@ -29,7 +29,7 @@
     <!-- ASP.NET Core / SignalR Server 由 Microsoft.NET.Sdk.Web 隐式提供，无需显式引用 -->
   </ItemGroup>
 
-  <!-- libiec61850 .NET 包装（GPLv3）。Linux 原生库暂不随仓；osx / win-x64 见 lib61850/native。 -->
+  <!-- libiec61850 .NET 包装（GPLv3）。发布目标只有 Windows x64；macOS 原生库仅供本地开发跑测试，不随包。 -->
   <ItemGroup>
     <Reference Include="iec61850dotnet">
       <HintPath>$(MSBuildThisFileDirectory)lib61850/managed/iec61850dotnet.dll</HintPath>
@@ -38,15 +38,6 @@
   </ItemGroup>
   <ItemGroup>
     <!-- 单文件发布必须 ExcludeFromSingleFile：否则会打进 bundle 的 runtimes/RID/native/，Windows 运行时找不到。 -->
-    <None Include="lib61850/native/osx-arm64/libiec61850.dylib" Link="runtimes/osx-arm64/native/libiec61850.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest">
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-    </None>
-    <None Include="lib61850/native/osx-x64/libiec61850.dylib" Link="runtimes/osx-x64/native/libiec61850.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest">
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-    </None>
-    <None Include="lib61850/native/osx-universal/libiec61850.dylib" Link="runtimes/osx-universal/native/libiec61850.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest">
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-    </None>
     <None Include="lib61850/native/win-x64/iec61850.dll" Link="runtimes/win-x64/native/iec61850.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest">
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>

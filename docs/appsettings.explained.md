@@ -120,7 +120,7 @@
   - **作用**：PCS IEC 61850 MMS 起始端口与步长。第 N 台 = `Base + (N-1) × Step`（也可由 `configs/protocol-bindings.json` 覆盖）。
 
 - `Simulator.Protocol.EmuIec61850GooseInterface`（string?）
-  - **作用**：入向 GOOSE 二层网卡。空=按 OS 默认（Windows `"0"` / macOS `en0` / Linux `eth0`）；`none`/`off`=不收。Windows 上与 IEDScout 选同一物理网卡（索引或网卡名）；须同一二层，非按 IP 订阅。
+  - **作用**：入向 GOOSE 二层网卡。空=按 OS 默认（Windows 上通常为 `"0"`）；`none`/`off`=不收。Windows 上与 IEDScout 选同一物理网卡（索引或网卡名）；须同一二层，非按 IP 订阅。
 
 - `Simulator.Protocol.EmuIec61850GooseSubscribe`（bool，默认 `true`）
   - **作用**：是否订阅入向 GOOSE（外部 EMS/IED 遥控 yk/yt）。仿真器**不发布**设备侧 GOOSE。
@@ -182,7 +182,7 @@
 
 ### Simulator.Web
 
-- `HttpPort` / `HttpBaseUrl`：浏览器与 REST 监听（默认 5050；macOS 勿用 5000）
+- `HttpPort` / `HttpBaseUrl`：浏览器与 REST 监听（默认 5050）
 - `StaticFiles`：是否托管 `wwwroot/`
 - `SnapshotIntervalMs`：SignalR 主接线推送周期
 - `ApiKeyEnabled` / `ApiKey`：保护 `/api/*`（`/api/health` 豁免）；密钥可用环境变量 `Simulator__Web__ApiKey`
