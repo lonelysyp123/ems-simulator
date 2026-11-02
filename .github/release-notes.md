@@ -26,6 +26,11 @@ Get-FileHash .\EssSimulator-win-x64.zip -Algorithm SHA256
 # 与 EssSimulator-win-x64.zip.sha256 里的值比对
 ```
 
+#### 已知限制
+
+- **暂不启用 IEC 61850 GOOSE 订阅**：随包原生库未编译 GOOSE 订户，运行期会降级为"不启用"并给出原因；**MMS 服务端不受影响**。
+  详见 [项目编译说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/项目编译说明.md) 的「已知限制」。
+
 #### 许可证
 
 本项目以 **GPL-3.0** 发布，详见仓库 [LICENSE](https://github.com/lonelysyp123/ems-simulator/blob/master/LICENSE)。
