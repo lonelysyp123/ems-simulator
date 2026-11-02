@@ -78,6 +78,9 @@ namespace EssSimulator.Protocol.Iec61850
         internal int SpcHandlerCount => _model.ControlDoByParam.Count;
         internal int GooseEntryCount => _model.GooseEntryCount;
 
+        /// <summary>对外提供的 IED 模型（测试用于断言设备侧是否含 GOOSE 控制块/数据集）。</summary>
+        internal IEC61850.Server.IedModel Model => _model.Model;
+
         public void Attach(IProtocolPointStore store, Action<string, object> writeControl)
         {
             if (_store != null)
