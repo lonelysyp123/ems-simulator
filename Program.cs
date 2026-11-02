@@ -131,7 +131,9 @@ namespace EssSimulator
             {
                 if (IsSimulatorReady(expectedServerCount, cfg.Protocol.EnableLocalControl, cfg))
                 {
-                    LogManager.GetLogger(typeof(Program)).Info("[Program] 仿真器已就绪");
+                    using var proc = System.Diagnostics.Process.GetCurrentProcess();
+                    LogManager.GetLogger(typeof(Program)).Info(
+                        $"[Program] 仿真器已就绪（进程线程 {proc.Threads.Count}，工作集 {proc.WorkingSet64 / 1024 / 1024} MB）");
                     return;
                 }
                 try { await Task.Delay(500, cancellationToken); }
