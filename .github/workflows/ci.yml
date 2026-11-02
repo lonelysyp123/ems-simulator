@@ -1,8 +1,7 @@
 name: CI
 
 # 推送 / PR 触发：编译后端 + 跑单元测试 + 构建前端。
-# Linux runner 上没有随仓的 libiec61850 .so，IEC 61850 的原生用例会自动跳过
-# （NativeLibraryFact 在库缺失时设置 Skip），其余用例照常执行。
+# 测试作业跑在 windows-latest（发布目标只有 Windows x64），前端作业留在 ubuntu（更快）。
 on:
   push:
     branches: [master, develop]
@@ -25,7 +24,9 @@ env:
 jobs:
   test:
     name: 编译与单元测试
-    runs-on: ubuntu-latest
+    # 发布目标只有 Windows，测试也放到 Windows 上跑：IEC 61850 的原生用例会真正执行
+    # （在 Linux runner 上因为没有 .so 会被 NativeLibraryFact 跳过）
+    runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4

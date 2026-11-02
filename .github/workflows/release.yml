@@ -38,12 +38,6 @@ jobs:
           - rid: win-x64
             script: scripts/publish-windows.sh
             archive: dist/EssSimulator-win-x64.zip
-          - rid: linux-x64
-            script: scripts/publish-linux.sh
-            archive: dist/EssSimulator-linux-x64.tar.gz
-          - rid: osx-arm64
-            script: scripts/publish-macos.sh
-            archive: dist/EssSimulator-osx-arm64.tar.gz
     steps:
       - uses: actions/checkout@v4
 

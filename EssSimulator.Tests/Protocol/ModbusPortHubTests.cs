@@ -164,8 +164,19 @@ public class ModbusPortHubTests
             Assert.True(hub.AttachDevice(port, 1, "dev", new[] { Entry("P1", 100) }).Ok);
 
             using var client = new TcpClient();
-            client.Connect("127.0.0.1", port);
-            Assert.True(WaitUntilDisconnected(client), "白名单拒绝后本机连接应被关闭");
+            bool rejectedAtConnect = false;
+            try
+            {
+                client.Connect("127.0.0.1", port);
+            }
+            catch (SocketException)
+            {
+                // 服务端 accept 后立刻关闭时，RST 可能赶在三次握手完成前到达，
+                // 于是在 Connect 阶段就抛异常——这与"连上后被关闭"等价，都算被拒绝。
+                rejectedAtConnect = true;
+            }
+
+            Assert.True(rejectedAtConnect || WaitUntilDisconnected(client), "白名单拒绝后本机连接应被关闭");
         }
         finally
         {

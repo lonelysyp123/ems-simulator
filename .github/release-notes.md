@@ -5,21 +5,11 @@
 | 平台 | 文件 |
 |---|---|
 | Windows x64 | `EssSimulator-win-x64.zip` |
-| Linux x64 | `EssSimulator-linux-x64.tar.gz` |
-| macOS（Apple Silicon） | `EssSimulator-osx-arm64.tar.gz` |
 
 #### 快速开始
 
 ```bash
-# Windows：解压后双击 start.bat
-
-# Linux
-tar -xzf EssSimulator-linux-x64.tar.gz
-cd linux-x64 && ./start.sh
-
-# macOS（Apple Silicon）：首次运行需解除隔离
-tar -xzf EssSimulator-osx-arm64.tar.gz
-cd osx-arm64 && ./解除隔离.sh && ./start.sh
+# 解压后双击 start.bat（或直接运行 EssSimulator.exe）
 ```
 
 #### 这个包里有什么
@@ -31,9 +21,9 @@ cd osx-arm64 && ./解除隔离.sh && ./start.sh
 
 #### 校验下载完整性
 
-```bash
-sha256sum -c ./*.sha256     # Linux
-shasum -a 256 -c ./*.sha256 # macOS
+```powershell
+Get-FileHash .\EssSimulator-win-x64.zip -Algorithm SHA256
+# 与 EssSimulator-win-x64.zip.sha256 里的值比对
 ```
 
 #### 许可证
