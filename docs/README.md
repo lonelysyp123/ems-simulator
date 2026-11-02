@@ -4,6 +4,7 @@
 > 储能与光伏端到端仿真，对外提供 Modbus TCP 与 IEC 61850，
 > 让 EMS / PCS / BMS 在真机到货之前就完成闭环联调。
 
+[![CI](https://github.com/lonelysyp123/ems-simulator/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/lonelysyp123/ems-simulator/actions/workflows/ci.yml)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
