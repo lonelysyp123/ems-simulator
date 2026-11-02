@@ -210,5 +210,5 @@ cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，
 ## 反馈与贡献
 
 - 问题与建议请开 [Issue](https://github.com/lonelysyp123/ems-simulator/issues)，**点表相关问题请附 CSV 片段 + 端口 + 日志**，定位会快很多；
-- 欢迎 PR：新设备点表、新协议适配、文档修正都很有价值；
+- 欢迎 PR：新设备点表、新协议适配、文档修正都很有价值，分工与提交约定见 [CONTRIBUTING](https://github.com/lonelysyp123/ems-simulator/blob/develop/CONTRIBUTING.md)；
 - 分支约定：`master` 为发布分支，`develop` 为集成分支，功能分支用 `feature_*` / `fix_*`，合入后删除；
