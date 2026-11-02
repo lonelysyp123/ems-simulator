@@ -10,7 +10,7 @@ namespace EssSimulator.Tests;
 /// </summary>
 public class ModbusTcpSlaveSharedTransportTests
 {
-    private static int NextPort() => Random.Shared.Next(42000, 58000);
+    private static int NextPort() => FreePort.Next();
 
     private static MapEntry Entry(string name, int addr, int fc = 6, int size = 16, string type = "u16") =>
         new() { ParamName = name, Address = addr, FunctionCode = fc, Size = size, Type = type };
