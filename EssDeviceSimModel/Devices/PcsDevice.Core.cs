@@ -43,7 +43,6 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         private readonly int _interval; // 间隔时间(ms)
         private readonly int _delay; // 初始延迟(ms)
         private RampCurve _activeRampCurve = RampCurve.Linear;
-        private RampCurve _reactiveRampCurve = RampCurve.Linear;
         private readonly double _gridLossCoefficient; // 电网损耗系数，用于简化计算
 
         private readonly object _islandVfLock = new();

@@ -13,7 +13,7 @@ namespace EssSimulator
 {
     public class SimServer
     {
-        public static Dictionary<string, bool> clientConnectState { get; set; }//= new Dictionary<string, bool>() { get; }
+        public static Dictionary<string, bool> clientConnectState { get; set; } = new();
         public static Dictionary<string,string> serverListenInfo = new Dictionary<string, string>();
         
         /// <summary>
@@ -22,11 +22,11 @@ namespace EssSimulator
         /// <param name="arg1">变量的域名</param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public static object GetExtIfVariableVal(string arg1)
+        public static object? GetExtIfVariableVal(string arg1)
         {
             string[] parts = arg1.Split('.',2);
             var objectsCollect = SimulatorHost.Instance;
-            Object targetObj = objectsCollect.Get<object>(parts[0]);
+            var targetObj = objectsCollect.Get<object>(parts[0]);
             if (targetObj == null)
             {
                 return null;
@@ -40,7 +40,7 @@ namespace EssSimulator
             string[] parts = arg1.Split('.', 2);
 
             var objectsCollect = SimulatorHost.Instance;
-            Object targetObj = objectsCollect.Get<object>(parts[0]);
+            var targetObj = objectsCollect.Get<object>(parts[0]);
             if (targetObj == null)
             {
                 return false;

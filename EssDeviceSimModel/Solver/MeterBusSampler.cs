@@ -19,7 +19,6 @@ namespace EssSimulator.EssDeviceSimModel.Solver
             string? sourceBusId,
             double systemFrequencyHz)
         {
-            string requested = sourceBusId;
             string busId = RuntimeBusIds.Canonicalize(
                 string.IsNullOrWhiteSpace(sourceBusId)
                     ? RuntimeBusIds.AfterMainBreaker
@@ -32,7 +31,7 @@ namespace EssSimulator.EssDeviceSimModel.Solver
                 if (node != null)
                     return FromBusNode(network, busId, node, mainClosed, systemFrequencyHz);
 
-                _log.Error($"[MeterBusSampler] 未知母线 Id '{requested}'，电表采样返回零（不回退到其它母线）");
+                _log.Error($"[MeterBusSampler] 未知母线 Id '{busId}'，电表采样返回零（不回退到其它母线）");
                 return Quantities(0, 0, 0, 0);
             }
 

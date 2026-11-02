@@ -215,14 +215,14 @@ namespace EssSimulator.Web
                     float t = 0;
                     try
                     {
-                        v = (float)SimServer.GetExtIfVariableVal(
-                            $"{clusterPath}.ClusterCellVoltages.CellVoltages[{cellIdx}]");
+                        v = SimServer.GetExtIfVariableVal(
+                            $"{clusterPath}.ClusterCellVoltages.CellVoltages[{cellIdx}]") is float fv ? fv : 0f;
                     }
                     catch { v = 0; }
                     try
                     {
-                        t = (float)SimServer.GetExtIfVariableVal(
-                            $"{clusterPath}.ClusterCellTemperatures.CellTemperatures[{cellIdx}]");
+                        t = SimServer.GetExtIfVariableVal(
+                            $"{clusterPath}.ClusterCellTemperatures.CellTemperatures[{cellIdx}]") is float ft ? ft : 0f;
                     }
                     catch { t = 0; }
 

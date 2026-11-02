@@ -234,7 +234,7 @@ namespace EssSimulator
             }
         }
 
-        public byte[] Read(string paramName)
+        public byte[]? Read(string paramName)
         {
             // 如果slaveid为1，则读取的是pointMap，否则读取rackPointMap
             var pointMapToUse = pointMap;

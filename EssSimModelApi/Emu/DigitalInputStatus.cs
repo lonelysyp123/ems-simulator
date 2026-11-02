@@ -7,7 +7,7 @@ namespace EssSimulator.EssSimModelApi.EnergyManagementSystem
     public class DigitalInputStatus
     {
         public int Index { get; set; }
-        public string Description { get; set; }
+        public string Description { get; set; } = "";
         public bool Value { get; set; }
         public bool Triggered { get; set; }
     }

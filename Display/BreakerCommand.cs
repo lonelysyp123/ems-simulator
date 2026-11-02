@@ -21,7 +21,7 @@ namespace EssSimulator.Display
                 return CommandResult.Fail("请输入有效的布尔值 (true/false)");
 
             var objectsCollect = SimulatorHost.Instance;
-            EnergyStorageSystem ess = objectsCollect.Get<EnergyStorageSystem>("ess");
+            var ess = objectsCollect.Get<EnergyStorageSystem>("ess");
             if (ess == null)
                 return CommandResult.Fail("找不到对应的模型");
 

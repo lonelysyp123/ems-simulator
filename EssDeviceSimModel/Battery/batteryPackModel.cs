@@ -38,7 +38,7 @@ namespace EssSimulator.EssDeviceSimModel
         public double RemainingCapacity { get; set; }   // 剩余容量(Ah)
         public double TotalCapacity { get; set; }      // 当前总容量(Ah)
         public DateTime Timestamp { get; set; }        // 状态时间
-        public List<CellState> CellStates { get; set; } // 所有电芯状态
+        public List<CellState> CellStates { get; set; } = new(); // 所有电芯状态
     }
 
     public class BatteryPackSimulator
@@ -46,7 +46,7 @@ namespace EssSimulator.EssDeviceSimModel
         private readonly PackConfiguration _config;
         private readonly List<List<LiFePO4CellSimulator>> _cells; // 二维数组表示串并联结构
         private readonly Random _random = new Random();
-        private PackState _currentState;
+        private PackState _currentState = new();
 
         // 构造函数
         public BatteryPackSimulator(PackConfiguration config)
