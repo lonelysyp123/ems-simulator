@@ -30,15 +30,15 @@
             <el-icon><Connection /></el-icon>
             <span>电站概览</span>
           </el-menu-item>
-          <el-menu-item v-if="allowMainline3d" index="/mainline-3d">
+          <el-menu-item index="/mainline-3d">
             <el-icon><Monitor /></el-icon>
             <span>数字孪生</span>
           </el-menu-item>
-          <el-menu-item v-if="allowTopologyEditor" index="/topology">
+          <el-menu-item index="/topology">
             <el-icon><EditPen /></el-icon>
             <span>组态编辑</span>
           </el-menu-item>
-          <el-menu-item v-if="allowTopologyEditor" index="/projects">
+          <el-menu-item index="/projects">
             <el-icon><FolderOpened /></el-icon>
             <span>工程配置</span>
           </el-menu-item>
@@ -70,7 +70,7 @@
             <el-icon><Odometer /></el-icon>
             <span>EMS</span>
           </el-menu-item>
-          <el-menu-item v-if="allowDroopSlices" index="/droop-slices">
+          <el-menu-item index="/droop-slices">
             <el-icon><DataAnalysis /></el-icon>
             <span>白盒切片</span>
           </el-menu-item>
@@ -152,7 +152,6 @@ import { Loading } from '@element-plus/icons-vue'
 import { getHealth, getAlert, getAlarms, getHub, onHubMethod } from '@/services/api.js'
 import { RealtimeMethods } from '@/services/constants.js'
 import { systemLock } from '@/services/systemLock.js'
-import { getEditionFeatures, loadEditionFeatures } from '@/services/editionFeatures.js'
 import { diffNewFaults, mergeFaultItems } from '@/services/faultPopup.js'
 import BatteryStackIcon from '@/components/icons/BatteryStackIcon.vue'
 
@@ -166,10 +165,6 @@ const menuActive = computed(() => {
   return p
 })
 const ready = ref(false)
-const features = getEditionFeatures()
-const allowDroopSlices = ref(features.allowDroopSlices)
-const allowMainline3d = ref(features.allowMainline3d)
-const allowTopologyEditor = ref(features.allowTopologyEditor)
 const alert = reactive({ isActive: false, message: '', detail: '', secondsUntilExit: 0 })
 const faultDialog = reactive({ visible: false, items: [] })
 let lastAlarmSnap = null
@@ -220,13 +215,6 @@ onMounted(async () => {
 
   await pollHealth()
   setInterval(pollHealth, 3000)
-
-  try {
-    const f = await loadEditionFeatures()
-    allowDroopSlices.value = f.allowDroopSlices
-    allowMainline3d.value = f.allowMainline3d
-    allowTopologyEditor.value = f.allowTopologyEditor
-  } catch { /* ignore */ }
 
   try {
     const a = await getAlert()

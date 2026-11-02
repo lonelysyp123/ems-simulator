@@ -95,10 +95,9 @@ namespace EssSimulator.Web
 
             app.MapGet("/api/alert", () => Results.Ok(FatalSystemAlert.GetSnapshot()));
 
-            app.MapGet("/api/config", (IOptions<SimulatorConfig> simCfg, IOptions<WebConfig> webCfg, IOptions<EditionConfig> editionCfg) =>
+            app.MapGet("/api/config", (IOptions<SimulatorConfig> simCfg, IOptions<WebConfig> webCfg) =>
             {
                 var w = webCfg.Value;
-                var e = editionCfg.Value;
                 var devices = simCfg.Value.Devices ?? new List<EssUnitConfig>();
                 // 按舱号（channel / compartment，1-based）展开各 BMS 拓扑，供 3D 详情等使用
                 var bmsTopology = new List<object>();
@@ -136,16 +135,6 @@ namespace EssSimulator.Web
                         unitCount = devices.Count,
                         channelCount = simCfg.Value.UnitCount,
                         bmsTopology
-                    },
-                    edition = new
-                    {
-                        e.Name,
-                        e.LockTopology,
-                        e.MaxEssUnits,
-                        e.AllowDroopSlices,
-                        e.AllowMainline3d,
-                        e.AllowTopologyEditor,
-                        e.IsCommunity
                     },
                     web = new
                     {
@@ -345,37 +334,26 @@ namespace EssSimulator.Web
                 return Results.Ok(result);
             });
 
-            // 白盒切片（社区版 AllowDroopSlices=false 时拒绝）
-            app.MapGet("/api/droop-slices/status", (DroopSliceStore store) =>
-                store.FeatureAllowed
-                    ? Results.Ok(store.GetStatus())
-                    : Results.Json(new { message = "当前产品档位不包含白盒切片功能" }, statusCode: StatusCodes.Status403Forbidden));
+            // 白盒切片
+            app.MapGet("/api/droop-slices/status", (DroopSliceStore store) => Results.Ok(store.GetStatus()));
 
             app.MapGet("/api/droop-slices", (DroopSliceStore store, int? limit, int? offset) =>
-                store.FeatureAllowed
-                    ? Results.Ok(store.List(limit ?? 100, offset ?? 0))
-                    : Results.Json(new { message = "当前产品档位不包含白盒切片功能" }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Ok(store.List(limit ?? 100, offset ?? 0)));
 
             app.MapGet("/api/droop-slices/{id:guid}", (Guid id, DroopSliceStore store) =>
             {
-                if (!store.FeatureAllowed)
-                    return Results.Json(new { message = "当前产品档位不包含白盒切片功能" }, statusCode: StatusCodes.Status403Forbidden);
                 var slice = store.Get(id);
                 return slice == null ? Results.NotFound(new { message = "切片不存在" }) : Results.Ok(slice);
             });
 
             app.MapPost("/api/droop-slices/clear", (DroopSliceStore store) =>
             {
-                if (!store.FeatureAllowed)
-                    return Results.Json(new { message = "当前产品档位不包含白盒切片功能" }, statusCode: StatusCodes.Status403Forbidden);
                 store.Clear();
                 return Results.Ok(store.GetStatus());
             });
 
             app.MapPost("/api/droop-slices/config", (DroopSliceConfigRequest req, DroopSliceStore store) =>
             {
-                if (!store.FeatureAllowed)
-                    return Results.Json(new { message = "当前产品档位不包含白盒切片功能" }, statusCode: StatusCodes.Status403Forbidden);
                 if (req.Enabled.HasValue)
                     store.Enabled = req.Enabled.Value;
                 if (req.MaxCount.HasValue)

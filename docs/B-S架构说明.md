@@ -92,8 +92,8 @@ cd Web && npm install && npm run dev
 | GET | `/api/cells/{unit}/{cluster}` | 指定簇 4×104 单体电压 |
 | GET | `/api/connections` | 网络接口/监听/客户端/链路状态 |
 | GET | `/api/alert` | 严重告警状态 |
-| GET | `/api/config` | 仿真与 Web/档位概要（不回传 ApiKey 明文） |
-| GET | `/api/topology/*` | 组态模板/工程/设备库（档位关闭时 403） |
+| GET | `/api/config` | 仿真与 Web 概要（不回传 ApiKey 明文） |
+| GET | `/api/topology/*` | 组态模板/工程/设备库 |
 | GET | `/api/system/config` | 工程模式与 overlay 状态 |
 | POST | `/api/system/apply` | 应用组态工程并可选重启 |
 | GET | `/api/protocol` | Modbus 端口表 |

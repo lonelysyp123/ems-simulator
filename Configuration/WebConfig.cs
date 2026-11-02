@@ -28,7 +28,7 @@ namespace EssSimulator.Configuration
 
         /// <summary>
         /// 是否启用 HTTP API Key 鉴权（保护 /api/*，/api/health 豁免）。
-        /// 充值版托管场景建议开启；密钥用环境变量注入，勿写入公开配置仓库。
+        /// 部署到对外可达环境时建议开启；密钥用环境变量注入，勿写入公开配置仓库。
         /// </summary>
         public bool ApiKeyEnabled { get; set; }
 

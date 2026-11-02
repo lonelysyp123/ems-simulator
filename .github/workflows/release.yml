@@ -1,10 +1,8 @@
 name: Release
 
-# 打 tag（v*）自动构建三平台「免授权演示版」并发布到 Releases；
+# 打 tag（v*）自动构建三平台发布包并发布到 Releases；
 # 也可在 Actions 页面手动运行并指定 tag（不存在则自动创建）。
 #
-# 只发布演示版：它是全功能 + 免授权包，适合对外试用；
-# 社区版 / 商业版 / 定制版走 scripts/commercial/ 线下交付，不放在公开 Release。
 on:
   push:
     tags: ["v*"]
@@ -38,14 +36,14 @@ jobs:
       matrix:
         include:
           - rid: win-x64
-            archive: dist/EssSimulator-演示版-win-x64.zip
-            asset: EssSimulator-demo-win-x64.zip
+            script: scripts/publish-windows.sh
+            archive: dist/EssSimulator-win-x64.zip
           - rid: linux-x64
-            archive: dist/EssSimulator-演示版-linux-x64.tar.gz
-            asset: EssSimulator-demo-linux-x64.tar.gz
+            script: scripts/publish-linux.sh
+            archive: dist/EssSimulator-linux-x64.tar.gz
           - rid: osx-arm64
-            archive: dist/EssSimulator-演示版-osx-arm64.tar.gz
-            asset: EssSimulator-demo-osx-arm64.tar.gz
+            script: scripts/publish-macos.sh
+            archive: dist/EssSimulator-osx-arm64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -59,26 +57,24 @@ jobs:
           cache: npm
           cache-dependency-path: Web/package-lock.json
 
-      # Vite 的 build.outDir 直接指向仓库根 wwwroot/，dotnet publish 会把它作为静态站点带进包
-      - name: 构建前端
+      # 先装依赖（走 lockfile，可缓存）；前端构建由发布脚本内的 npm run build 完成
+      - name: 安装前端依赖
         working-directory: Web
-        run: |
-          npm ci
-          npm run build
+        run: npm ci
 
-      - name: 打包演示版（自包含单文件，按 RID 交叉编译）
+      - name: 打包（自包含单文件，按 RID 交叉编译）
         env:
           RID: ${{ matrix.rid }}
-        run: bash ./scripts/commercial/publish-demo.sh
+          CONFIG: Release
+        run: bash "${{ matrix.script }}"
 
-      # GitHub 会把 Release 资产名里的非 ASCII 字符压成 "."（演示版 → "."），
-      # 所以先重命名成 ASCII 再上传；校验和也基于重命名后的文件生成。
-      - name: 统一 ASCII 发布名并生成 SHA-256
+      - name: 生成 SHA-256
         run: |
           mkdir -p out
-          cp "${{ matrix.archive }}" "out/${{ matrix.asset }}"
+          cp "${{ matrix.archive }}" out/
           cd out
-          sha256sum "${{ matrix.asset }}" | tee "${{ matrix.asset }}.sha256"
+          f="$(basename '${{ matrix.archive }}')"
+          sha256sum "$f" | tee "$f.sha256"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
