@@ -55,6 +55,18 @@ public class Iec61850NativeTests
     public void HasGooseSubscriberDestroy_MatchesLoadedNativeLibrary()
     {
         Assert.True(Iec61850Native.TryEnsureNativeLibrary(out var path), path);
+
+        if (!Iec61850Native.HasGooseSubscriberDestroy())
+        {
+            // Windows 发布包的 iec61850.dll 没有编译 GOOSE 订户（无 GooseSubscriber_* 导出），
+            // 运行期由 Iec61850LayerManager 安全降级为"不启用 GOOSE 订阅"（MMS 不受影响）。
+            // 这是已知的平台构型差异，记在 docs/项目编译说明.md 的「已知限制」里；
+            // 开发用的 macOS/Linux 原生库必须带该符号，缺了就是构建出了问题。
+            Assert.True(OperatingSystem.IsWindows(),
+                $"{path} 缺少 GooseSubscriber_destroy，但当前不是 Windows");
+            return;
+        }
+
         Assert.True(Iec61850Native.HasGooseSubscriberDestroy(), path);
     }
 }

@@ -112,6 +112,7 @@ curl -s http://127.0.0.1:5050/api/health     # {"status":"ok","ready":true,...}
 
 - 默认监听 `127.0.0.1`；跨机联调需改 `HttpBaseUrl` 并放行防火墙。
 - **接入口令**：`configs/modbus-allowlist.json` 按来源 IP 过滤（空名单不限制，改完需重启）。
+- **GOOSE 订阅**：Windows 发布包暂不启用（随包原生库未编译该能力），MMS 服务端不受影响；详见 [项目编译说明](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/项目编译说明.md) 的「已知限制」。
 - 只读监控可直接用 `mbpoll`：**按 CSV 的 FunctionCode 选 `-t`**（`4`=输入寄存器，`3`=保持寄存器，`1`/`5`=线圈），勿一律用 `-t 4`。
 
 ## Web 界面
