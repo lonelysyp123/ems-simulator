@@ -1,0 +1,130 @@
+name: Release
+
+# 打 tag（v*）自动构建三平台「免授权演示版」并发布到 Releases；
+# 也可在 Actions 页面手动运行并指定 tag（不存在则自动创建）。
+#
+# 只发布演示版：它是全功能 + 免授权包，适合对外试用；
+# 社区版 / 商业版 / 定制版走 scripts/commercial/ 线下交付，不放在公开 Release。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 发布 tag（如 v0.1.0-demo；不存在则自动创建）
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: 8.0.x
+  NODE_VERSION: "20"
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  build:
+    name: 打包 ${{ matrix.rid }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            archive: dist/EssSimulator-演示版-win-x64.zip
+          - rid: linux-x64
+            archive: dist/EssSimulator-演示版-linux-x64.tar.gz
+          - rid: osx-arm64
+            archive: dist/EssSimulator-演示版-osx-arm64.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: Web/package-lock.json
+
+      # Vite 的 build.outDir 直接指向仓库根 wwwroot/，dotnet publish 会把它作为静态站点带进包
+      - name: 构建前端
+        working-directory: Web
+        run: |
+          npm ci
+          npm run build
+
+      - name: 打包演示版（自包含单文件，按 RID 交叉编译）
+        env:
+          RID: ${{ matrix.rid }}
+        run: bash ./scripts/commercial/publish-demo.sh
+
+      - name: 生成 SHA-256 校验和
+        run: |
+          cd dist
+          f="$(basename '${{ matrix.archive }}')"
+          sha256sum "$f" > "$f.sha256"
+          cat "$f.sha256"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.rid }}
+          path: |
+            ${{ matrix.archive }}
+            ${{ matrix.archive }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: 发布到 Releases
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 创建或更新 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -lh artifacts
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，覆盖上传产物"
+            gh release upload "$TAG" artifacts/* --repo "$REPO" --clobber
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            gh release create "$TAG" artifacts/* \
+              --repo "$REPO" \
+              --target "$GITHUB_SHA" \
+              --title "仿真模拟器 $TAG" \
+              --notes-file .github/release-notes.md
+          else
+            gh release create "$TAG" artifacts/* \
+              --repo "$REPO" \
+              --title "仿真模拟器 $TAG" \
+              --notes-file .github/release-notes.md \
+              --verify-tag
+          fi
+
+      - name: 输出 Release 地址
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: gh release view "$TAG" --repo "$REPO" --json url --jq .url
