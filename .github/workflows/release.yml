@@ -39,10 +39,13 @@ jobs:
         include:
           - rid: win-x64
             archive: dist/EssSimulator-演示版-win-x64.zip
+            asset: EssSimulator-demo-win-x64.zip
           - rid: linux-x64
             archive: dist/EssSimulator-演示版-linux-x64.tar.gz
+            asset: EssSimulator-demo-linux-x64.tar.gz
           - rid: osx-arm64
             archive: dist/EssSimulator-演示版-osx-arm64.tar.gz
+            asset: EssSimulator-demo-osx-arm64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -68,20 +71,20 @@ jobs:
           RID: ${{ matrix.rid }}
         run: bash ./scripts/commercial/publish-demo.sh
 
-      - name: 生成 SHA-256 校验和
+      # GitHub 会把 Release 资产名里的非 ASCII 字符压成 "."（演示版 → "."），
+      # 所以先重命名成 ASCII 再上传；校验和也基于重命名后的文件生成。
+      - name: 统一 ASCII 发布名并生成 SHA-256
         run: |
-          cd dist
-          f="$(basename '${{ matrix.archive }}')"
-          sha256sum "$f" > "$f.sha256"
-          cat "$f.sha256"
+          mkdir -p out
+          cp "${{ matrix.archive }}" "out/${{ matrix.asset }}"
+          cd out
+          sha256sum "${{ matrix.asset }}" | tee "${{ matrix.asset }}.sha256"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: pkg-${{ matrix.rid }}
-          path: |
-            ${{ matrix.archive }}
-            ${{ matrix.archive }}.sha256
+          path: out/*
           if-no-files-found: error
           retention-days: 14
 

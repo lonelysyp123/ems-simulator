@@ -4,9 +4,9 @@
 
 | 平台 | 文件 |
 |---|---|
-| Windows x64 | `EssSimulator-演示版-win-x64.zip` |
-| Linux x64 | `EssSimulator-演示版-linux-x64.tar.gz` |
-| macOS（Apple Silicon） | `EssSimulator-演示版-osx-arm64.tar.gz` |
+| Windows x64 | `EssSimulator-demo-win-x64.zip` |
+| Linux x64 | `EssSimulator-demo-linux-x64.tar.gz` |
+| macOS（Apple Silicon） | `EssSimulator-demo-osx-arm64.tar.gz` |
 
 #### 快速开始
 
@@ -14,11 +14,11 @@
 # Windows：解压后双击 start.bat
 
 # Linux
-tar -xzf EssSimulator-演示版-linux-x64.tar.gz
+tar -xzf EssSimulator-demo-linux-x64.tar.gz
 cd linux-x64 && ./start.sh
 
 # macOS（Apple Silicon）：首次运行需解除隔离
-tar -xzf EssSimulator-演示版-osx-arm64.tar.gz
+tar -xzf EssSimulator-demo-osx-arm64.tar.gz
 cd osx-arm64 && ./解除隔离.sh && ./start.sh
 ```
 
