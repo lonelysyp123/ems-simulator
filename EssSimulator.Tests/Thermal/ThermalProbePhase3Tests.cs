@@ -10,8 +10,10 @@ public class ThermalProbeSamplerTests
     [Fact]
     public void AirTop_WarmerThanAirBottom_WhenBatteryHotterThanShell()
     {
-        var zone = new BmsCabinetThermalZone("bms1", new BmsCabinetThermalConfig(), 25);
-        // 人工推高电池、压低外壳，制造空间温差
+        // 初始柜温与室外一致：外壳不带"先热着"的热惯性，电池损耗一注入，空气先于外壳升温。
+        // 若初始 25℃、室外 10℃，外壳 200 kJ/K 的热惯性会持续数十分钟高于柜温，此时
+        // air 落在 AirBottom 之下——那是物理正确的结果，不是探针映射的问题。
+        var zone = new BmsCabinetThermalZone("bms1", new BmsCabinetThermalConfig(), 10);
         for (int i = 0; i < 50; i++)
         {
             zone.PendingBatteryHeatW = 8000;
