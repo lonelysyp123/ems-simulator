@@ -38,10 +38,9 @@ jobs:
       - name: 编译
         run: dotnet build EssSimulator.csproj -c Release --nologo
 
+      # Windows runner 默认 shell 是 PowerShell，不认 `\` 续行，命令写成一行
       - name: 单元测试
-        run: |
-          dotnet test EssSimulator.Tests/EssSimulator.Tests.csproj \
-            -c Release --nologo --logger "console;verbosity=normal"
+        run: dotnet test EssSimulator.Tests/EssSimulator.Tests.csproj -c Release --nologo --logger "console;verbosity=normal"
 
   web:
     name: 前端构建
