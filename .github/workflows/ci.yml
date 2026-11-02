@@ -62,5 +62,9 @@ jobs:
           npm ci
           npm run build
 
+      - name: 前端单元测试
+        working-directory: Web
+        run: npm test
+
       - name: 确认产物存在
         run: test -f wwwroot/index.html

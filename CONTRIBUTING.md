@@ -50,7 +50,7 @@ fix/<slug>      ← 从 develop 切；线上紧急缺陷从 master 切，修完�
 
 1. `dotnet build` 无错误；新增行为**带上单元测试**（`EssSimulator.Tests/` 按模块分目录）。
 2. `dotnet test` 全绿（1300+ 用例，约 1 分钟）。
-3. 改了前端要能 `npm run build` 通过。
+3. 改了前端要能 `npm run build` 通过，且 `npm test`（Node 内置 test runner，`node --test`）全绿。
 4. 改了点表、端口、配置语义，同步更新 `docs/` 下对应文档——文档和代码不一致会被当成 bug。
 
 ## Issue 建议

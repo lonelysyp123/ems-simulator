@@ -196,6 +196,7 @@ EssSimulator.Tests/  xUnit 测试
 dotnet build ./EssSimulator.csproj
 dotnet test                                   # xUnit，覆盖潮流、控制桥、点表管道、BMS 保护、组态、IEC 61850 映射等
 cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，dotnet publish 自动带上
+cd Web && npm test                             # 前端单元测试（node --test，纯逻辑模块）
 ```
 
 发布脚本：`scripts/publish-windows.sh`（自包含单文件，出 `EssSimulator-win-x64.zip`）；打 `v*` tag 由 GitHub Actions 自动发布到 Releases。
