@@ -41,6 +41,7 @@ namespace EssSimulator.EssDeviceSimModel
                 _ess.StepPvUnits(simTime, elapsed);
                 _ess.RefreshAllUnitBlackStartBusContexts();
                 RunElectricalStep(simTime, elapsed, integrationElapsed);
+                _ess.ProjectNetworkPortSolutions();
                 _ess.Thermal.Step(simTime, elapsed);
                 _ess.CouplingGraph.StepCouplings(_ess.Thermal, simTime, elapsed, integrationElapsed);
                 _ess.SyncUnitTransformerAfterPcsUpdate(simTime, elapsed);

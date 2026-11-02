@@ -52,6 +52,34 @@ public class Unit690KernelTakeoverTests
     }
 
     [Fact]
+    public void GridTied_PublishedPowerMatchesKernelSolution()
+    {
+        using var ess = CreateEss();
+        ess.SetMainBreakerClosed(true);
+        ess.SetUnitBreakerClosed(0, true);
+        ess.SetBmsPcsLinked(0, true);
+        var t = SimTime;
+        Assert.True(ess.PlantEngine.Step(t += Step, Step, Step));
+
+        var pcs = ess._pcsList[0];
+        pcs.SyncExternalRunCommand(true);
+        pcs.TransitionToMode(OperationMode.Normal);
+        pcs.SetPowerCommand(400, 30);
+
+        for (int i = 0; i < 20; i++)
+            Assert.True(ess.PlantEngine.Step(t += Step, Step, Step));
+
+        Assert.True(ess.TryGetNetworkSolvedAcPower(pcs.DeviceId, out double pKw, out double qKvar));
+        var st = pcs.GetCurrentState();
+        Assert.Equal(pKw, st.ActivePower, 3);
+        Assert.Equal(qKvar, st.ReactivePower, 3);
+        var committed = ess.PlantEngine.LastCommittedMeasurements.Pcs[0];
+        Assert.Equal(pKw, committed.ActivePowerKw, 3);
+        Assert.Equal(qKvar, committed.ReactivePowerKvar, 3);
+        Assert.True(Math.Abs(pKw) > 50, $"跟网后内核应解出有功，实际 {pKw:F1} kW");
+    }
+
+    [Fact]
     public void IslandedTwoFormingSources_OwnedBusIsNotLeftAtZero()
     {
         using var ess = CreateEss();

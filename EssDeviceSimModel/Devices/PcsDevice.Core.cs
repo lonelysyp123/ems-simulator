@@ -95,6 +95,12 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         /// <summary>EMS 负荷有功/无功（爬坡线程），与站用电叠加后受额定功率限制。</summary>
         private double _loadActivePowerKw;
         private double _loadReactivePowerKvar;
+        /// <summary>本拍控制写出的有功命令（kW）。黑启动斜坡用它做基值，不读已发布的端口测量。</summary>
+        private double _commandedActiveKw;
+        private bool _hasNetworkPort;
+        private double _networkActiveKw;
+        private double _networkReactiveKvar;
+        private double? _networkIdcIntoDeviceA;
         private ushort _latchedFaultType;
         private string? _latchedFaultMessage;
         private bool _faultTripLatched;
@@ -447,11 +453,12 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         /// - 充电时（P<0）按线损效率反推网侧取电。
         /// 用于潮流/母线汇总与端口传播，不用于 PCS 交流过流保护。
         /// </summary>
-        public double GetGridSideActivePower()
+        public double GetGridSideActivePower() => GridSideActiveKw(_currentState.ActivePower);
+
+        private double GridSideActiveKw(double terminalKw)
         {
-            var p = _currentState.ActivePower;
             var lineEfficiency = 1.0 - _gridLossCoefficient;
-            return p >= 0 ? p * lineEfficiency : p / lineEfficiency;
+            return terminalKw >= 0 ? terminalKw * lineEfficiency : terminalKw / lineEfficiency;
         }
 
         /// <summary>
@@ -469,10 +476,25 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             if (TryGetIslandBusVoltageInjection(out _, out _))
                 return false;
 
-            activePowerW = GetGridSideActivePower() * 1000.0;
-            reactivePowerVAr = _currentState.ReactivePower * 1000.0;
+            // 注入是控制参考，取负荷设定而不是已发布测量。否则限流后的解出会在下一拍变成新命令。
+            activePowerW = GridSideActiveKw(_loadActivePowerKw) * 1000.0;
+            reactivePowerVAr = _loadReactivePowerKvar * 1000.0;
             return true;
         }
+
+        /// <summary>
+        /// 本拍相量内核解出的端口。有功/无功为交付母线的 kW/kvar（流出为正），
+        /// <paramref name="idcIntoDeviceA"/> 为流入设备的直流电流（放电为正）。无直流结算时传 null。
+        /// </summary>
+        internal void SetNetworkSolvedPort(double activeKw, double reactiveKvar, double? idcIntoDeviceA)
+        {
+            _hasNetworkPort = true;
+            _networkActiveKw = activeKw;
+            _networkReactiveKvar = reactiveKvar;
+            _networkIdcIntoDeviceA = idcIntoDeviceA;
+        }
+
+        internal void ClearNetworkSolvedPort() => _hasNetworkPort = false;
 
         /// <summary>跟网硬限流幅值（A）；无额定电流时 null（不限流）。</summary>
         public double? GridFollowingCurrentLimitA =>
@@ -709,9 +731,12 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             }
 
             BindAcTerminalFromNetwork();
+            _commandedActiveKw = _currentState.ActivePower;
+            ApplyNetworkSolvedPort();
             PublishPortsFromState();
 
             // 4. 更新充放电能量统计（正放负充：ActivePower>0为放电，<0为充电）
+            // 内核已接管时此处是交付功率，不是控制设定。
             double energyChange = _currentState.ActivePower * intStep.TotalHours; // kWh
             if (energyChange > 0)
             {
@@ -747,6 +772,29 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             if (_currentState.GMode == GridMode.Islanded)
                 mag += _inrushCurrentA;
             _currentState.AcCurrent = SignedAcCurrentFromActivePower(_currentState.ActivePower, mag);
+        }
+
+        /// <summary>
+        /// 硬规则 4：接管且本拍有解时，发布量改为网络解。控制命令留在
+        /// <see cref="_loadActivePowerKw"/> 与 <see cref="_commandedActiveKw"/>，不回写下一拍注入。
+        /// 跟网和构网都覆盖：单元变励磁已在岛的支路上，不再用分摊命令当测量。
+        /// </summary>
+        private void ApplyNetworkSolvedPort()
+        {
+            if (!_hasNetworkPort || !AcTerminalLockedToNetwork)
+                return;
+            if (_currentState.Mode != OperationMode.Normal)
+                return;
+
+            _currentState.ActivePower = _networkActiveKw;
+            _currentState.ReactivePower = _networkReactiveKvar;
+            double mag = ComputeAcCurrentMagnitude(
+                _networkActiveKw,
+                _networkReactiveKvar,
+                Math.Max(_currentState.AcVoltage, 1.0));
+            _currentState.AcCurrent = SignedAcCurrentFromActivePower(_networkActiveKw, mag);
+            if (_networkIdcIntoDeviceA is { } idc)
+                _currentState.DcCurrent = idc;
         }
 
         private void UpdateStandbyState()

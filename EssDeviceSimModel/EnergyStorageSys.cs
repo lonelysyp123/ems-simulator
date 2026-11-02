@@ -315,6 +315,21 @@ namespace EssSimulator.EssDeviceSimModel
             return false;
         }
 
+        /// <summary>
+        /// 把本拍内核解写到各 PCS，供随后的 <c>Pcs.Update</c> 发布为端口测量。
+        /// 未解出的 PCS 清掉上一拍残留，避免把过期解当成新测量。
+        /// </summary>
+        internal void ProjectNetworkPortSolutions()
+        {
+            foreach (var pcs in _pcsList)
+            {
+                if (TryGetNetworkSolvedAcPower(pcs.DeviceId, out double pKw, out double qKvar))
+                    pcs.SetNetworkSolvedPort(pKw, qKvar, TryGetNetworkSettledDcCurrent(pcs.DeviceId));
+                else
+                    pcs.ClearNetworkSolvedPort();
+            }
+        }
+
         private static IReadOnlyList<PvUnitDevice> CreatePvUnits(SimulatorConfig simCfg)
         {
             var list = new List<PvUnitDevice>();

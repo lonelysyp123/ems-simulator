@@ -126,6 +126,17 @@ namespace EssSimulator.EssDeviceSimModel
                 localUnitP, unitPrimaryV, mainBreakerClosed, stationBus35LineVoltageV, pcsPerUnit);
         }
 
+        private static bool KernelHasForming(IReadOnlyList<PcsDevice> pcsList)
+        {
+            for (int i = 0; i < pcsList.Count; i++)
+            {
+                if (pcsList[i].AcTerminalLockedToNetwork && pcsList[i].TakesIslandStationLoad)
+                    return true;
+            }
+
+            return false;
+        }
+
         private static bool UnitPcsLockedToNetwork(
             IReadOnlyList<PcsDevice> pcsList,
             int baseIdx,
@@ -155,19 +166,24 @@ namespace EssSimulator.EssDeviceSimModel
             double totalMagQ = 0;
             double totalLossP = 0;
             double lineCoeff = Math.Clamp(pcsCfg.GridLossCoefficient, 0, 0.5);
+            // 离网且已有构网机被内核接管时，励磁在岛上求解，线损只留在网侧折算，都不再写成各机命令。
+            bool kernelSuppliesExcitation = !mainBreakerClosed && KernelHasForming(pcsList);
 
             for (int u = 0; u < unitTransformers.Count; u++)
             {
                 if (u >= unitPrimaryV.Length || unitPrimaryV[u] <= 0)
                     continue;
                 var xf = unitTransformers[u];
-                totalMagQ += xf.GetSecondaryMagnetizingReactiveKvar();
-                double ironKw = xf.GetSecondaryNoLoadActivePowerKw();
-                double lineKw = Math.Abs(localUnitP[u]) * lineCoeff / Math.Max(1e-6, 1.0 - lineCoeff);
-                totalLossP += ironKw + lineKw;
+                if (!kernelSuppliesExcitation)
+                {
+                    totalMagQ += xf.GetSecondaryMagnetizingReactiveKvar();
+                    totalLossP += xf.GetSecondaryNoLoadActivePowerKw();
+                    double lineKw = Math.Abs(localUnitP[u]) * lineCoeff / Math.Max(1e-6, 1.0 - lineCoeff);
+                    totalLossP += lineKw;
+                }
             }
 
-            if (!mainBreakerClosed && stationBus35LineVoltageV > 1.0)
+            if (!kernelSuppliesExcitation && !mainBreakerClosed && stationBus35LineVoltageV > 1.0)
                 totalMagQ += mainTransformer.GetSecondaryMagnetizingReactiveKvar();
 
             for (int i = 0; i < pcsList.Count; i++)
@@ -255,6 +271,8 @@ namespace EssSimulator.EssDeviceSimModel
                 {
                     int idx = baseIdx + ch;
                     if (idx < 0 || idx >= pcsList.Count)
+                        continue;
+                    if (pcsList[idx].AcTerminalLockedToNetwork)
                         continue;
                     double w = Math.Max(0, weights[idx]);
                     unitWeights[idx] = w;

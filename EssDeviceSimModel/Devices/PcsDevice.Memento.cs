@@ -17,6 +17,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
                 PendingReactiveSetpoint = _pendingReactiveSetpoint,
                 LoadActivePowerKw = _loadActivePowerKw,
                 LoadReactivePowerKvar = _loadReactivePowerKvar,
+                CommandedActiveKw = _commandedActiveKw,
                 IslandVfCommandV = _islandVfCommandV,
                 IslandVfEffectiveV = _islandVfEffectiveV,
                 BlackStartEnabled = _blackStartEnabled,
@@ -67,6 +68,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             _pendingReactiveSetpoint = m.PendingReactiveSetpoint;
             _loadActivePowerKw = m.LoadActivePowerKw;
             _loadReactivePowerKvar = m.LoadReactivePowerKvar;
+            _commandedActiveKw = m.CommandedActiveKw;
             _islandVfCommandV = m.IslandVfCommandV;
             _islandVfEffectiveV = m.IslandVfEffectiveV;
             _blackStartEnabled = m.BlackStartEnabled;
@@ -160,6 +162,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         public double PendingReactiveSetpoint { get; init; }
         public double LoadActivePowerKw { get; init; }
         public double LoadReactivePowerKvar { get; init; }
+        public double CommandedActiveKw { get; init; }
         public double IslandVfCommandV { get; init; }
         public double IslandVfEffectiveV { get; init; }
         public bool BlackStartEnabled { get; init; }

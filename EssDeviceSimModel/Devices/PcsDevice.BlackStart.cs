@@ -262,6 +262,12 @@ namespace EssSimulator.EssDeviceSimModel.Devices
         public void SetBlackStartSharedLossActivePowerKw(double activeKw) =>
             _blackStartSharedLossActivePowerKw = Math.Max(0, activeKw);
 
+        public double BlackStartSharedLossActivePowerKw => _blackStartSharedLossActivePowerKw;
+
+        public double BlackStartInrushActiveKw => _blackStartInrushActiveKw;
+
+        public double BlackStartInrushReactiveKvar => _blackStartInrushReactiveKvar;
+
         public void SetBlackStartInrushDemand(double activeKw, double reactiveKvar)
         {
             _blackStartInrushActiveKw = Math.Max(0, activeKw);
@@ -473,7 +479,7 @@ namespace EssSimulator.EssDeviceSimModel.Devices
             if (_blackStartPhase != BlackStartPhase.Synchronized && dt > 0)
             {
                 double maxStep = Math.Max(_blackStartMaxActivePowerKw * dt, 0.5);
-                double currentP = _currentState.ActivePower;
+                double currentP = _commandedActiveKw;
                 if (targetP > currentP + maxStep)
                     targetP = currentP + maxStep;
                 else if (targetP < currentP - maxStep)

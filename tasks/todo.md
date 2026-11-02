@@ -116,14 +116,14 @@
 **Description:** `kernelSuppliesExcitation` 为真时，`ApplyBlackStartStationElectricalLoadAcrossBus` 不再把 `|P|·lineCoeff/(1−lineCoeff)` 加入分摊有功。交流口功率仍以网络解为准。`GetGridSideActivePower` / `GridSideActiveKw` 继续按 `GridLossCoefficient` 折算网侧功率。未接管时这条线损分摊保留。
 
 **Acceptance criteria:**
-- [ ] 离网且存在已接管构网机时，分摊有功不含线损项
-- [ ] 同一条件下网侧功率与交流口功率的比例仍是 `1 − GridLossCoefficient`（放电）或其倒数（充电）
-- [ ] 未接管 PCS 的线损分摊命令保持原值
+- [x] 离网且存在已接管构网机时，分摊有功不含线损项
+- [x] 同一条件下网侧功率与交流口功率的比例仍是 `1 − GridLossCoefficient`（放电）或其倒数（充电）
+- [x] 未接管 PCS 的线损分摊命令保持原值
 
 **Verification:**
-- [ ] Tests pass: `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~PcsNetworkPortTests|FullyQualifiedName~BlackStartTelemetryTraceTests|FullyQualifiedName~Unit690KernelTakeoverTests" --nologo --no-restore`
-- [ ] Build succeeds: `dotnet build EssSimulator.csproj --nologo`
-- [ ] Manual check: `GridLossCoefficient` 仍参与 `GridSideActiveKw`，没有第二段折算
+- [x] Tests pass: `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~PcsNetworkPortTests|FullyQualifiedName~BlackStartTelemetryTraceTests|FullyQualifiedName~Unit690KernelTakeoverTests" --nologo --no-restore`
+- [x] Build succeeds: `dotnet build EssSimulator.csproj --nologo`
+- [x] Manual check: `GridLossCoefficient` 仍参与 `GridSideActiveKw`，没有第二段折算
 
 **Dependencies:** Task 39
 
@@ -138,14 +138,14 @@
 **Description:** `ApplyUnitTransformerInrushDemand` 跳过 `AcTerminalLockedToNetwork` 的 PCS，不把涌流有功、无功写入这些机器。变压器自身的涌流状态和 `GetInrushDemandKwKvar` 保留，供显示。未接管 PCS 仍按现有权重接收涌流命令。基波内核不增加涌流电流源。
 
 **Acceptance criteria:**
-- [ ] 已接管构网机在涌流窗口内的涌流命令保持为零
-- [ ] 未接管 PCS 仍能收到本单元涌流命令
-- [ ] `BlackStartTelemetryTraceTests` 的建压无功断言仍通过
+- [x] 已接管构网机在涌流窗口内的涌流命令保持为零
+- [x] 未接管 PCS 仍能收到本单元涌流命令
+- [x] `BlackStartTelemetryTraceTests` 的建压无功断言仍通过
 
 **Verification:**
-- [ ] Tests pass: `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~BlackStartTelemetryTraceTests|FullyQualifiedName~PcsBlackStartTests|FullyQualifiedName~FormingDualLoopTests" --nologo --no-restore`
-- [ ] Build succeeds: `dotnet build EssSimulator.csproj --nologo`
-- [ ] Manual check: 岛求解支路中没有涌流电流源
+- [x] Tests pass: `dotnet test EssSimulator.Tests --filter "FullyQualifiedName~BlackStartTelemetryTraceTests|FullyQualifiedName~PcsBlackStartTests|FullyQualifiedName~FormingDualLoopTests" --nologo --no-restore`
+- [x] Build succeeds: `dotnet build EssSimulator.csproj --nologo`
+- [x] Manual check: 岛求解支路中没有涌流电流源
 
 **Dependencies:** Task 40
 
@@ -157,6 +157,6 @@
 
 ## Checkpoint: Complete
 
-- [ ] 重复 Phase 2 的 Devices / Plant / Kernel / Shadow / Propagation 过滤测试
+- [x] 重复 Phase 2 的 Devices / Plant / Kernel / Shadow / Propagation 过滤测试
 - [ ] 四个阶段的验收标准都有对应测试
-- [ ] 未开始 35/220 kV 合并、拓扑编译或涌流磁化模型
+- [x] 未开始 35/220 kV 合并、拓扑编译或涌流磁化模型
