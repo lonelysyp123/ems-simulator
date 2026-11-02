@@ -185,6 +185,36 @@ public class RadialIslandShadowTests
         return new RadialNetworkGraph(network, pccCfg, pcsCfg);
     }
 
+    private static RadialNetworkGraph CreateTwoUnitGraph()
+    {
+        var simCfg = new SimulatorConfig
+        {
+            Devices =
+            {
+                new EssUnitConfig
+                {
+                    Pcs = { new Configuration.PcsDeviceConfig() },
+                    Bms = { new BmsDeviceConfig() }
+                },
+                new EssUnitConfig
+                {
+                    Pcs = { new Configuration.PcsDeviceConfig() },
+                    Bms = { new BmsDeviceConfig() }
+                }
+            }
+        };
+        var pcsCfg = new PcsPhysicalConfig { AcVoltageNominal = 690 };
+        var pccCfg = new PccConfig();
+        var network = NetworkTopologyBuilder.Build(
+            simCfg,
+            pcsCfg,
+            new TransformerConfig(),
+            new UnitTransformerConfig(),
+            new LoadConfig(),
+            pccCfg);
+        return new RadialNetworkGraph(network, pccCfg, pcsCfg);
+    }
+
     private static PropagationSweepContext Sweep(
         RadialNetworkGraph graph,
         double lastBus35 = 0,
@@ -222,9 +252,12 @@ public class RadialIslandShadowTests
         Assert.Equal(productionV, bus.LineVoltageV);
         Assert.Equal(50, bus.FrequencyHz);
         Assert.True(shadow.Island.PcsCurrents[0].Magnitude > 20);
-        Assert.True((shadow.Island.PcsCurrentSum).Magnitude < 1e-6);
-        Assert.True(Math.Abs(shadow.BusVoltage.Magnitude - productionV) < 5,
-            "Equal-Z island voltage stays near the arithmetic mean; circulating current is the distinguisher");
+        Assert.True((shadow.Island.PcsCurrentSum - shadow.Island.ShuntCurrent).Magnitude < 1e-6,
+            "离网共模电流供给励磁支路");
+        Complex zPar = MinPcsPort.DefaultOutputImpedanceOhm / 2.0;
+        Complex vExpected = productionV - shadow.Island.ShuntCurrent * zPar;
+        Assert.True((shadow.BusVoltage - vExpected).Magnitude < 1e-3,
+            "等阻抗岛电压 = 算术平均减去励磁压降");
     }
 
     [Fact]
@@ -247,6 +280,171 @@ public class RadialIslandShadowTests
 
         Assert.Equal(123, bus.LineVoltageV);
         Assert.Equal(47, bus.FrequencyHz);
+    }
+
+    [Fact]
+    public void Capture_IslandedForming_HasMagnetizingShunt_GridTiedDoesNot()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        graph.UnitBuses690[0].RegisterVoltageSource(new FixedFormingSource("a", 690));
+
+        var islanded = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, Sweep(graph));
+        Complex? expected = RadialIslandShadowAdapter.MagnetizingShuntOhm(
+            graph.Network.UnitTransformers[0].Config);
+        Assert.NotNull(expected);
+        Assert.NotNull(islanded.BusShuntOhm);
+        Assert.True((islanded.BusShuntOhm!.Value - expected!.Value).Magnitude < 1e-9);
+
+        Assert.True(islanded.BusInjectedCurrent.Magnitude < 1e-9);
+
+        var tied = RadialIslandShadowAdapter.CaptureUnit690(
+            graph, 0, Sweep(graph, mainBreakerClosed: true, openCircuitBus35: 35_000));
+        Assert.Null(tied.BusShuntOhm);
+        Assert.True(tied.BusInjectedCurrent.Magnitude < 1e-9);
+        Assert.Null(RadialIslandShadowAdapter.MagnetizingShuntOhm(new TransformerDeviceConfig
+        {
+            NoLoadCurrentPercent = 0,
+            NoLoadLossKw = 0
+        }));
+    }
+
+    [Fact]
+    public void Capture_Live35kV_FormingIslandCarriesMainTransformerExcitation()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FixedFormingSource("a", 690));
+        bus.LineVoltageV = 690;
+        graph.Bus35.LineVoltageV = 35_000;
+        graph.Network.UnitBreakers[0].SwitchState.IsClosed = true;
+
+        var snap = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, Sweep(graph));
+        Complex yUnit = RadialIslandShadowAdapter.MagnetizingAdmittance(graph.Network.UnitTransformers[0].Config);
+        Complex yMain = RadialIslandShadowAdapter.MagnetizingAdmittanceAt(
+            graph.Network.MainTransformer.Config, bus.NominalLineVoltageV);
+        Assert.NotNull(snap.BusShuntOhm);
+        Complex y = Complex.One / snap.BusShuntOhm!.Value;
+        Assert.True((y - yUnit).Magnitude < 1e-9, "对地导纳只留本单元变");
+        double vLv = graph.Bus35.LineVoltageV * bus.NominalLineVoltageV
+            / Math.Max(graph.Bus35.NominalLineVoltageV, 1.0);
+        Complex iMain = yMain * vLv;
+        Assert.True((-snap.BusInjectedCurrent - iMain).Magnitude < 1e-6);
+    }
+
+    [Fact]
+    public void Capture_TwoFormingIslands_SplitMainExcitationCurrentByLeakage()
+    {
+        var graph = CreateTwoUnitGraph();
+        graph.UnitBuses690[0].RegisterVoltageSource(new FixedFormingSource("a", 690));
+        graph.UnitBuses690[1].RegisterVoltageSource(new FixedFormingSource("b", 100));
+        graph.UnitBuses690[0].LineVoltageV = 690;
+        graph.UnitBuses690[1].LineVoltageV = 100;
+        graph.Bus35.LineVoltageV = 35_000;
+        graph.Network.UnitBreakers[0].SwitchState.IsClosed = true;
+        graph.Network.UnitBreakers[1].SwitchState.IsClosed = true;
+
+        var sweep = Sweep(graph);
+        var left = RadialIslandShadowAdapter.CaptureUnit690(graph, 0, sweep);
+        var right = RadialIslandShadowAdapter.CaptureUnit690(graph, 1, sweep);
+        double vLv = graph.Bus35.LineVoltageV * graph.UnitBuses690[0].NominalLineVoltageV
+            / Math.Max(graph.Bus35.NominalLineVoltageV, 1.0);
+        Complex iMain = RadialIslandShadowAdapter.MagnetizingAdmittanceAt(
+            graph.Network.MainTransformer.Config, graph.UnitBuses690[0].NominalLineVoltageV) * vLv;
+        Complex iSum = -(left.BusInjectedCurrent + right.BusInjectedCurrent);
+        Assert.True((iSum - iMain).Magnitude < 1e-6);
+        Assert.True((left.BusInjectedCurrent - right.BusInjectedCurrent).Magnitude < 1e-6);
+        Assert.True(right.BusInjectedCurrent.Magnitude > iMain.Magnitude * 0.4);
+    }
+
+    [Fact]
+    public void CommitBus35_SubtractsSharedExcitationLeakageDrop()
+    {
+        var graph = CreateTwoPcsUnitGraph();
+        var bus = graph.UnitBuses690[0];
+        bus.RegisterVoltageSource(new FixedFormingSource("a", 690));
+        bus.LineVoltageV = 690;
+        graph.Bus35.LineVoltageV = 35_000;
+        graph.Network.UnitBreakers[0].SwitchState.IsClosed = true;
+        var host = new ProductionUnit690Host(bus);
+        var sweep = Sweep(graph);
+        host.ApplyAfterUpper(graph, sweep);
+
+        Assert.True(host.SharedExcitationCurrent.Magnitude > 1);
+        Complex z = RadialIslandShadowAdapter.LeakageOhmLv(
+            RadialIslandShadowAdapter.LeakageConfigFor(graph, bus));
+        double ratio = RadialTheveninPort.LvPerHv(bus, graph.Bus35);
+        Complex vAdj = host.Bus.LineVoltageV - host.SharedExcitationCurrent * z;
+        double expected = vAdj.Magnitude / ratio;
+        double ideal = host.Bus.LineVoltageV / ratio;
+
+        StationBoundaryApply.CommitBus35(graph, new[] { host }, sweep);
+        Assert.Equal(expected, graph.Bus35.LineVoltageV, 3);
+        Assert.True(graph.Bus35.LineVoltageV < ideal - 1);
+    }
+
+    [Fact]
+    public void DualEar_IronLossSplitsWithRatio_LeakageIgnoresIronLoss()
+    {
+        var simCfg = new SimulatorConfig
+        {
+            Devices =
+            {
+                new EssUnitConfig
+                {
+                    Pcs = { new Configuration.PcsDeviceConfig(), new Configuration.PcsDeviceConfig() },
+                    Bms = { new BmsDeviceConfig(), new BmsDeviceConfig() },
+                    SplitTransformers =
+                    {
+                        new SplitTransformerRuntimeConfig
+                        {
+                            Present = true,
+                            RatedPowerKva = 6300,
+                            SplitRatio = 0.5,
+                            NoLoadLoss = 80,
+                            LeftEarPcsIndices = { 0 },
+                            RightEarPcsIndices = { 1 }
+                        }
+                    }
+                }
+            }
+        };
+        var pcsCfg = new PcsPhysicalConfig { AcVoltageNominal = 690 };
+        var pccCfg = new PccConfig();
+        var network = NetworkTopologyBuilder.Build(
+            simCfg, pcsCfg, new TransformerConfig(), new UnitTransformerConfig(), new LoadConfig(), pccCfg,
+            pcsPerUnit: new[] { 2 });
+        var graph = new RadialNetworkGraph(network, pccCfg, pcsCfg);
+        var left = graph.FindBus(RuntimeBusIds.Unit690Ear(0, 0, right: false));
+        var right = graph.FindBus(RuntimeBusIds.Unit690Ear(0, 0, right: true));
+        Assert.NotNull(left);
+        Assert.NotNull(right);
+
+        Complex yL = RadialIslandShadowAdapter.MagnetizingAdmittance(
+            RadialIslandShadowAdapter.LeakageConfigFor(graph, left!));
+        Complex yR = RadialIslandShadowAdapter.MagnetizingAdmittance(
+            RadialIslandShadowAdapter.LeakageConfigFor(graph, right!));
+        double v = left!.NominalLineVoltageV;
+        double pW = ((yL + yR) * v * v).Real;
+        double qVar = -((yL + yR) * v * v).Imaginary;
+        Assert.Equal(80, pW, 3);
+        Assert.Equal(6300 * 0.02 * 1000, qVar, 3);
+
+        var lossy = new TransformerDeviceConfig
+        {
+            RatedPowerKva = 2500,
+            SecondaryNominalLineVoltageV = 690,
+            ImpedancePercent = 6,
+            NoLoadLossKw = 0.05
+        };
+        var heavier = new TransformerDeviceConfig
+        {
+            RatedPowerKva = 2500,
+            SecondaryNominalLineVoltageV = 690,
+            ImpedancePercent = 6,
+            NoLoadLossKw = 5
+        };
+        Assert.True((RadialIslandShadowAdapter.LeakageOhmLv(lossy)
+            - RadialIslandShadowAdapter.LeakageOhmLv(heavier)).Magnitude < 1e-12);
     }
 
     [Fact]
@@ -275,7 +473,9 @@ public class RadialIslandShadowTests
         var shadow = new IslandShadowRunner(snap).Tick();
 
         Complex iCirc = (690 - 650) / (2.0 * MinPcsPort.DefaultOutputImpedanceOhm);
-        Assert.True((shadow.Island.PcsCurrents[0] - iCirc).Magnitude < 1e-6);
+        Complex iCommon = shadow.Island.PcsCurrentSum / 2.0;
+        Assert.True((shadow.Island.PcsCurrents[0] - iCirc - iCommon).Magnitude < 1e-4,
+            "差模仍是环流，共模才是励磁");
         Assert.Equal(670, bus.LineVoltageV, 0);
     }
 
@@ -423,8 +623,8 @@ public class RadialIslandShadowTests
         // 生产平均把两机压成同一 670 V、看不到任何交换；内核解出方向相反的环流功率。
         Assert.True(paW > 1_000, $"高电势源应向母线送有功（环流），实际 {paW:F0} W");
         Assert.True(pbW < -1_000, $"低电势源应从母线吸收有功（环流），实际 {pbW:F0} W");
-        Assert.True(Math.Abs(paW + pbW) < 1e-3 * Math.Abs(paW),
-            $"无负荷等阻抗并联，两机有功在母线处守恒互抵，a={paW:F0} b={pbW:F0}");
+        Assert.True(Math.Abs(paW + pbW) < 0.02 * Math.Abs(paW),
+            $"环流有功基本互抵，残差是铁损，a={paW:F0} b={pbW:F0}");
         Assert.True(qaVAr > 1_000 && qbVAr < -1_000,
             $"无功同样按环流分裂，a={qaVAr:F0} b={qbVAr:F0}");
     }

@@ -72,7 +72,7 @@ public class UnitHvLiveCloseTests
             host.BlackStartEnabled &&
             host.BlackStartPhase is BlackStartPhase.VoltageRegulating or BlackStartPhase.Synchronized,
             $"单元 1 应仍离网同步，实际 phase={host.BlackStartPhase}");
-        Assert.InRange(host.AcVoltage, 650, 710);
+        Assert.InRange(host.AcVoltage, 620, 710);
         Assert.Equal(3500, new BreakerConfig().Unit.FaultThresholdA);
         Assert.True(ess.ElectricalNetwork.UnitTransformers[1].GetCurrentState().SecondaryVoltage > 1);
     }

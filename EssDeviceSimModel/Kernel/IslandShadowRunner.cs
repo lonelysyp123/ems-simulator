@@ -42,6 +42,10 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 Island.AddGfl(port);
             }
 
+            if (snapshot.BusShuntOhm is { } shunt)
+                Island.SetBusShunt(shunt);
+            Island.SetBusInjectedCurrent(snapshot.BusInjectedCurrent);
+
             if (snapshot.ReferredGridEmf is { } emf &&
                 snapshot.GridZ is { } gridZ &&
                 snapshot.TheveninZ is { } zth)
@@ -84,6 +88,19 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
                 _gflDcVoltageV[j] = f.DcVoltageV;
             }
         }
+
+        /// <summary>励磁支路可以随邻居投退变化，不要求重建求解器。</summary>
+        public void SetBusShunt(Complex? shuntOhm)
+        {
+            if (shuntOhm is { } z)
+                Island.SetBusShunt(z);
+            else
+                Island.ClearBusShunt();
+        }
+
+        /// <summary>共享励磁电流随 35 kV 电压变化，不要求重建求解器。</summary>
+        public void SetBusInjectedCurrent(Complex iIntoBus) =>
+            Island.SetBusInjectedCurrent(iIntoBus);
 
         public IslandShadowTickResult Tick(DomainEventKind kind = DomainEventKind.None)
         {

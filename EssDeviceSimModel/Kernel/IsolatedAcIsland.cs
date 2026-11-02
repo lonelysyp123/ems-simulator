@@ -8,6 +8,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         private readonly List<MinPcsPort> _pcs = new();
         private readonly List<MinGflPort> _gfl = new();
         private Complex? _loadZ;
+        private Complex? _shuntZ;
+        private Complex _injectedIntoBus;
         private Complex? _vth;
         private Complex? _zth;
 
@@ -37,6 +39,24 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         }
 
         public void SetLoadImpedance(Complex zLoadOhm) => _loadZ = zLoadOhm;
+
+        /// <summary>
+        /// 母线对地励磁支路（铁损电导 + 励磁电纳）。恒定导纳，功率随电压平方。
+        /// 并网岛不贴：励磁由上域电网吸收。
+        /// </summary>
+        public void SetBusShunt(Complex zShuntOhm)
+        {
+            if (zShuntOhm.Magnitude < PhasorNetwork.MinSeriesImpedanceOhm)
+                throw new NetworkSolveException("Bus shunt impedance must be finite.");
+            _shuntZ = zShuntOhm;
+        }
+
+        public void ClearBusShunt() => _shuntZ = null;
+
+        /// <summary>流入母线为正。共享励磁吸收电流时传入负值。</summary>
+        public void SetBusInjectedCurrent(Complex iIntoBus) => _injectedIntoBus = iIntoBus;
+
+        public void ClearBusInjectedCurrent() => _injectedIntoBus = Complex.Zero;
 
         /// <summary>并网岛：上域戴维南贴在母线。角度锁在 Vth，不再另取自由 datum。</summary>
         public void SetThevenin(Complex vth, Complex zth)
@@ -77,6 +97,9 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
 
             if (_loadZ.HasValue)
                 copy.SetLoadImpedance(_loadZ.Value);
+            if (_shuntZ.HasValue)
+                copy.SetBusShunt(_shuntZ.Value);
+            copy.SetBusInjectedCurrent(_injectedIntoBus);
             return copy;
         }
 
@@ -168,6 +191,10 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
 
             if (_loadZ.HasValue)
                 net.AddImpedance(BusNodeId, GroundNodeId, _loadZ.Value);
+            if (_shuntZ.HasValue)
+                net.AddImpedance(BusNodeId, GroundNodeId, _shuntZ.Value);
+            if (_injectedIntoBus != Complex.Zero)
+                net.AddInjectedCurrent(BusNodeId, _injectedIntoBus);
 
             if (_vth.HasValue && _zth.HasValue)
                 net.AddVoltageBehindImpedance(BusNodeId, _vth.Value, _zth.Value);
@@ -198,11 +225,16 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             if (_loadZ.HasValue)
                 loadI = net.BranchCurrent(sol, BusNodeId, GroundNodeId, _loadZ.Value);
 
+            Complex shuntI = Complex.Zero;
+            if (_shuntZ.HasValue)
+                shuntI = net.BranchCurrent(sol, BusNodeId, GroundNodeId, _shuntZ.Value);
+
             Complex theveninIntoBus = Complex.Zero;
             if (_vth.HasValue && _zth.HasValue)
                 theveninIntoBus = net.VoltageBehindZCurrent(sol, BusNodeId, _vth.Value, _zth.Value);
 
-            return new IslandSolveResult(sol, BusNodeId, currents, sumI, gflCurrents, gflSum, loadI, theveninIntoBus, limited);
+            return new IslandSolveResult(
+                sol, BusNodeId, currents, sumI, gflCurrents, gflSum, loadI, theveninIntoBus, limited, shuntI);
         }
     }
 
@@ -217,7 +249,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             Complex gflCurrentSum,
             Complex loadCurrent,
             Complex theveninCurrentIntoBus,
-            bool[] pcsCurrentLimited)
+            bool[] pcsCurrentLimited,
+            Complex shuntCurrent)
         {
             Solution = solution;
             BusNodeId = busNodeId;
@@ -228,6 +261,7 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             LoadCurrent = loadCurrent;
             TheveninCurrentIntoBus = theveninCurrentIntoBus;
             PcsCurrentLimited = pcsCurrentLimited;
+            ShuntCurrent = shuntCurrent;
         }
 
         public PhasorSolution Solution { get; }
@@ -240,6 +274,9 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
         public Complex GflCurrentSum { get; }
 
         public Complex LoadCurrent { get; }
+
+        /// <summary>励磁支路离开母线的电流。未贴支路时为 0。</summary>
+        public Complex ShuntCurrent { get; }
 
         /// <summary>各 PCS 本拍是否处于限流模式（与 <see cref="PcsCurrents"/> 同序）。</summary>
         public IReadOnlyList<bool> PcsCurrentLimited { get; }

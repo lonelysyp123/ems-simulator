@@ -135,8 +135,9 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
                 Complex zth = RadialIslandShadowAdapter.LeakageOhmLv(
                     RadialIslandShadowAdapter.LeakageConfigFor(graph, host.Bus));
                 Complex y = 1.0 / zth;
+                Complex vLv = host.Bus.LineVoltageV - host.SharedExcitationCurrent * zth;
                 ySum += y;
-                iN += host.Bus.LineVoltageV * y;
+                iN += vLv * y;
             }
 
             if (ySum.Magnitude < 1e-18 || ratio <= 1e-12)

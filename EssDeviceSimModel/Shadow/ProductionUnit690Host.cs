@@ -22,6 +22,9 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         public ElectricalBusNode Bus { get; }
         public SplitDomainHandshake? Handshake => _runner?.Handshake;
 
+        /// <summary>本拍离开母线、经漏抗送往 35 kV 的共享励磁电流。</summary>
+        public Complex SharedExcitationCurrent { get; private set; }
+
         public static IReadOnlyList<ProductionUnit690Host> AttachAll(RadialNetworkGraph graph)
         {
             var hosts = new List<ProductionUnit690Host>();
@@ -38,8 +41,10 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
         {
             var snap = RadialIslandShadowAdapter.CaptureBus(graph, Bus, sweep);
             bool empty = snap.Sources.Count == 0 && snap.Following.Count == 0 && snap.ReferredGridEmf is null;
+            SharedExcitationCurrent = -snap.BusInjectedCurrent;
             if (empty)
             {
+                SharedExcitationCurrent = Complex.Zero;
                 _settledDc.Clear();
                 _solvedAc.Clear();
                 Bus.SetVoltage(0, 0, sweep, notifyCouplers: false);
@@ -56,6 +61,8 @@ namespace EssSimulator.EssDeviceSimModel.Shadow
             else
             {
                 _runner.SyncFormingReferences(snap);
+                _runner.SetBusShunt(snap.BusShuntOhm);
+                _runner.SetBusInjectedCurrent(snap.BusInjectedCurrent);
                 if (_runner.Handshake != null && snap.ReferredGridEmf is { } emf)
                     _runner.Handshake.GridEmf = emf;
             }

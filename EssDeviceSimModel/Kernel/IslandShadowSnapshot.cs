@@ -75,7 +75,9 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             Complex? referredGridEmf = null,
             Complex? gridZ = null,
             Complex? theveninZ = null,
-            IReadOnlyList<FollowingSourceSample>? following = null)
+            IReadOnlyList<FollowingSourceSample>? following = null,
+            Complex? busShuntOhm = null,
+            Complex busInjectedCurrent = default)
         {
             BusId = busId;
             Sources = sources;
@@ -83,6 +85,8 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
             GridZ = gridZ;
             TheveninZ = theveninZ;
             Following = following ?? Array.Empty<FollowingSourceSample>();
+            BusShuntOhm = busShuntOhm;
+            BusInjectedCurrent = busInjectedCurrent;
         }
 
         public string BusId { get; }
@@ -93,6 +97,12 @@ namespace EssSimulator.EssDeviceSimModel.Kernel
 
         /// <summary>跟网（GFL）源；与构网源互补，同岛求解后同法结算直流。</summary>
         public IReadOnlyList<FollowingSourceSample> Following { get; }
+
+        /// <summary>离网时贴在母线上的励磁支路阻抗。并网为 null。</summary>
+        public Complex? BusShuntOhm { get; }
+
+        /// <summary>流入母线的附加电流。共享励磁为负。</summary>
+        public Complex BusInjectedCurrent { get; }
 
         public double ArithmeticAverageVoltageV
         {

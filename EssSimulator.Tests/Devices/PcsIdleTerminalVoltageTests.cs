@@ -95,7 +95,7 @@ public class PcsIdleTerminalVoltageTests
         }
 
         var hostSt = ess._pcsList[0].GetCurrentState();
-        Assert.True(hostSt.AcVoltage > 650, $"构网机应已抬压，实际 {hostSt.AcVoltage:F1} V");
+        Assert.True(hostSt.AcVoltage > 620, $"构网机应已抬压，实际 {hostSt.AcVoltage:F1} V");
 
         var idle = ess._pcsList[1];
         var idleSt = idle.GetCurrentState();
@@ -103,7 +103,7 @@ public class PcsIdleTerminalVoltageTests
         Assert.InRange(idleSt.AcVoltage, hostSt.AcVoltage - 15, hostSt.AcVoltage + 15);
         Assert.True(Math.Abs(idleSt.AcCurrent) < 5, $"未开机 PCS 电流应接近 0，实际 {idleSt.AcCurrent:F1} A");
         Assert.Equal(0, idleSt.ActivePower, 1);
-        Assert.InRange(idle.Ac.Output.Ac!.Internal.LineVoltageV, 650, 710);
+        Assert.InRange(idle.Ac.Output.Ac!.Internal.LineVoltageV, 620, 710);
     }
 
     [Fact]

@@ -121,10 +121,11 @@ public class StationBoundaryCompareTests
 
         double v0 = ess.RadialGraph.UnitBuses690[0].LineVoltageV;
         double v1 = ess.RadialGraph.UnitBuses690[1].LineVoltageV;
-        Assert.InRange(v0, 680, 700);
-        Assert.InRange(v1, 640, 660);
+        Assert.InRange(v0, 660, 689);
+        Assert.InRange(v1, 620, 649);
 
-        double expected35 = RadialTheveninPort.ReferLvToHv(670, ess.RadialGraph.UnitBuses690[0], ess.RadialGraph.Bus35);
+        double weightedLv = (v0 + v1) / 2.0;
+        double expected35 = RadialTheveninPort.ReferLvToHv(weightedLv, ess.RadialGraph.UnitBuses690[0], ess.RadialGraph.Bus35);
         double max35 = RadialTheveninPort.ReferLvToHv(690, ess.RadialGraph.UnitBuses690[0], ess.RadialGraph.Bus35);
         Assert.InRange(ess.RadialGraph.Bus35.LineVoltageV, expected35 - 250, expected35 + 250);
         Assert.True(

@@ -62,7 +62,7 @@ public class Unit690KernelTakeoverTests
         bus.RegisterVoltageSource(new FixedFormingSource("b", 650));
 
         Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
-        Assert.InRange(bus.LineVoltageV, 665, 675);
+        Assert.InRange(bus.LineVoltageV, 640, 669);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class Unit690KernelTakeoverTests
 
         Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
         double kernelV = bus.LineVoltageV;
-        Assert.InRange(kernelV, 665, 675);
+        Assert.InRange(kernelV, 640, 669);
         Assert.Equal(kernelV, ess._pcsList[0].GetCurrentState().AcVoltage, 1);
         Assert.Equal(kernelV, ess.GetUnitAcBusVoltage(0), 1);
         double referred35 = RadialTheveninPort.ReferLvToHv(kernelV, bus, ess.RadialGraph.Bus35);
@@ -189,7 +189,7 @@ public class Unit690KernelTakeoverTests
         left.RegisterVoltageSource(new FixedFormingSource("left", 690));
         right.RegisterVoltageSource(new FixedFormingSource("right", 650));
         Assert.True(ess.PlantEngine.Step(SimTime, Step, Step));
-        Assert.InRange(left.LineVoltageV, 680, 700);
-        Assert.InRange(right.LineVoltageV, 640, 660);
+        Assert.InRange(left.LineVoltageV, 660, 689);
+        Assert.InRange(right.LineVoltageV, 620, 649);
     }
 }
