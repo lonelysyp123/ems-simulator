@@ -482,3 +482,6 @@ CSharp仿真策略迁移提示词.md
 #   configs/topology/generated/runtime-overlay.json
 # 仅忽略本机设备型号选型（每人/每台机器可能不同，由工程配置页写入）
 configs/topology/device-models.json
+
+# gh CLI 的日志缓存（CI 排障时用 XDG_CACHE_HOME 指到仓库内，勿入库）
+.ghcache/
