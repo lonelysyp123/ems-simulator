@@ -43,15 +43,18 @@
 
 ### 方式 A：运行发布包（联调、演示）
 
-每个版本在 **[Releases](https://github.com/lonelysyp123/ems-simulator/releases)** 页提供 Windows / Linux / macOS 的自包含压缩包（x64 / arm64，无需安装 .NET 运行时）。
+每个版本在 **[Releases](https://github.com/lonelysyp123/ems-simulator/releases)** 页提供免授权演示版：
+Windows x64（zip）、Linux x64（tar.gz）、macOS Apple Silicon（tar.gz），**自包含，无需安装 .NET 运行时**。
 
 ```bash
 # Windows：解压后双击 start.bat
-# Linux / macOS：解压后
-./start.sh
-```
 
-> 若 Releases 页暂无可用包，请直接用「方式 B」从源码运行（约 3 分钟）。
+# Linux
+tar -xzf EssSimulator-demo-linux-x64.tar.gz && cd linux-x64 && ./start.sh
+
+# macOS（Apple Silicon）：首次运行需解除隔离
+tar -xzf EssSimulator-demo-osx-arm64.tar.gz && cd osx-arm64 && ./解除隔离.sh && ./start.sh
+```
 
 启动后打开 **http://127.0.0.1:5050** 即可看到主接线。
 
@@ -210,7 +213,7 @@ EssSimulator.Tests/  xUnit 测试
 ```bash
 dotnet build ./EssSimulator.csproj
 dotnet test                                   # xUnit，覆盖潮流、控制桥、点表管道、BMS 保护、组态、IEC 61850 映射等
-cd Web && npm install && npm run build        # 前端产物出到 Web/dist，发布时拷入 wwwroot
+cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，dotnet publish 自动带上
 ```
 
 发布脚本：`scripts/commercial/publish-{windows,linux,macos}.sh`（自包含单文件，按档位打 zip / tar.gz）。
