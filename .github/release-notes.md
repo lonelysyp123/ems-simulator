@@ -1,10 +1,14 @@
-### 本次更新（v0.1.3）
+### 本次更新（v0.1.4）
 
-- **光伏区拆成三层**：组态里一个光伏单元（`pvu`）下挂 N 条光伏 PCS（`pv_pcs`），每条支路对应一个光伏方阵（`pv_array`）；一支路必须对一方阵，同单元内型号/额定必须一致。旧工程打开时自动展开，运行时仍按单元汇总，协议侧不受影响。
-- **光伏可以按台控制**：`esscmd setpvN pcs M power|reactive|run`，以及 `setpvN maxpower` / `setpvN pcs M maxpower` 给单元或单台设最大放电上限（关掉后回到原来记住的设定）。
-- **一次图按绕组组织**：布局不再按画布坐标"贴最近母线"，改为沿端口绕组往下走（两绕组 `pri`/`sec`，双耳变压器 `pri`/`ear_l`/`ear_r`）；光伏链画成 PCS 在上、方阵在下，方阵卡显示实时读数。
-- **中压断路器协议**：组态里每台三相断路器一路 Modbus（`2301+`），支持 `AA`/`EE` 遥控与按角色的遥测。
-- 修掉协议层一处并发写字典导致的崩溃（并行启动从站时）。
+本版只做清理，**功能与 v0.1.3 相同**，没有行为变化：
+
+- 删掉零引用的死代码：`TCPCommunicator`、perf 测试模型、未被实现的传播接口、未使用的 `PcsRampStage`；
+- 去掉一个没被用到的 NuGet 依赖（`Microsoft.Win32.Registry`）和一份与 `iec61850.dll` 逐字节相同的重复原生库（省 1.4 MB）；
+- 删除无引用的 `scripts/monitor-bms-soc.sh` 与 `pointmap-version.json`；
+- 历史方案与测试记录归档到 `docs/archive/`，主线只留当前有效的文档；
+- 新增 `scripts/test/README.md`，说明那批手工验证/点表生成/性能脚本怎么用。
+
+> v0.1.3 的主要变化（光伏区拆成 pvu/pv_pcs/pv_array、光伏按台控制与最大放电上限、一次图按绕组组织、中压断路器协议）见 [v0.1.3 发布说明](https://github.com/lonelysyp123/ems-simulator/releases/tag/v0.1.3)。
 
 ### 发布包
 

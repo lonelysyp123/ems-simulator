@@ -178,7 +178,7 @@ EssSimulator.Tests/  xUnit 测试
 
 | 文档 | 说明 |
 |---|---|
-| [测试报告](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/测试报告.md) | 性能与 DataExchange 手动测试记录 |
+| [测试报告（归档）](https://github.com/lonelysyp123/ems-simulator/blob/master/docs/archive/测试报告.md) | 性能与 DataExchange 手动测试记录（2026-06，历史）|
 
 **产品与延伸阅读**
 
