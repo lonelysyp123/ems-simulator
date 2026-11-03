@@ -1,5 +1,9 @@
+using EssSimulator.Core;
 using EssSimulator.Display;
+using EssSimulator.EssDeviceSimModel;
+using EssSimulator.EssDeviceSimModel.Model;
 using EssSimulator.EssSimModelApi.Mappers;
+using EssSimulator.Protocol.Modbus;
 using EssSimulator.Web.Topology;
 
 namespace EssSimulator.Web
@@ -69,7 +73,8 @@ namespace EssSimulator.Web
                 BlackStartSummary = GuiStatusFormatters.BuildBlackStartSwitchSummary(0, channelCount),
                 MainBreakerLabel = FormatBreaker(snap.MainBreakerClosed, snap.MainBreakerTripped),
                 Units = snap.Units.Select(u => EnrichUnit(u, channelCount)).ToList(),
-                PvUnits = ReadPvUnits()
+                PvUnits = ReadPvUnits(),
+                MvBreakerClosed = MvBreakerProtocolState.Copy()
             };
 
             AttachTopology(vm, topologyStore);
@@ -234,6 +239,9 @@ namespace EssSimulator.Web
                 string id = $"pv{i + 1}";
                 double onOff = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.SubarrayOnOff");
                 double runState = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.RunState");
+                double maxDischarge = GuiSimDataAccess.SafeGetDouble($"{id}.MaximumDischargePowerKw");
+                var arrayA = ReadPvArray(id, "A");
+                var arrayB = ReadPvArray(id, "B");
                 list.Add(new MainLinePvUnitViewModel
                 {
                     PvIndex = i,
@@ -245,12 +253,59 @@ namespace EssSimulator.Web
                     TargetReactivePowerKvar = GuiSimDataAccess.SafeGetDouble($"{id}.Logger.SubarrayReactivePowerKvar"),
                     OnOff = onOff,
                     Running = onOff > 0.5 && runState > 0.5,
+                    Standby = onOff > 0.5 && runState > 0.5
+                        && Math.Abs(GuiSimDataAccess.SafeGetDouble($"{id}.Logger.SubarrayActivePowerKw")) <= 0.01
+                        && Math.Abs(GuiSimDataAccess.SafeGetDouble($"{id}.ActivePowerKw")) <= 0.01,
                     GridConnectedDeviceCount = (int)GuiSimDataAccess.SafeGetDouble($"{id}.Logger.GridConnectedDeviceCount"),
-                    MaximumDischargePowerKw = GuiSimDataAccess.SafeGetDouble($"{id}.MaximumDischargePowerKw"),
-                    ArrayA = ReadPvArray(id, "A"),
-                    ArrayB = ReadPvArray(id, "B")
+                    MaximumDischargePowerKw = maxDischarge,
+                    ArrayA = arrayA,
+                    ArrayB = arrayB,
+                    Inverters = ReadPvInverters(i + 1)
                 });
             }
+            return list;
+        }
+
+        private static List<MainLinePvInverterViewModel> ReadPvInverters(int pv1Based)
+        {
+            var ess = SimulatorHost.Instance.TryGetEss();
+            if (ess == null || pv1Based < 1 || pv1Based > ess.PvUnits.Count)
+                return new List<MainLinePvInverterViewModel>();
+
+            var unit = ess.PvUnits[pv1Based - 1];
+            var list = new List<MainLinePvInverterViewModel>(unit.Inverters.Count);
+            for (int i = 0; i < unit.Inverters.Count; i++)
+            {
+                var inv = unit.Inverters[i];
+                var state = inv.GetCurrentState();
+                bool running = inv.IsExternalRunCommand && state.Mode != OperationMode.Off;
+                double setpoint = DeviceControlFacade.TryReadPvInverterActiveSetpoint(pv1Based, i, out var remembered)
+                    ? remembered
+                    : inv.ActivePowerSettingKw;
+                bool standby = running && Math.Abs(setpoint) <= 0.01 && Math.Abs(state.ActivePower) <= 0.01;
+                bool capOn = DeviceControlFacade.TryReadPvInverterMaxDischarge(pv1Based, i, out double capKw);
+                // 与 Modbus yc29 / Logger yc20 同口径：先按额定封顶，再叠加单机上限。
+                double available = Math.Min(inv.AvailableAcPowerKw, inv.RatedPowerKw);
+                if (capOn)
+                    available = Math.Min(available, capKw);
+                list.Add(new MainLinePvInverterViewModel
+                {
+                    InverterIndex = i,
+                    InverterNumber = i + 1,
+                    Running = running,
+                    OnOff = inv.IsExternalRunCommand ? 1 : 0,
+                    Standby = standby,
+                    StateText = !running ? "停机" : (standby ? "待机" : "运行"),
+                    ActivePowerSettingKw = setpoint,
+                    ActivePowerKw = state.ActivePower,
+                    ReactivePowerSettingKvar = inv.ReactivePowerSettingKvar,
+                    ReactivePowerKvar = state.ReactivePower,
+                    AvailableAcPowerKw = available,
+                    DischargeCapEnabled = capOn,
+                    DischargeCapKw = capOn ? capKw : 0
+                });
+            }
+
             return list;
         }
 
@@ -338,6 +393,8 @@ namespace EssSimulator.Web
         public string BlackStartSummary { get; set; } = "";
         public List<MainLineUnitViewModel> Units { get; set; } = new();
         public List<MainLinePvUnitViewModel> PvUnits { get; set; } = new();
+        /// <summary>未绑定储能单元的三相断路器协议合闸。键为组态节点 id。</summary>
+        public Dictionary<string, bool> MvBreakerClosed { get; set; } = new();
 
         /// <summary>工程模式开启且存在激活组态时为 true，前端按组态拓扑绘制主接线。</summary>
         public bool EngineeringMode { get; set; }
@@ -425,10 +482,29 @@ namespace EssSimulator.Web
         public double TargetReactivePowerKvar { get; set; }
         public double OnOff { get; set; }
         public bool Running { get; set; }
+        public bool Standby { get; set; }
         public int GridConnectedDeviceCount { get; set; }
         public double MaximumDischargePowerKw { get; set; }
+        public List<MainLinePvInverterViewModel> Inverters { get; set; } = new();
         public MainLinePvArrayViewModel ArrayA { get; set; } = new();
         public MainLinePvArrayViewModel ArrayB { get; set; } = new();
+    }
+
+    public sealed class MainLinePvInverterViewModel
+    {
+        public int InverterIndex { get; set; }
+        public int InverterNumber { get; set; }
+        public bool Running { get; set; }
+        public bool Standby { get; set; }
+        public double OnOff { get; set; }
+        public string StateText { get; set; } = "停机";
+        public double ActivePowerSettingKw { get; set; }
+        public double ActivePowerKw { get; set; }
+        public double ReactivePowerSettingKvar { get; set; }
+        public double ReactivePowerKvar { get; set; }
+        public double AvailableAcPowerKw { get; set; }
+        public bool DischargeCapEnabled { get; set; }
+        public double DischargeCapKw { get; set; }
     }
 
     public sealed class MainLinePvArrayViewModel
