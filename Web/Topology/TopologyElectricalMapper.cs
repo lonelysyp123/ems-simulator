@@ -157,7 +157,8 @@ namespace EssSimulator.Web.Topology
 
         private static bool IsStationTransformer(TopologyNode n) =>
             n.TemplateId == "transformer"
-            && string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "emuId"));
+            && string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "emuId"))
+            && string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "pvuId"));
 
         private static string AssignBusId(
             int xfmrCrossed,

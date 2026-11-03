@@ -7,7 +7,7 @@ namespace EssSimulator.Web.Topology
     /// 将组态工程映射为径向电站运行时配置（规模 + 参数 + 电表抽头）。
     /// 母线/电表连线解析为运行时母线 Id，供电表按实际挂点采样；
     /// 储能单元数 = 含 PCS 的 EMU 虚拟节点数，每单元 PCS 数 = 通过 emuId 归入该 EMU 的 PCS 节点数；
-    /// 光伏单元展开为 overlay.PvUnits，运行时挂在 35 kV 母线送电。
+    /// 光伏单元（旧 pv_unit，或 pvu 下的光伏 PCS + 方阵）展开为 overlay.PvUnits，运行时挂在 35 kV 母线送电。
     /// 工程中的 SVG 节点启用站用 SVG，并带上额定容量。
     /// 工程须至少包含一个含 PCS 的 EMU 或光伏单元。
     /// </summary>
@@ -34,11 +34,16 @@ namespace EssSimulator.Web.Topology
             var emus = project.Nodes.Where(n => n.TemplateId == "emu").OrderBy(n => n.Y).ThenBy(n => n.X).ToList();
             var pcsNodes = project.Nodes.Where(n => n.TemplateId == "pcs").OrderBy(n => n.X).ThenBy(n => n.Y).ToList();
             var pvUnits = project.Nodes.Where(n => n.TemplateId == "pv_unit").OrderBy(n => n.Y).ThenBy(n => n.X).ToList();
+            var pvBranches = TopologyValidator.ListPvBranches(project);
             var emusWithPcs = emus
                 .Select(e => (Emu: e, Pcs: pcsNodes.Where(p => TopologyParamHelper.GetString(p.Parameters, "emuId") == e.Id).ToList()))
                 .Where(g => g.Pcs.Count > 0)
                 .ToList();
-            if (emusWithPcs.Count == 0 && pvUnits.Count == 0)
+            var branchDetails = new List<string>();
+            var branchCheck = TopologyValidator.ValidatePvBranches(project, branchDetails);
+            if (branchCheck != null)
+                return (null, branchCheck);
+            if (emusWithPcs.Count == 0 && pvUnits.Count == 0 && pvBranches.Count == 0)
                 return (null, Fail("NO_GENERATION_UNIT", "工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元"));
 
             var svgCheck = TopologyValidator.ValidateSvgNodes(project);
@@ -79,7 +84,8 @@ namespace EssSimulator.Web.Topology
 
             var mainXfmr = project.Nodes
                 .Where(n => n.TemplateId == "transformer"
-                    && string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "emuId")))
+                    && string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "emuId"))
+                    && string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "pvuId")))
                 .OrderByDescending(n => TopologyParamHelper.GetDouble(n.Parameters, "primaryVoltage", 0))
                 .FirstOrDefault();
             if (mainXfmr != null)
@@ -189,6 +195,27 @@ namespace EssSimulator.Web.Topology
                     AcVoltageNominal = overlay.UnitTransformer.SecondaryVoltage
                 };
             }
+            else if (pvBranches.Count > 0)
+            {
+                var pcsSource = pvBranches[0].Branches[0];
+                var pvXf = TopologyValidator.TransformersOfPvu(project, pvBranches[0].Unit.Id).FirstOrDefault();
+                var xp = pvXf?.Parameters ?? new Dictionary<string, object?>();
+                overlay.UnitTransformer = new UnitTransformerConfig
+                {
+                    PrimaryVoltage = TopologyParamHelper.GetDouble(xp, "primaryVoltage", 35000),
+                    SecondaryVoltage = TopologyParamHelper.GetDouble(xp, "secondaryVoltage", 690),
+                    RatedPower = TopologyParamHelper.GetDouble(xp, "ratedPowerKva", 1280)
+                };
+                overlay.Pcs = new PcsPhysicalConfig
+                {
+                    RatedPower = TopologyParamHelper.GetDouble(pcsSource.Parameters, "pcsRatedPowerKw", 320),
+                    MaxPower = TopologyParamHelper.GetDouble(pcsSource.Parameters, "pcsMaxPowerKw", 352),
+                    Efficiency = TopologyParamHelper.GetDouble(pcsSource.Parameters, "pcsEfficiency", 0.99),
+                    DcVoltageRangeMin = TopologyParamHelper.GetDouble(pcsSource.Parameters, "dcVoltageMin", 500),
+                    DcVoltageRangeMax = TopologyParamHelper.GetDouble(pcsSource.Parameters, "dcVoltageMax", 1500),
+                    AcVoltageNominal = overlay.UnitTransformer.SecondaryVoltage
+                };
+            }
             else if (pvUnits.Count > 0)
             {
                 var pvSource = pvUnits[0];
@@ -196,7 +223,7 @@ namespace EssSimulator.Web.Topology
                 {
                     PrimaryVoltage = TopologyParamHelper.GetDouble(pvSource.Parameters, "unitXfPrimaryV", 35000),
                     SecondaryVoltage = TopologyParamHelper.GetDouble(pvSource.Parameters, "unitXfSecondaryV", 690),
-                    RatedPower = TopologyParamHelper.GetDouble(pvSource.Parameters, "unitXfRatedKva", 5120)
+                    RatedPower = TopologyParamHelper.GetDouble(pvSource.Parameters, "unitXfRatedKva", 1280)
                 };
                 overlay.Pcs = new PcsPhysicalConfig
                 {
@@ -236,8 +263,15 @@ namespace EssSimulator.Web.Topology
                 overlay.Notes.Add($"SVG「{svgNode.Label}」→ {overlay.SvgRatedCapacityKvar:0.#} kvar");
             }
 
-            var pvCount = pvUnits.Count;
+            var pvCount = pvBranches.Count + pvUnits.Count;
             int pvIndex = 0;
+            foreach (var group in pvBranches)
+            {
+                pvIndex++;
+                var unit = ToPvBranchUnit(project, group, pvIndex);
+                overlay.PvUnits.Add(unit);
+                overlay.Notes.Add($"{unit.Name}: 光伏PCS×{unit.InverterCount}（{unit.InverterRatedPowerKw:0.#} kW）");
+            }
             foreach (var node in pvUnits)
             {
                 pvIndex++;
@@ -583,10 +617,49 @@ namespace EssSimulator.Web.Topology
             };
         }
 
+        private static PvUnitRuntimeConfig ToPvBranchUnit(
+            TopologyProject project, TopologyValidator.PvBranchGroup group, int index)
+        {
+            var pvu = group.Unit;
+            var pcs = group.Branches[0];
+            var array = group.Arrays.FirstOrDefault();
+            var xf = TopologyValidator.TransformersOfPvu(project, pvu.Id).FirstOrDefault();
+            var xp = xf?.Parameters ?? new Dictionary<string, object?>();
+            double ratedKw = TopologyParamHelper.GetDouble(pcs.Parameters, "pcsRatedPowerKw", 320);
+            int count = group.Branches.Count;
+            double secondary = TopologyParamHelper.GetDouble(xp, "secondaryVoltage", 690);
+            return new PvUnitRuntimeConfig
+            {
+                Name = string.IsNullOrWhiteSpace(pvu.Label) ? $"PV-{index}" : pvu.Label,
+                InverterCount = count,
+                StringCount = array == null ? 16 : (int)Math.Max(1, TopologyParamHelper.GetDouble(array.Parameters, "stringCount", 16)),
+                ModulesPerString = array == null ? 30 : (int)Math.Max(1, TopologyParamHelper.GetDouble(array.Parameters, "modulesPerString", 30)),
+                InverterRatedPowerKw = ratedKw,
+                InverterRatedReactivePowerKvar = TopologyParamHelper.GetDouble(pcs.Parameters, "pcsRatedReactivePowerKvar", ratedKw),
+                InverterMaxPowerKw = TopologyParamHelper.GetDouble(pcs.Parameters, "pcsMaxPowerKw", 352),
+                InverterEfficiency = TopologyParamHelper.GetDouble(pcs.Parameters, "pcsEfficiency", 0.99),
+                InverterAcVoltageV = secondary,
+                UnitXfPrimaryV = TopologyParamHelper.GetDouble(xp, "primaryVoltage", 35000),
+                UnitXfSecondaryV = secondary,
+                UnitXfRatedKva = TopologyParamHelper.GetDouble(xp, "ratedPowerKva", count * ratedKw),
+                UnitXfNoLoadLossW = TopologyParamHelper.GetDouble(xp, "noLoadLossW", 100),
+                UnitXfLoadLossW = TopologyParamHelper.GetDouble(xp, "loadLossW", 200),
+                UnitXfImpedancePercent = TopologyParamHelper.GetDouble(xp, "impedancePercent", 5),
+                UnitXfNoLoadCurrentPercent = 2,
+                DcVoltageMin = TopologyParamHelper.GetDouble(pcs.Parameters, "dcVoltageMin", 500),
+                DcVoltageMax = TopologyParamHelper.GetDouble(pcs.Parameters, "dcVoltageMax", 1500),
+                ModuleModel = array == null
+                    ? "TSM-NEG21C.20Q"
+                    : TopologyParamHelper.GetString(array.Parameters, "moduleModel", "TSM-NEG21C.20Q"),
+                GroundAlbedo = array == null ? 0 : Math.Clamp(TopologyParamHelper.GetDouble(array.Parameters, "groundAlbedo", 0), 0, 1),
+                OperatingYears = array == null ? 0 : Math.Max(0, TopologyParamHelper.GetDouble(array.Parameters, "operatingYears", 0))
+            };
+        }
+
         private static PvUnitRuntimeConfig ToPvUnit(TopologyNode node, int index)
         {
             var p = node.Parameters;
-            int invCount = (int)Math.Max(1, TopologyParamHelper.GetDouble(p, "inverterCount", 16));
+            int invCount = (int)Math.Max(1, TopologyParamHelper.GetDouble(p, "inverterCount", 4));
             double ratedKw = TopologyParamHelper.GetDouble(p, "inverterRatedPowerKw", 320);
             return new PvUnitRuntimeConfig
             {

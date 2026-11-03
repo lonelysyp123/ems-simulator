@@ -18,6 +18,9 @@ const SIZE = {
   emu: { w: 140, h: 96 },
   pcs: { w: 120, h: 96 },
   pv_unit: { w: 140, h: 96 },
+  pvu: { w: 0, h: 0 },
+  pv_pcs: { w: 120, h: 96 },
+  pv_array: { w: 110, h: 72 },
   bms: { w: 110, h: 72 },
   dc_bus: { w: 160, h: 48 }
 }
@@ -64,8 +67,8 @@ export function formatVoltage(v) {
  * - source: 电网
  * - bus: 交流母线
  * - passthrough: 断路器（电气透明，沿连通继续）
- * - coupling: 变压器等绕组设备（沿其余已接线母线分叉为 N 路下游，不限两绕组）
- * - feeder: 发电支路（PCS / 光伏），在母线下展开
+ * - coupling: 变压器等绕组设备（沿其余绕组分叉；下游可以是母线、发电设备或另一台耦合设备）
+ * - feeder: 发电支路（PCS / 光伏），挂在母线或耦合绕组下
  * - tap: 电表 / 负载 / SVG 等母线挂件
  * - dc / virtual: 直流侧或虚拟节点，一次图站侧不直接遍历
  * - unknown: 未登记模板，仍作为挂件画出
@@ -81,10 +84,13 @@ export const SLD_ROLES = {
   svg: 'tap',
   pcs: 'feeder',
   pv_unit: 'feeder',
+  pv_pcs: 'feeder',
+  pv_array: 'dc',
   bms: 'dc',
   dc_bus: 'dc',
   emu: 'virtual',
-  emu_group: 'virtual'
+  emu_group: 'virtual',
+  pvu: 'virtual'
 }
 
 export function sldRole(templateId) {
@@ -97,6 +103,55 @@ export function isTransformerLike(templateId) {
 
 export function isSplitTransformer(templateId) {
   return templateId === 'split_transformer'
+}
+
+/** 端口 id → 绕组名。同一绕组的三相合成一条下游。未登记的端口不归入任何绕组。 */
+const PHASES = ['a', 'b', 'c']
+
+function windingPortMap(names) {
+  const map = {}
+  for (const name of names) {
+    for (const phase of PHASES) map[`${name}_${phase}`] = name
+  }
+  return map
+}
+
+export const SLD_WINDINGS = {
+  transformer: windingPortMap(['pri', 'sec']),
+  split_transformer: windingPortMap(['pri', 'ear_l', 'ear_r'])
+}
+
+export function sldWinding(templateId, portId) {
+  if (!templateId || portId == null || portId === '') return ''
+  return SLD_WINDINGS[templateId]?.[portId] || ''
+}
+
+/** 除进来的那组绕组以外的绕组名，顺序与登记顺序一致。未知模板返回空数组。 */
+export function sldOtherWindings(templateId, incomingWinding) {
+  const map = SLD_WINDINGS[templateId]
+  if (!map) return []
+  const names = []
+  for (const name of Object.values(map)) {
+    if (!names.includes(name)) names.push(name)
+  }
+  if (!incomingWinding) return names
+  return names.filter(name => name !== incomingWinding)
+}
+
+/**
+ * 一次图里一台设备自己怎么画。组织遍历只拿这个名字，不在遍历里按模板写分支。
+ * - pvLegend: 光伏单元图例（单元断、箱变卡片、方阵 A/B）
+ * - pcsChain: 储能链（PCS → 直流母线 → BMS）
+ */
+export const SLD_DRAW = {
+  pv_unit: 'pvLegend',
+  pcs: 'pcsChain',
+  pv_pcs: 'pvChain'
+}
+
+export function sldDraw(templateId) {
+  if (!templateId) return ''
+  return SLD_DRAW[templateId] || ''
 }
 
 export function templateColor(templateId) {
@@ -113,7 +168,10 @@ export function templateColor(templateId) {
     case 'emu': return '#16a085'
     case 'emu_group': return '#0f8a9d'
     case 'pcs': return '#0e7a6a'
-    case 'pv_unit': return '#e6a817'
+    case 'pv_unit':
+    case 'pv_pcs': return '#e6a817'
+    case 'pv_array': return '#f0c14a'
+    case 'pvu': return '#b8860b'
     case 'bms': return '#27ae60'
     case 'dc_bus': return '#d35400'
     default: return '#606266'

@@ -49,6 +49,8 @@ export const TOPOLOGY_TEMPLATE_3D = {
   bms: 'primitive',
   dc_bus: 'primitive',
   pcs: 'primitive',
+  pv_pcs: 'primitive',
+  pv_array: 'primitive',
   pv_unit: 'composite'
 }
 

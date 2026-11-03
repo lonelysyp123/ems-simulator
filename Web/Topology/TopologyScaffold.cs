@@ -87,8 +87,35 @@ namespace EssSimulator.Web.Topology
             for (var i = 0; i < pvCount; i++)
             {
                 var x = startX + (emuCount + i) * unitSpan;
-                var pv = Add(project, "pv_unit", $"光伏单元-{i + 1}", x, 720);
-                MustConnect(project, pv, "ac_a", busLv, "a2");
+                var pvu = Add(project, "pvu", $"光伏单元-{i + 1}", x, 560,
+                    new Dictionary<string, object?> { ["unitNumber"] = (double)(i + 1) });
+                var box = Add(project, "transformer", $"光伏箱变-{i + 1}", x, 640,
+                    new Dictionary<string, object?>
+                    {
+                        ["pvuId"] = pvu.Id,
+                        ["primaryVoltage"] = 35000d,
+                        ["secondaryVoltage"] = 690d,
+                        ["ratedPowerKva"] = 1280d,
+                        ["impedancePercent"] = 5d,
+                        ["noLoadLossW"] = 100d,
+                        ["loadLossW"] = 200d
+                    });
+                var bus690 = Add(project, "ac_bus", $"690V母线-{i + 1}", x, 760,
+                    new Dictionary<string, object?> { ["nominalVoltage"] = 690d, ["name"] = $"690V母线-{i + 1}" });
+                MustConnect(project, box, "pri_a", busLv, "a2");
+                MustConnect(project, box, "sec_a", bus690, "a");
+                const int branchCount = 4;
+                var pitch = 60.0;
+                var origin = x - (branchCount - 1) * pitch / 2.0;
+                for (var b = 0; b < branchCount; b++)
+                {
+                    var bx = origin + b * pitch;
+                    var pcs = Add(project, "pv_pcs", $"光伏PCS-{i + 1}{b + 1}", bx, 860,
+                        new Dictionary<string, object?> { ["pvuId"] = pvu.Id });
+                    var array = Add(project, "pv_array", $"方阵-{i + 1}{b + 1}", bx, 1000);
+                    MustConnect(project, pcs, "ac_a", bus690, "a2");
+                    MustConnect(project, pcs, "dc_pos", array, "dc_pos");
+                }
             }
 
             TopologyValidator.RefreshAcBusEnergization(project);

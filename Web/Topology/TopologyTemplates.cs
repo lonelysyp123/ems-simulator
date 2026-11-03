@@ -1,6 +1,6 @@
 namespace EssSimulator.Web.Topology
 {
-    /// <summary>内置组态基础模板（电网 / 母线 / 断路器 / 变压器 / 电表 / 负载 / SVG / EMU 虚拟单元 / PCS / 光伏单元 / BMS / 直流母线）。</summary>
+    /// <summary>内置组态基础模板（电网 / 母线 / 断路器 / 变压器 / 电表 / 负载 / SVG / EMU 虚拟单元 / PCS / 光伏单元 / 光伏 PCS / 光伏方阵 / BMS / 直流母线）。</summary>
     public static class TopologyTemplates
     {
         public static IReadOnlyList<TopologyTemplate> All { get; } = BuildAll();
@@ -50,6 +50,9 @@ namespace EssSimulator.Web.Topology
             BuildEmuGroup(),
             BuildPcs(),
             BuildPvUnit(),
+            BuildPvu(),
+            BuildPvPcs(),
+            BuildPvArray(),
             BuildBms(),
             BuildDcBus()
         };
@@ -173,7 +176,8 @@ namespace EssSimulator.Web.Topology
                 new() { Key = "impedancePercent", Label = "短路阻抗", Type = "number", Unit = "%", Min = 0.1 },
                 new() { Key = "noLoadLossW", Label = "空载损耗", Type = "number", Unit = "W", Min = 0 },
                 new() { Key = "loadLossW", Label = "负载损耗", Type = "number", Unit = "W", Min = 0 },
-                new() { Key = "emuId", Label = "所属 EMU 储能单元", Type = "emu_select", Description = "可选；选择后本变压器归入该 EMU 虚拟单元，作为其单元变压器；同一 EMU 可绑定多台" },
+                new() { Key = "emuId", Label = "所属 EMU 储能单元", Type = "emu_select", Description = "可选；与所属光伏单元互斥。选择后本变压器归入该 EMU，作为其单元变压器；同一 EMU 可绑定多台" },
+                new() { Key = "pvuId", Label = "所属光伏单元", Type = "pvu_select", Description = "可选；与所属 EMU 互斥。选择后本变压器作为该光伏单元的箱变，每个光伏单元一台。高压接 35 kV 集电，低压接光伏 PCS 的 690 V 母线" },
                 new() { Key = "groupId", Label = "所属 EMU 分组", Type = "group_select", Description = "可选；选择后本变压器归入该 EMU 分组（须先选所属 EMU），作为组级变压器；同一分组可绑定多台" }
             },
             DefaultParameters = new Dictionary<string, object?>
@@ -189,14 +193,14 @@ namespace EssSimulator.Web.Topology
 
         /// <summary>
         /// 双耳变压器（分裂绕组箱变）：高压一组三相，低压左右耳各一组三相。
-        /// 须绑定 EMU；每 EMU 至多 2 台。不做无功不平衡保护。
+        /// 所属 EMU 可选；已选时每 EMU 至多 2 台。不做无功不平衡保护。
         /// </summary>
         private static TopologyTemplate BuildSplitTransformer() => new()
         {
             Id = SplitTransformerId,
             Name = "双耳变压器",
             Category = "变电",
-            Description = "高压一侧、低压左右两耳（分裂绕组）。两耳须接到不同 690V 母线，禁止共母线；须归属 EMU，每个储能单元至多 2 台。",
+            Description = "高压一侧、低压左右两耳（分裂绕组）。两耳须接到不同 690V 母线，禁止共母线；所属 EMU 可选，每个储能单元至多 2 台。",
             IsVoltageSource = false,
             Ports =
             {
@@ -220,7 +224,7 @@ namespace EssSimulator.Web.Topology
                 new() { Key = "splitImpedancePercent", Label = "分裂阻抗", Type = "number", Unit = "%", Min = 0.1, Description = "两低压绕组之间的阻抗，用于估算环流" },
                 new() { Key = "noLoadLossW", Label = "空载损耗", Type = "number", Unit = "W", Min = 0 },
                 new() { Key = "loadLossW", Label = "负载损耗", Type = "number", Unit = "W", Min = 0 },
-                new() { Key = "emuId", Label = "所属 EMU 储能单元", Type = "emu_select", Description = "必选；本双耳变压器归入该 EMU，作为其单元箱变；每个 EMU 至多 2 台" },
+                new() { Key = "emuId", Label = "所属 EMU 储能单元", Type = "emu_select", Description = "可选；选择后本双耳变压器归入该 EMU，作为其单元箱变；每个 EMU 至多 2 台" },
                 new() { Key = "groupId", Label = "所属 EMU 分组", Type = "group_select", Description = "可选；选择后本变压器归入该 EMU 分组（须先选所属 EMU）" }
             },
             DefaultParameters = new Dictionary<string, object?>
@@ -447,14 +451,14 @@ namespace EssSimulator.Web.Topology
 
         /// <summary>
         /// 光伏单元：30 块组件串联为一簇 × 16 簇为单台逆变器；
-        /// 一台 35kV/690V 箱变下挂 16 台 320 kW 单向逆变器。
+        /// 一台 35kV/690V 箱变下挂 4 台 320 kW 单向逆变器。
         /// </summary>
         private static TopologyTemplate BuildPvUnit() => new()
         {
             Id = "pv_unit",
             Name = "光伏单元",
             Category = "光伏",
-            Description = "内部简化为：单台逆变器 30 块 TSM-NEG21C.20Q 串联为一簇 × 16 簇、320 kW / 690 V 只放电；一台 35kV/690V 5120 kVA 箱变下挂 16 台逆变器。上方三相交流接入 35kV 集电母线。",
+            Description = "内部简化为：单台逆变器 30 块 TSM-NEG21C.20Q 串联为一簇 × 16 簇、320 kW / 690 V 只放电；一台 35kV/690V 1280 kVA 箱变下挂 4 台逆变器。上方三相交流接入 35kV 集电母线。",
             IsVoltageSource = false,
             Ports =
             {
@@ -467,7 +471,7 @@ namespace EssSimulator.Web.Topology
                 new() { Key = "acVoltage", Label = "交流侧线电压", Type = "number", Unit = "V", Min = 100, Description = "接入 AC 母线侧额定，默认 35kV（箱变高压侧）" },
                 new() { Key = "unitXfPrimaryV", Label = "箱变一次电压", Type = "number", Unit = "V" },
                 new() { Key = "unitXfSecondaryV", Label = "箱变二次电压", Type = "number", Unit = "V", Description = "逆变器交流侧，默认 690 V（与储能 PCS 相同）" },
-                new() { Key = "unitXfRatedKva", Label = "箱变额定容量", Type = "number", Unit = "kVA", Min = 1, Description = "默认 16×320 kW = 5120 kVA" },
+                new() { Key = "unitXfRatedKva", Label = "箱变额定容量", Type = "number", Unit = "kVA", Min = 1, Description = "默认 4×320 kW = 1280 kVA" },
                 new() { Key = "unitXfNoLoadLossW", Label = "箱变空载损耗", Type = "number", Unit = "W", Min = 0, Description = "单耳 35kV/690V，对齐储能单元变默认 100 W" },
                 new() { Key = "unitXfLoadLossW", Label = "箱变负载损耗", Type = "number", Unit = "W", Min = 0, Description = "对齐储能单元变默认 200 W" },
                 new() { Key = "unitXfImpedancePercent", Label = "箱变短路阻抗", Type = "number", Unit = "%", Min = 0, Description = "对齐储能单元变默认 5%，本期不参与压降" },
@@ -490,7 +494,7 @@ namespace EssSimulator.Web.Topology
                 ["acVoltage"] = 35000d,
                 ["unitXfPrimaryV"] = 35000d,
                 ["unitXfSecondaryV"] = 690d,
-                ["unitXfRatedKva"] = 5120d,
+                ["unitXfRatedKva"] = 1280d,
                 ["unitXfNoLoadLossW"] = 100d,
                 ["unitXfLoadLossW"] = 200d,
                 ["unitXfImpedancePercent"] = 5d,
@@ -500,13 +504,117 @@ namespace EssSimulator.Web.Topology
                 ["groundAlbedo"] = 0d,
                 ["modulesPerString"] = 30d,
                 ["stringCount"] = 16d,
-                ["inverterCount"] = 16d,
+                ["inverterCount"] = 4d,
                 ["inverterRatedPowerKw"] = 320d,
                 ["inverterMaxPowerKw"] = 352d,
                 ["inverterEfficiency"] = 0.99d,
                 ["inverterAcVoltage"] = 690d,
                 ["dcVoltageMin"] = 500d,
                 ["dcVoltageMax"] = 1500d
+            }
+        };
+
+        /// <summary>
+        /// 光伏单元（虚拟）：无图形、无端口。箱变是画布上绑定本单元的变压器。
+        /// 光伏 PCS 支路通过 pvuId 归入，每条支路直流口直连一个方阵。
+        /// </summary>
+        private static TopologyTemplate BuildPvu() => new()
+        {
+            Id = "pvu",
+            Name = "光伏单元",
+            Category = "光伏",
+            Description = "虚拟光伏单元：拖入后画布不显示图形，在左侧「光伏单元」列表中管理。箱变是画布上的变压器，在变压器上选择所属光伏单元。光伏 PCS 支路通过「所属光伏单元」归入，交流侧 690 V 接到该变压器的低压母线。",
+            IsVoltageSource = false,
+            IsVirtual = true,
+            Parameters =
+            {
+                new() { Key = "name", Label = "名称", Type = "string" },
+                new()
+                {
+                    Key = "unitNumber",
+                    Label = "编号",
+                    Type = "number",
+                    Min = 1,
+                    Description = "决定端口先后。编号 1 占用最小端口（Logger 默认 1801，低压电表默认 1901），编号越大端口越大。端口连续分配，编号 1、2、4 对应 1801、1802、1803。留空时按单元节点从上到下、从左到右。相同编号仍按这个位置次序。"
+                }
+            },
+            DefaultParameters = new Dictionary<string, object?>
+            {
+                ["name"] = "光伏单元"
+            }
+        };
+
+        /// <summary>
+        /// 光伏 PCS 支路：上三相 AC 为 690 V，接下方箱变低压母线；下正/负 DC 直连一个光伏方阵。
+        /// </summary>
+        private static TopologyTemplate BuildPvPcs() => new()
+        {
+            Id = "pv_pcs",
+            Name = "光伏 PCS 支路",
+            Category = "光伏",
+            Description = "光伏 PCS 的一条支路：交流出口为 690 V，接到本单元箱变的低压母线；下正/负 DC 直连一个光伏方阵。只放电，直流侧不经直流母线，也不接 BMS。",
+            IsVoltageSource = false,
+            Ports =
+            {
+                new() { Id = "ac_a", Label = "AC-A", Kind = "ac_phase", Phase = "A", Side = "top", Offset = 0.2, VoltageParam = "acVoltage" },
+                new() { Id = "ac_b", Label = "AC-B", Kind = "ac_phase", Phase = "B", Side = "top", Offset = 0.5, VoltageParam = "acVoltage" },
+                new() { Id = "ac_c", Label = "AC-C", Kind = "ac_phase", Phase = "C", Side = "top", Offset = 0.8, VoltageParam = "acVoltage" },
+                new() { Id = "dc_pos", Label = "DC+", Kind = "dc_pos", Side = "bottom", Offset = 0.35 },
+                new() { Id = "dc_neg", Label = "DC−", Kind = "dc_neg", Side = "bottom", Offset = 0.65 }
+            },
+            Parameters =
+            {
+                new() { Key = "pvuId", Label = "所属光伏单元", Type = "pvu_select", Description = "选择后本支路归入该光伏单元" },
+                new() { Key = "acVoltage", Label = "交流侧线电压", Type = "number", Unit = "V", Min = 100, Description = "逆变器交流出口，默认 690 V，须与所接低压母线一致" },
+                new() { Key = "pcsRatedPowerKw", Label = "额定功率", Type = "number", Unit = "kW", Min = 1 },
+                new() { Key = "pcsMaxPowerKw", Label = "最大功率", Type = "number", Unit = "kW", Min = 1 },
+                new() { Key = "pcsEfficiency", Label = "效率", Type = "number", Min = 0.5, Max = 1 },
+                new() { Key = "dcVoltageMin", Label = "直流电压下限", Type = "number", Unit = "V" },
+                new() { Key = "dcVoltageMax", Label = "直流电压上限", Type = "number", Unit = "V" },
+                new() { Key = "name", Label = "名称", Type = "string" }
+            },
+            DefaultParameters = new Dictionary<string, object?>
+            {
+                ["acVoltage"] = 690d,
+                ["pcsRatedPowerKw"] = 320d,
+                ["pcsMaxPowerKw"] = 352d,
+                ["pcsEfficiency"] = 0.99d,
+                ["dcVoltageMin"] = 500d,
+                ["dcVoltageMax"] = 1500d,
+                ["name"] = "光伏PCS支路"
+            }
+        };
+
+        /// <summary>光伏方阵：直流源，正/负口接对应光伏 PCS 支路。</summary>
+        private static TopologyTemplate BuildPvArray() => new()
+        {
+            Id = "pv_array",
+            Name = "光伏方阵",
+            Category = "光伏",
+            Description = "一条光伏 PCS 支路的直流源。默认 16 串 × 30 块 TSM-NEG21C.20Q。上方正/负两路 DC 直连光伏 PCS，不经直流母线。",
+            IsVoltageSource = false,
+            Ports =
+            {
+                new() { Id = "dc_pos", Label = "DC+", Kind = "dc_pos", Side = "top", Offset = 0.35 },
+                new() { Id = "dc_neg", Label = "DC−", Kind = "dc_neg", Side = "top", Offset = 0.65 }
+            },
+            Parameters =
+            {
+                new() { Key = "name", Label = "名称", Type = "string" },
+                new() { Key = "moduleModel", Label = "组件型号", Type = "string" },
+                new() { Key = "operatingYears", Label = "投运年限", Type = "number", Unit = "年", Min = 0 },
+                new() { Key = "groundAlbedo", Label = "地面反照率", Type = "number", Min = 0, Max = 1 },
+                new() { Key = "modulesPerString", Label = "每串串联块数", Type = "number", Min = 1 },
+                new() { Key = "stringCount", Label = "串数", Type = "number", Min = 1 }
+            },
+            DefaultParameters = new Dictionary<string, object?>
+            {
+                ["name"] = "光伏方阵",
+                ["moduleModel"] = EssDeviceSimModel.Pv.TrinaPvModuleCatalog.Neg21c20qModel,
+                ["operatingYears"] = 0d,
+                ["groundAlbedo"] = 0d,
+                ["modulesPerString"] = 30d,
+                ["stringCount"] = 16d
             }
         };
 

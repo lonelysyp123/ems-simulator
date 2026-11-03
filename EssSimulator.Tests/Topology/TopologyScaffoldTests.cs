@@ -55,8 +55,29 @@ public class TopologyScaffoldTests
         var p = TopologyScaffold.BuildRadial(emuCount: 0, name: "光伏场站", includeLoad: true, pvCount: 2);
         Assert.Equal("光伏场站", p.Name);
         Assert.Empty(p.Nodes.Where(n => n.TemplateId == "emu"));
-        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "pv_unit"));
+        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "pvu"));
+        Assert.Equal(8, p.Nodes.Count(n => n.TemplateId == "pv_pcs"));
+        Assert.Equal(8, p.Nodes.Count(n => n.TemplateId == "pv_array"));
+        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "transformer" && n.Label.StartsWith("光伏箱变")));
+        Assert.DoesNotContain(p.Nodes, n => n.TemplateId == "pv_unit");
+        Assert.DoesNotContain(p.Nodes, n => n.TemplateId == "dc_bus");
         Assert.DoesNotContain(p.Nodes, n => n.TemplateId == "bms");
+        Assert.All(p.Nodes.Where(n => n.TemplateId == "pv_pcs"), pcs =>
+        {
+            var pvuId = TopologyParamHelper.GetString(pcs.Parameters, "pvuId");
+            var xf = Assert.Single(p.Nodes.Where(n =>
+                n.TemplateId == "transformer" && TopologyParamHelper.GetString(n.Parameters, "pvuId") == pvuId));
+            Assert.Equal(690d, TopologyParamHelper.GetDouble(pcs.Parameters, "acVoltage"));
+            Assert.Equal(35000d, TopologyParamHelper.GetDouble(xf.Parameters, "primaryVoltage"));
+            Assert.Equal(690d, TopologyParamHelper.GetDouble(xf.Parameters, "secondaryVoltage"));
+            var lv = TopologyValidator.DirectNeighbors(p, pcs.Id).Single(n => n.TemplateId == "ac_bus");
+            Assert.Equal(690d, TopologyParamHelper.GetDouble(lv.Parameters, "nominalVoltage"));
+            Assert.Contains(TopologyValidator.DirectNeighbors(p, xf.Id), n => n.Id == lv.Id);
+            var arrays = TopologyValidator.DirectNeighbors(p, pcs.Id).Where(n => n.TemplateId == "pv_array").ToList();
+            var array = Assert.Single(arrays);
+            Assert.Equal(new[] { pcs.Id }, TopologyValidator.DirectNeighbors(p, array.Id)
+                .Where(n => n.TemplateId == "pv_pcs").Select(n => n.Id));
+        });
         Assert.Contains(p.Nodes, n => n.TemplateId == "load");
 
         var validation = TopologyValidator.ValidateProjectForSave(p);
@@ -67,6 +88,7 @@ public class TopologyScaffoldTests
         Assert.NotNull(overlay);
         Assert.Empty(overlay!.EssUnits);
         Assert.Equal(2, overlay.PvUnits.Count);
+        Assert.All(overlay.PvUnits, u => Assert.Equal(4, u.InverterCount));
     }
 
     [Fact]
@@ -74,7 +96,10 @@ public class TopologyScaffoldTests
     {
         var p = TopologyScaffold.BuildRadial(emuCount: 1, pvCount: 2);
         Assert.Single(p.Nodes.Where(n => n.TemplateId == "emu"));
-        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "pv_unit"));
+        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "pcs"));
+        Assert.Single(p.Nodes.Where(n => n.TemplateId == "dc_bus"));
+        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "bms"));
+        Assert.Equal(2, p.Nodes.Count(n => n.TemplateId == "pvu"));
         Assert.True(TopologyValidator.ValidateProjectForSave(p).Ok);
     }
 
