@@ -473,14 +473,20 @@ wwwroot/
 # 本地提示词草稿（复制到其它对话用，不是产品代码）
 CSharp仿真策略迁移提示词.md
 
-# 组态：工程库、设备库、当前画布、工程模式与应用后的 overlay 均入库
-# （组态界面编辑的实际工程，需合并到 develop）：
-#   configs/topology/projects/*.json
-#   configs/topology/library/*.json
-#   configs/topology/project.json
-#   configs/topology/runtime-mode.json
-#   configs/topology/generated/runtime-overlay.json
-# 仅忽略本机设备型号选型（每人/每台机器可能不同，由工程配置页写入）
+# 组态：界面里的工程/设备库/画布都是**运行期状态**，不入库
+# （打开或保存工程、切换工程模式、点"应用到仿真"都会改写这些文件）
+#   configs/topology/project.json          当前画布
+#   configs/topology/projects/             命名工程
+#   configs/topology/library/              设备库
+#   configs/topology/runtime-mode.json     工程模式开关与激活工程
+#   configs/topology/generated/            应用后生成的运行时 overlay
+#   configs/topology/device-models.json    本机设备型号选型
+# 随仓的预置内容放在 seed/ 下（入库），首次运行由 TopologyStore 自动铺到上面这些目录。
+configs/topology/project.json
+configs/topology/projects/
+configs/topology/library/
+configs/topology/runtime-mode.json
+configs/topology/generated/
 configs/topology/device-models.json
 
 # gh CLI 的日志缓存（CI 排障时用 XDG_CACHE_HOME 指到仓库内，勿入库）

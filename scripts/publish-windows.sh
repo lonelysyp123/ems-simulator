@@ -35,7 +35,10 @@ copy_runtime_files() {
   done
   if [[ -d "$ROOT/configs/topology" ]]; then
     cp -R "$ROOT/configs/topology" "$OUT/configs/topology"
-    rm -f "$OUT/configs/topology/generated/runtime-overlay.json"
+    # 运行期目录不入库也不入包：只带 seed/，首次启动由 TopologyStore 铺出预置工程与设备库
+    rm -f "$OUT/configs/topology/project.json" "$OUT/configs/topology/device-models.json"
+    rm -rf "$OUT/configs/topology/projects" "$OUT/configs/topology/library" \
+           "$OUT/configs/topology/generated"
     cat > "$OUT/configs/topology/runtime-mode.json" <<'JSON'
 {
   "engineeringMode": false,
