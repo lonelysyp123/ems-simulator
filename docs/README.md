@@ -107,6 +107,7 @@ curl -s http://127.0.0.1:5050/api/health     # {"status":"ok","ready":true,...}
 | 光伏低压电表 | `simPvMeterN` | 1901 + (N-1) | `pv_apm810.csv` |
 | 站点级 SEL 装置 | `simSel` | 2001 | `sel.csv`（`EnableSel=true`） |
 | 光伏逆变器 | `simPvInvN` | 2101 + (N-1) | `pv_inverter.csv` |
+| 中压断路器 | `simMvN` | 2301 + (N-1) | `mv.csv`（组态里每台三相断路器一路） |
 | IEC 61850 MMS（IED） | 按 EMU | 8102 + (N-1) | `pointmaps/models/emu/iec61850/mapping.csv` |
 | Web / REST / SignalR | — | 5050 | — |
 

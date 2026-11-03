@@ -215,6 +215,32 @@ namespace EssSimulator.Configuration
 
         /// <summary>站用 SVG Modbus TCP 端口。</summary>
         public int SvgModbusPort { get; set; } = 2201;
+
+        /// <summary>中压断路器 Modbus TCP 基础端口。每台组态三相断路器一路。</summary>
+        public int BaseMvModbusPort { get; set; } = 2301;
+
+        /// <summary>中压断路器端口步长。</summary>
+        public int MvPortStep { get; set; } = 1;
+    }
+
+    /// <summary>组态三相断路器在协议层的角色。</summary>
+    public enum MvBreakerRole
+    {
+        Other = 0,
+        Main = 1,
+        Unit = 2
+    }
+
+    /// <summary>一台组态三相断路器，对应一路 simMv。</summary>
+    public sealed class MvBreakerEndpoint
+    {
+        public string NodeId { get; set; } = "";
+        public string Label { get; set; } = "";
+        public MvBreakerRole Role { get; set; }
+        /// <summary>单元断时为 1-based 储能单元号；其它角色为 0。</summary>
+        public int UnitId { get; set; }
+        /// <summary>相邻交流母线的运行时 Id。其它断路器用它抄线电压。</summary>
+        public string SourceBusId { get; set; } = "";
     }
 
     /// <summary>IEEE 1588 从钟：二层以太网 + 对等时延，本机软件时间戳。</summary>
@@ -443,6 +469,9 @@ namespace EssSimulator.Configuration
 
         /// <summary>SVG 额定容量（kvar）。</summary>
         public double SvgRatedCapacityKvar { get; set; } = 10000;
+
+        /// <summary>组态三相断路器清单，顺序即 simMv 序号。无组态时为空。</summary>
+        public List<MvBreakerEndpoint> MvBreakers { get; set; } = new();
 
         public int EssUnitCount => Devices?.Count ?? 0;
         public int PvUnitCount => PvUnits?.Count ?? 0;

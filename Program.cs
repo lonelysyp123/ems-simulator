@@ -117,13 +117,7 @@ namespace EssSimulator
 
         private static async Task WaitForSimulatorReadyAsync(SimulatorConfig cfg, CancellationToken cancellationToken)
         {
-            int expectedBmsCount = cfg.UnitCount;
-            int expectedEmuCount = EmuProtocolLayout.Count(cfg);
-            int expectedPvCount = cfg.PvUnitCount * 2 + PvInverterProtocolLayout.Enumerate(cfg).Count;
-            int expectedLcCount = 0;
-            if (cfg.Protocol.EnableLocalControl && cfg.EffectiveEssUnitCount > 0)
-                expectedLcCount = cfg.EffectiveEssUnitCount;
-            int expectedServerCount = expectedBmsCount + expectedEmuCount + expectedPvCount + expectedLcCount + 1;
+            int expectedServerCount = EssSimulator.Protocol.Modbus.ProtocolPortPlan.ExpectedListenCount(cfg);
             var timeout = TimeSpan.FromSeconds(60);
             var start = DateTime.UtcNow;
 
@@ -141,6 +135,35 @@ namespace EssSimulator
             }
 
             LogManager.GetLogger(typeof(Program)).Warn("初始化等待超时，仍将启动 Web 服务。若 dpc 初始读取异常，请稍后重试。");
+        }
+
+        /// <summary>旧 overlay 没有断路器清单时，按当前工程补上。工程 Id 不一致则保持空清单。</summary>
+        private static List<MvBreakerEndpoint> LoadMvBreakersFromActiveProject(string contentRoot, string? sourceProjectId)
+        {
+            var path = Path.Combine(contentRoot, "configs", "topology", "project.json");
+            if (!File.Exists(path))
+                return new List<MvBreakerEndpoint>();
+
+            try
+            {
+                var project = JsonSerializer.Deserialize<TopologyProject>(File.ReadAllText(path), new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+                if (project == null)
+                    return new List<MvBreakerEndpoint>();
+                if (!string.IsNullOrWhiteSpace(sourceProjectId)
+                    && !string.Equals(project.Id, sourceProjectId, StringComparison.OrdinalIgnoreCase))
+                    return new List<MvBreakerEndpoint>();
+
+                return MvBreakerProtocolLayout.Enumerate(project);
+            }
+            catch (Exception ex)
+            {
+                LogManager.GetLogger(typeof(Program)).Warn($"读取组态断路器清单失败：{path}", ex);
+                return new List<MvBreakerEndpoint>();
+            }
         }
 
         private static void LogProtocolCreateInfo(SimulatorConfig cfg)
@@ -251,6 +274,11 @@ namespace EssSimulator
                         opt.SvgRatedCapacityKvar = topologyOverlay.SvgRatedCapacityKvar;
                     if (Mw300EssStation.IsThis(topologyOverlay.SourceProjectId))
                         opt.StationProfileId = Mw300EssStation.Id;
+
+                    opt.MvBreakers = topologyOverlay.MvBreakers ?? new List<MvBreakerEndpoint>();
+                    if (opt.MvBreakers.Count == 0)
+                        opt.MvBreakers = LoadMvBreakersFromActiveProject(
+                            builder.Environment.ContentRootPath, topologyOverlay.SourceProjectId);
                 }
 
                 Mw300EssStation.ApplyRuntimePolicy(opt.StationProfileId);
@@ -366,6 +394,7 @@ namespace EssSimulator
             }
 
             builder.Services.AddHostedService<ModbusHostedService>();
+            builder.Services.AddHostedService<MvBreakerHostedService>();
             builder.Services.AddHostedService<EssSimulator.Protocol.Iec61850.Iec61850HostedService>();
             builder.Services.AddHostedService<EssSimulator.Protocol.Ptp.PtpHostedService>();
             if (builder.Configuration.GetSection(SimulatorConfig.Section)

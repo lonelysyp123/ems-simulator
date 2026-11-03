@@ -91,7 +91,8 @@ namespace EssSimulator.Web
                 return Results.Ok(AlarmSnapshotReader.ReadBmsUnit(unitNum, rack));
             });
 
-            app.MapGet("/api/connections", () => Results.Ok(ConnectionSnapshotReader.Read()));
+            app.MapGet("/api/connections", (IOptions<SimulatorConfig> simCfg) =>
+                Results.Ok(ConnectionSnapshotReader.Read(simCfg.Value.MvBreakers)));
 
             app.MapGet("/api/alert", () => Results.Ok(FatalSystemAlert.GetSnapshot()));
 

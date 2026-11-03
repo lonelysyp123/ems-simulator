@@ -65,6 +65,25 @@ namespace EssSimulator.EssSimModelApi.Mappers
             return true;
         }
 
+        /// <summary>主断路器：与 Web/命令同一入口，经 ExternalControlGate 把关后写电气网络。</summary>
+        public static bool TrySetMainBreaker(bool closed, out string message)
+        {
+            if (!ExternalControlGate.TryAllow(out message))
+                return false;
+            message = string.Empty;
+            var ess = SimulatorHost.Instance.TryGetEss();
+            if (ess == null)
+            {
+                message = "找不到 ess 模型，请确认仿真已启动";
+                return false;
+            }
+
+            ess.SetMainBreakerClosed(closed);
+            UiSnapshotNotifier.RequestImmediatePush();
+            message = $"主断路器{(closed ? "合闸" : "分闸")}";
+            return true;
+        }
+
         /// <summary>单元高压断路器：写 EMU 级 Breaker.Closed（并同步 PowerOnOff 别名）并驱动电气网络。</summary>
         public static bool TrySetUnitBreaker(int unit1Based, bool closed, out string message)
         {

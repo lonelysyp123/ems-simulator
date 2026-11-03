@@ -44,6 +44,8 @@ namespace EssSimulator.Web.Topology
         public bool EnableSvg { get; set; }
         /// <summary>SVG 额定容量（kvar）。未放置节点时为 0。</summary>
         public double SvgRatedCapacityKvar { get; set; }
+        /// <summary>工程内全部三相断路器，顺序即 simMv 序号。</summary>
+        public List<MvBreakerEndpoint> MvBreakers { get; set; } = new();
         public List<string> Notes { get; set; } = new();
     }
 
