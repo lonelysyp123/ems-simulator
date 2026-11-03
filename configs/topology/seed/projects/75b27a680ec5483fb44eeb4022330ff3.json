@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "id": "75b27a680ec5483fb44eeb4022330ff3",
   "name": "\u5E38\u7528\u6DF7\u5408\u7535\u7AD9-2*5.5MW\u50A8\u80FD\u002B2*10MW\u5149\u4F0F",
-  "updatedAtUtc": "2026-09-30T02:48:10.93782Z",
+  "updatedAtUtc": "2026-10-20T02:24:27.217315Z",
   "nodes": [
     {
       "id": "2593d2cb86911a01d32668b",
@@ -294,98 +294,6 @@
         "name": "AC\u6BCD\u7EBF",
         "energized": true,
         "sourceNodeId": "590b288ad56471a01d32e89b"
-      }
-    },
-    {
-      "id": "314b912eb802c1a01d396a3e",
-      "templateId": "pv_unit",
-      "label": "\u5149\u4F0F\u5355\u5143",
-      "x": 340,
-      "y": 180,
-      "parameters": {
-        "acVoltage": 35000,
-        "unitXfPrimaryV": 35000,
-        "unitXfSecondaryV": 690,
-        "unitXfRatedKva": 5120,
-        "moduleModel": "TSM-NEG21C.20Q",
-        "modulesPerString": 30,
-        "stringCount": 16,
-        "inverterCount": 16,
-        "inverterRatedPowerKw": 320,
-        "inverterMaxPowerKw": 352,
-        "inverterEfficiency": 0.99,
-        "inverterAcVoltage": 690,
-        "dcVoltageMin": 500,
-        "dcVoltageMax": 1500
-      }
-    },
-    {
-      "id": "6f4f7b3d976bb81a01d398225",
-      "templateId": "pv_unit",
-      "label": "\u5149\u4F0F\u5355\u5143",
-      "x": 520,
-      "y": 180,
-      "parameters": {
-        "acVoltage": 35000,
-        "unitXfPrimaryV": 35000,
-        "unitXfSecondaryV": 690,
-        "unitXfRatedKva": 5120,
-        "moduleModel": "TSM-NEG21C.20Q",
-        "modulesPerString": 30,
-        "stringCount": 16,
-        "inverterCount": 16,
-        "inverterRatedPowerKw": 320,
-        "inverterMaxPowerKw": 352,
-        "inverterEfficiency": 0.99,
-        "inverterAcVoltage": 690,
-        "dcVoltageMin": 500,
-        "dcVoltageMax": 1500
-      }
-    },
-    {
-      "id": "4519557dfbcac81a01d3991b0",
-      "templateId": "pv_unit",
-      "label": "\u5149\u4F0F\u5355\u5143",
-      "x": 700,
-      "y": 180,
-      "parameters": {
-        "acVoltage": 35000,
-        "unitXfPrimaryV": 35000,
-        "unitXfSecondaryV": 690,
-        "unitXfRatedKva": 5120,
-        "moduleModel": "TSM-NEG21C.20Q",
-        "modulesPerString": 30,
-        "stringCount": 16,
-        "inverterCount": 16,
-        "inverterRatedPowerKw": 320,
-        "inverterMaxPowerKw": 352,
-        "inverterEfficiency": 0.99,
-        "inverterAcVoltage": 690,
-        "dcVoltageMin": 500,
-        "dcVoltageMax": 1500
-      }
-    },
-    {
-      "id": "4309d5d645c3081a01d39a40a",
-      "templateId": "pv_unit",
-      "label": "\u5149\u4F0F\u5355\u5143",
-      "x": 880,
-      "y": 180,
-      "parameters": {
-        "acVoltage": 35000,
-        "unitXfPrimaryV": 35000,
-        "unitXfSecondaryV": 690,
-        "unitXfRatedKva": 5120,
-        "moduleModel": "TSM-NEG21C.20Q",
-        "modulesPerString": 30,
-        "stringCount": 16,
-        "inverterCount": 16,
-        "inverterRatedPowerKw": 320,
-        "inverterMaxPowerKw": 352,
-        "inverterEfficiency": 0.99,
-        "inverterAcVoltage": 690,
-        "dcVoltageMin": 500,
-        "dcVoltageMax": 1500
       }
     },
     {
@@ -738,6 +646,586 @@
         "ratedCapacityKvar": 10000,
         "name": "SVG"
       }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_pcs1",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-1",
+      "x": 220,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "314b912eb802c1a01d396a3e_pvu"
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_array1",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96351",
+      "x": 220,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_pcs2",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-2",
+      "x": 300,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "314b912eb802c1a01d396a3e_pvu"
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_array2",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96352",
+      "x": 300,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_pcs3",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-3",
+      "x": 380,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "314b912eb802c1a01d396a3e_pvu"
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_array3",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96353",
+      "x": 380,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_pcs4",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-4",
+      "x": 460,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "314b912eb802c1a01d396a3e_pvu"
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_array4",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96354",
+      "x": 460,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "314b912eb802c1a01d396a3e_pvu",
+      "templateId": "pvu",
+      "label": "\u5149\u4F0F\u5355\u5143",
+      "x": 340,
+      "y": 140,
+      "parameters": {
+        "unitXfPrimaryV": 35000,
+        "unitXfSecondaryV": 690,
+        "unitXfRatedKva": 1280,
+        "unitXfNoLoadLossW": 100,
+        "unitXfLoadLossW": 200,
+        "unitXfImpedancePercent": 5,
+        "unitXfNoLoadCurrentPercent": 2,
+        "name": "\u5149\u4F0F\u5355\u5143"
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_pcs1",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-1",
+      "x": 400,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "6f4f7b3d976bb81a01d398225_pvu"
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_array1",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96351",
+      "x": 400,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_pcs2",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-2",
+      "x": 480,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "6f4f7b3d976bb81a01d398225_pvu"
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_array2",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96352",
+      "x": 480,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_pcs3",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-3",
+      "x": 560,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "6f4f7b3d976bb81a01d398225_pvu"
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_array3",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96353",
+      "x": 560,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_pcs4",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-4",
+      "x": 640,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "6f4f7b3d976bb81a01d398225_pvu"
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_array4",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96354",
+      "x": 640,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "6f4f7b3d976bb81a01d398225_pvu",
+      "templateId": "pvu",
+      "label": "\u5149\u4F0F\u5355\u5143",
+      "x": 520,
+      "y": 140,
+      "parameters": {
+        "unitXfPrimaryV": 35000,
+        "unitXfSecondaryV": 690,
+        "unitXfRatedKva": 1280,
+        "unitXfNoLoadLossW": 100,
+        "unitXfLoadLossW": 200,
+        "unitXfImpedancePercent": 5,
+        "unitXfNoLoadCurrentPercent": 2,
+        "name": "\u5149\u4F0F\u5355\u5143"
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_pcs1",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-1",
+      "x": 580,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4519557dfbcac81a01d3991b0_pvu"
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_array1",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96351",
+      "x": 580,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_pcs2",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-2",
+      "x": 660,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4519557dfbcac81a01d3991b0_pvu"
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_array2",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96352",
+      "x": 660,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_pcs3",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-3",
+      "x": 740,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4519557dfbcac81a01d3991b0_pvu"
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_array3",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96353",
+      "x": 740,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_pcs4",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-4",
+      "x": 820,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4519557dfbcac81a01d3991b0_pvu"
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_array4",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96354",
+      "x": 820,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4519557dfbcac81a01d3991b0_pvu",
+      "templateId": "pvu",
+      "label": "\u5149\u4F0F\u5355\u5143",
+      "x": 700,
+      "y": 140,
+      "parameters": {
+        "unitXfPrimaryV": 35000,
+        "unitXfSecondaryV": 690,
+        "unitXfRatedKva": 1280,
+        "unitXfNoLoadLossW": 100,
+        "unitXfLoadLossW": 200,
+        "unitXfImpedancePercent": 5,
+        "unitXfNoLoadCurrentPercent": 2,
+        "name": "\u5149\u4F0F\u5355\u5143"
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_pcs1",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-1",
+      "x": 760,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4309d5d645c3081a01d39a40a_pvu"
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_array1",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96351",
+      "x": 760,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_pcs2",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-2",
+      "x": 840,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4309d5d645c3081a01d39a40a_pvu"
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_array2",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96352",
+      "x": 840,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_pcs3",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-3",
+      "x": 920,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4309d5d645c3081a01d39a40a_pvu"
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_array3",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96353",
+      "x": 920,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_pcs4",
+      "templateId": "pv_pcs",
+      "label": "\u5149\u4F0F\u5355\u5143-4",
+      "x": 1000,
+      "y": 180,
+      "parameters": {
+        "acVoltage": 35000,
+        "pcsRatedPowerKw": 320,
+        "pcsMaxPowerKw": 352,
+        "pcsEfficiency": 0.99,
+        "dcVoltageMin": 500,
+        "dcVoltageMax": 1500,
+        "name": "\u5149\u4F0FPCS\u652F\u8DEF",
+        "pvuId": "4309d5d645c3081a01d39a40a_pvu"
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_array4",
+      "templateId": "pv_array",
+      "label": "\u5149\u4F0F\u5355\u5143-\u65B9\u96354",
+      "x": 1000,
+      "y": 300,
+      "parameters": {
+        "name": "\u5149\u4F0F\u65B9\u9635",
+        "moduleModel": "TSM-NEG21C.20Q",
+        "operatingYears": 0,
+        "groundAlbedo": 0,
+        "modulesPerString": 30,
+        "stringCount": 16
+      }
+    },
+    {
+      "id": "4309d5d645c3081a01d39a40a_pvu",
+      "templateId": "pvu",
+      "label": "\u5149\u4F0F\u5355\u5143",
+      "x": 880,
+      "y": 140,
+      "parameters": {
+        "unitXfPrimaryV": 35000,
+        "unitXfSecondaryV": 690,
+        "unitXfRatedKva": 1280,
+        "unitXfNoLoadLossW": 100,
+        "unitXfLoadLossW": 200,
+        "unitXfImpedancePercent": 5,
+        "unitXfNoLoadCurrentPercent": 2,
+        "name": "\u5149\u4F0F\u5355\u5143"
+      }
     }
   ],
   "edges": [
@@ -950,90 +1438,6 @@
       "fromPortId": "sec_c",
       "toNodeId": "31c4d655c9ac51a01d3918f8",
       "toPortId": "c"
-    },
-    {
-      "id": "b6ca8f1deada47beb0eb6b1c4a516822",
-      "fromNodeId": "343afda7736321a01d3904ce",
-      "fromPortId": "a2",
-      "toNodeId": "314b912eb802c1a01d396a3e",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "e6ed1af7210040578c388a621952e35a",
-      "fromNodeId": "343afda7736321a01d3904ce",
-      "fromPortId": "b2",
-      "toNodeId": "314b912eb802c1a01d396a3e",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "a7c9379391eb445fbc91dd7e7ecc17b7",
-      "fromNodeId": "343afda7736321a01d3904ce",
-      "fromPortId": "c2",
-      "toNodeId": "314b912eb802c1a01d396a3e",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "f2b971412272493189cc6e7832987516",
-      "fromNodeId": "343afda7736321a01d3904ce",
-      "fromPortId": "a2",
-      "toNodeId": "6f4f7b3d976bb81a01d398225",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "55d4fd48ab864dbe91513eb0c7957342",
-      "fromNodeId": "343afda7736321a01d3904ce",
-      "fromPortId": "b2",
-      "toNodeId": "6f4f7b3d976bb81a01d398225",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "cfbde5bb94ee4484938b917f174a0e8c",
-      "fromNodeId": "343afda7736321a01d3904ce",
-      "fromPortId": "c2",
-      "toNodeId": "6f4f7b3d976bb81a01d398225",
-      "toPortId": "ac_c"
-    },
-    {
-      "id": "0d444a86753d4c0bbec1e933e8ad3967",
-      "fromNodeId": "4519557dfbcac81a01d3991b0",
-      "fromPortId": "ac_a",
-      "toNodeId": "31c4d655c9ac51a01d3918f8",
-      "toPortId": "a2"
-    },
-    {
-      "id": "cd75eb871e2e44bab637d9c77a79a926",
-      "fromNodeId": "4519557dfbcac81a01d3991b0",
-      "fromPortId": "ac_b",
-      "toNodeId": "31c4d655c9ac51a01d3918f8",
-      "toPortId": "b2"
-    },
-    {
-      "id": "6ce5b546363d431f820040e2e083a876",
-      "fromNodeId": "4519557dfbcac81a01d3991b0",
-      "fromPortId": "ac_c",
-      "toNodeId": "31c4d655c9ac51a01d3918f8",
-      "toPortId": "c2"
-    },
-    {
-      "id": "c5fdef19677e463893cdeec6d336d611",
-      "fromNodeId": "31c4d655c9ac51a01d3918f8",
-      "fromPortId": "a2",
-      "toNodeId": "4309d5d645c3081a01d39a40a",
-      "toPortId": "ac_a"
-    },
-    {
-      "id": "aacbc5b3174d4209ad6f97cee0460902",
-      "fromNodeId": "31c4d655c9ac51a01d3918f8",
-      "fromPortId": "b2",
-      "toNodeId": "4309d5d645c3081a01d39a40a",
-      "toPortId": "ac_b"
-    },
-    {
-      "id": "464e0709e7924ec79f91f20694df2c5f",
-      "fromNodeId": "31c4d655c9ac51a01d3918f8",
-      "fromPortId": "c2",
-      "toNodeId": "4309d5d645c3081a01d39a40a",
-      "toPortId": "ac_c"
     },
     {
       "id": "4d068541e94341a1a821759e91b864ea",
@@ -1503,6 +1907,566 @@
       "fromPortId": "c2",
       "toNodeId": "db959662955931a0f03536f2",
       "toPortId": "ac_c"
+    },
+    {
+      "id": "99e05b975d5d41ef8ce4669bb83a76cf",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs1",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "536c43d7697f413bae66f2758280a4a5",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs1",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "07548965114a4e069bae34cc6b46c41c",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs1",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "6e4006a5747d426592b291a6aa94eaf9",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs1",
+      "fromPortId": "dc_pos",
+      "toNodeId": "314b912eb802c1a01d396a3e_array1",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "21e54716237a4f96bfd5ff804061a4c2",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs1",
+      "fromPortId": "dc_neg",
+      "toNodeId": "314b912eb802c1a01d396a3e_array1",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "fe7917609fdc4d15b4624d9b0f06d29f",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs2",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "248556fed68a46719fbc192e38280074",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs2",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "debf4a63ed194f83b711a89fb4a24b97",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs2",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "5bca22dcb3e04529a4eef1be7496340f",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs2",
+      "fromPortId": "dc_pos",
+      "toNodeId": "314b912eb802c1a01d396a3e_array2",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "8c9bf3e2af024a49a060457b7115941d",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs2",
+      "fromPortId": "dc_neg",
+      "toNodeId": "314b912eb802c1a01d396a3e_array2",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "144b718fa00343348b7caa4475cf251b",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs3",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "ba6020842ae9412bb37d086c8ac930a9",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs3",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "9e1492c91aaf4854a56a8d818ee16529",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs3",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "5ba3b9cbb0814a20aac010de6d135b95",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs3",
+      "fromPortId": "dc_pos",
+      "toNodeId": "314b912eb802c1a01d396a3e_array3",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "7be75e6fa82b4b039c51804c16a74760",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs3",
+      "fromPortId": "dc_neg",
+      "toNodeId": "314b912eb802c1a01d396a3e_array3",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "a72c159a4cdb4141aa21ec33a56cf0e5",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs4",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "c29caa3e95124615b95514f6407445d7",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs4",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "e9dcef96ea934e60975a667ca19d87f6",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "314b912eb802c1a01d396a3e_pcs4",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "7205e799ce5244f7858b10d304f16869",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs4",
+      "fromPortId": "dc_pos",
+      "toNodeId": "314b912eb802c1a01d396a3e_array4",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "3fe4f793fb9d468994c4e8b729611029",
+      "fromNodeId": "314b912eb802c1a01d396a3e_pcs4",
+      "fromPortId": "dc_neg",
+      "toNodeId": "314b912eb802c1a01d396a3e_array4",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "7cdff1f0a5ed4f0d9f147bbaec6ea8a1",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs1",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "35bc40b94ebb454aac801c9ecf7aedea",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs1",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "5907502e180e4b11a9161edb8d6ed027",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs1",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "a68baab9407b4b809340fedf771d523c",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs1",
+      "fromPortId": "dc_pos",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array1",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "792fefe7c3f64a6b9be7e5214715eefc",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs1",
+      "fromPortId": "dc_neg",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array1",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "53b51c091a2849f083c091e13988f739",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs2",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "ea1a82abf17445338055a1a8928ea057",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs2",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "9dc30a39aaf2404cb5ae38e027802505",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs2",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "d6ee7b3bc973404dbdeafb74fb99b15f",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs2",
+      "fromPortId": "dc_pos",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array2",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "ee1f666a07ab403a8bb6659cb1a74cf6",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs2",
+      "fromPortId": "dc_neg",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array2",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "584b5876a1364275b70a2781072a84cc",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs3",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "b665b52853d14e2a94f4e1aeb7620d4e",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs3",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "d394b61280f24fdbbeb1e7b53e750be5",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs3",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "e8ed29546c7a4e0db7f1d7ae7763609a",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs3",
+      "fromPortId": "dc_pos",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array3",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "3015ac6729384498b17138c8b8f8de30",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs3",
+      "fromPortId": "dc_neg",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array3",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "857966c1f3b74555a195f8443c4e5107",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "a2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs4",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "17c9391f3a954d4c9e4f30d6d4e73691",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "b2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs4",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "836ab3ca051d4348b0a0b0e77b98a85b",
+      "fromNodeId": "343afda7736321a01d3904ce",
+      "fromPortId": "c2",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_pcs4",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "e29364ebb2734cbcb41042c06f9021cb",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs4",
+      "fromPortId": "dc_pos",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array4",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "ae53afe6dd7d4647b6116d1aeb45f2b7",
+      "fromNodeId": "6f4f7b3d976bb81a01d398225_pcs4",
+      "fromPortId": "dc_neg",
+      "toNodeId": "6f4f7b3d976bb81a01d398225_array4",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "295b7b59e0ed4e199bb674870b797426",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs1",
+      "fromPortId": "ac_a",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "a2"
+    },
+    {
+      "id": "9b59a1de471b438f8145e73498389c6a",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs1",
+      "fromPortId": "ac_b",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "b2"
+    },
+    {
+      "id": "d09113a0cc024e2ebebde64d5bb9d5f7",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs1",
+      "fromPortId": "ac_c",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "c2"
+    },
+    {
+      "id": "facccabb983c48138f2346be4e1e1bbc",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs1",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array1",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "19ab3c81624a4f858d41b8d023a06290",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs1",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array1",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "715c69e981744c8e859e0e21f5ba55c0",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs2",
+      "fromPortId": "ac_a",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "a2"
+    },
+    {
+      "id": "99b9caeff98c4ccd98c48ad32c6a516b",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs2",
+      "fromPortId": "ac_b",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "b2"
+    },
+    {
+      "id": "b64a5139c3ac43419af554a65a2bfc5a",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs2",
+      "fromPortId": "ac_c",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "c2"
+    },
+    {
+      "id": "d59fcd0b50b94ebcafdc313bd075f533",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs2",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array2",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "1311463cc148410e84f42d50a1c32e88",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs2",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array2",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "1f39f0bbe34a47508819b6679ad132f5",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs3",
+      "fromPortId": "ac_a",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "a2"
+    },
+    {
+      "id": "a1f18cd186af401bb2dc826fc5393906",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs3",
+      "fromPortId": "ac_b",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "b2"
+    },
+    {
+      "id": "4a7701dcdd11417da70be15458a756aa",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs3",
+      "fromPortId": "ac_c",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "c2"
+    },
+    {
+      "id": "e143350172f648bb91e7ff3375af69b2",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs3",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array3",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "ef37357008ef4a93961b9328372b9cd2",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs3",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array3",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "8533c97bce534c7484bd5b6776e46f18",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs4",
+      "fromPortId": "ac_a",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "a2"
+    },
+    {
+      "id": "b3cca6396cb74570a40ddfee5e2671b3",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs4",
+      "fromPortId": "ac_b",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "b2"
+    },
+    {
+      "id": "6ae1c4a1da5e4cea9c1378c0658b8960",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs4",
+      "fromPortId": "ac_c",
+      "toNodeId": "31c4d655c9ac51a01d3918f8",
+      "toPortId": "c2"
+    },
+    {
+      "id": "04165a6ecfaa409eb10ba8a63e387d62",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs4",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array4",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "7ee75618580b40958054dca68df66d16",
+      "fromNodeId": "4519557dfbcac81a01d3991b0_pcs4",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4519557dfbcac81a01d3991b0_array4",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "a0926f43848c4b27ac02a421c39de4eb",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "a2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs1",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "b15762264bb541fd968fe7bdce27ec37",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "b2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs1",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "e3f2a8d03001408dadb8c1d470f82843",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "c2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs1",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "062e3a7b0eb04b59bd3a4c8ccb9969ca",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs1",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array1",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "dabccf37138d411c89d81013ab67a774",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs1",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array1",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "c4d7f1b3108f430e8eda81cd29031c58",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "a2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs2",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "15926f0999eb47109e8ec456f5057bb0",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "b2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs2",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "cb26baa7e84c47eab71d56cd7ce32ec0",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "c2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs2",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "201919baebee493098742c7c6da3844d",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs2",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array2",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "77898d5ca24246629c0eed9df47931e9",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs2",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array2",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "0daef491c756472a8b8986866a3ef9f6",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "a2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs3",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "4d4e52588d7740159171f56aa5774f7c",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "b2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs3",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "59cdb5bb9d7a43c993f8e6e6efeefe3a",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "c2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs3",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "f13da74d3e5b470eabe38e58ee13825c",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs3",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array3",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "41410eed07d94fe1925a499835f00fa8",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs3",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array3",
+      "toPortId": "dc_neg"
+    },
+    {
+      "id": "a62c22306b5a48a5b74b721824fe3a00",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "a2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs4",
+      "toPortId": "ac_a"
+    },
+    {
+      "id": "4f87e4fa4514451b85497cc86f37a116",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "b2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs4",
+      "toPortId": "ac_b"
+    },
+    {
+      "id": "096fd33de36140178753eb99f7e11687",
+      "fromNodeId": "31c4d655c9ac51a01d3918f8",
+      "fromPortId": "c2",
+      "toNodeId": "4309d5d645c3081a01d39a40a_pcs4",
+      "toPortId": "ac_c"
+    },
+    {
+      "id": "85d64db194ba4b9cb3a885bafedc2640",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs4",
+      "fromPortId": "dc_pos",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array4",
+      "toPortId": "dc_pos"
+    },
+    {
+      "id": "302978cf3e0d48dbbff08a6badeeadae",
+      "fromNodeId": "4309d5d645c3081a01d39a40a_pcs4",
+      "fromPortId": "dc_neg",
+      "toNodeId": "4309d5d645c3081a01d39a40a_array4",
+      "toPortId": "dc_neg"
     }
   ]
 }
