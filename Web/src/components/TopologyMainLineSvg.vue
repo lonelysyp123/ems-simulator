@@ -80,7 +80,7 @@
                 :tripped="br.isMain ? snap.mainBreakerTripped : false"
               />
               <text :x="br.x + 22" :y="br.y + 4" class="label-text breaker-label">
-                {{ br.isMain ? `主断 ${snap.mainBreakerLabel || fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}` : br.label }}
+                {{ mvTag(br.id) }}{{ br.isMain ? `主断 ${snap.mainBreakerLabel || fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}` : br.label }}
               </text>
             </g>
 
@@ -89,7 +89,7 @@
               <rect :x="br.x - 18" :y="br.yTop" width="36" :height="br.yBottom - br.yTop" rx="3" fill="transparent" />
               <BreakerSymbol :x="br.x" :y="br.y" :closed="tieBreakerLive(br).closed" :tripped="tieBreakerLive(br).tripped" />
               <text :x="br.x + 22" :y="br.y + 4" class="label-text breaker-label">
-                {{ br.label }} {{ tieBreakerLive(br).label }}
+                {{ mvTag(br.id) }}{{ br.label }} {{ tieBreakerLive(br).label }}
               </text>
             </g>
 
@@ -98,7 +98,7 @@
               <rect :x="br.x - 18" :y="br.yTop" width="36" :height="br.yBottom - br.yTop" rx="3" fill="transparent" />
               <BreakerSymbol :x="br.x" :y="br.y" :closed="tieBreakerLive(br).closed" :tripped="tieBreakerLive(br).tripped" />
               <text :x="br.x + 22" :y="br.y + 4" class="label-text breaker-label">
-                {{ br.label }} {{ tieBreakerLive(br).label }}
+                {{ mvTag(br.id) }}{{ br.label }} {{ tieBreakerLive(br).label }}
               </text>
             </g>
 
@@ -245,7 +245,7 @@
                 <rect x="-22" :y="u.brkTop" width="44" :height="u.brkBottom - u.brkTop" rx="3" fill="transparent" />
                 <BreakerSymbol :x="0" :y="u.brkMid" :closed="emuBreakerLive(u).closed" :tripped="emuBreakerLive(u).tripped" />
                 <text x="24" :y="u.brkMid + 4" class="label-text breaker-label">
-                  {{ u.unitBreakerNode.label || '断路器' }} {{ emuBreakerLive(u).label }}
+                  {{ mvTag(u.unitBreakerNode.id) }}{{ u.unitBreakerNode.label || '断路器' }} {{ emuBreakerLive(u).label }}
                 </text>
               </template>
               <template v-for="c in u.cards" :key="`card-${c.id}`">
@@ -270,6 +270,33 @@
                   @bms-power-off="n => $emit('bms-power-off', n)"
                   @bms-fault-clear="n => $emit('bms-fault-clear', n)"
                   @bms-set-soc="p => $emit('bms-set-soc', p)"
+                />
+                <PvChainPcsCard
+                  v-else-if="c.tone === 'pvPcs'"
+                  :card="c"
+                  :live="pvInverterLive(u, c)"
+                  :pv-number="pvLive(u)?.pvNumber || (Number.isInteger(u.pvIndex) && u.pvIndex >= 0 ? u.pvIndex + 1 : 0)"
+                  :x="c.x"
+                  :y="c.y"
+                  :h="c.h"
+                  @pv-pcs-set-power="p => $emit('pv-pcs-set-power', p)"
+                  @pv-pcs-set-reactive="p => $emit('pv-pcs-set-reactive', p)"
+                  @pv-pcs-start="n => $emit('pv-pcs-start', n)"
+                  @pv-pcs-stop="n => $emit('pv-pcs-stop', n)"
+                />
+                <PvChainArrayCard
+                  v-else-if="c.tone === 'pvArray'"
+                  :card="c"
+                  :live="pvArrayLive(u, c.side)"
+                  :inverter-live="pvInverterLive(u, c)"
+                  :pv-number="pvLive(u)?.pvNumber || (Number.isInteger(u.pvIndex) && u.pvIndex >= 0 ? u.pvIndex + 1 : 0)"
+                  :x="c.x"
+                  :y="c.y"
+                  :h="c.h"
+                  @pv-set-max="p => $emit('pv-set-max', p)"
+                  @pv-clear-max="n => $emit('pv-clear-max', n)"
+                  @pv-set-temp="p => $emit('pv-set-temp', p)"
+                  @pv-set-angle="p => $emit('pv-set-angle', p)"
                 />
                 <g v-else :transform="`translate(${c.x}, 0)`">
                   <foreignObject :x="-c.w / 2" :y="c.y" :width="c.w" :height="c.h">
@@ -319,6 +346,7 @@
 <script setup>
 import { computed, defineComponent, h, onBeforeUnmount, reactive, ref } from 'vue'
 import { buildTopologyMainLineLayout } from './topology/topologyMainLineLayout.js'
+import { mvBreakerCodeMap, protocolBreakerClosed } from './topology/mvBreakerLive.js'
 import SvgStationCard from './SvgStationCard.vue'
 
 const MIN_ZOOM = 0.5
@@ -339,6 +367,11 @@ function pvConfigLayoutText(modulesPerString, stringCount, inverterCount) {
 const props = defineProps({
   snap: { type: Object, required: true }
 })
+const mvCodes = computed(() => mvBreakerCodeMap(props.snap.topology?.nodes))
+function mvTag(id) {
+  const code = id ? mvCodes.value[id] : ''
+  return code ? `${code} ` : ''
+}
 defineEmits([
   'toggle-main-breaker',
   'pv-start',
@@ -348,6 +381,12 @@ defineEmits([
   'pv-set-temp',
   'pv-set-angle',
   'pv-set-albedo',
+  'pv-set-max',
+  'pv-clear-max',
+  'pv-pcs-set-power',
+  'pv-pcs-set-reactive',
+  'pv-pcs-start',
+  'pv-pcs-stop',
   'pcs-start',
   'pcs-stop',
   'pcs-set-power',
@@ -458,9 +497,35 @@ function pvLive(u) {
   if (Number.isInteger(idx) && idx >= 0 && list[idx]) return list[idx]
   return list.find(p => p.pvNumber === (idx + 1)) || null
 }
+function pvInverterLive(u, card) {
+  const list = pvLive(u)?.inverters || []
+  const idx = card?.inverterIndex
+  if (Number.isInteger(idx) && list[idx]) return list[idx]
+  return null
+}
 function pvArrayLive(u, side) {
   const live = pvLive(u) || {}
   return side === 'B' ? (live.arrayB || null) : (live.arrayA || null)
+}
+const capPanels = reactive({})
+function capPanel(pvNumber, inverterIndex, inverterLive) {
+  const key = `${pvNumber || 0}:${inverterIndex ?? 0}`
+  const enabled = !!inverterLive?.dischargeCapEnabled
+  let panel = capPanels[key]
+  if (!panel) {
+    panel = {
+      open: enabled,
+      draft: enabled && inverterLive?.dischargeCapKw != null ? String(inverterLive.dischargeCapKw) : '',
+      seen: enabled
+    }
+    capPanels[key] = panel
+  } else if (panel.seen !== enabled) {
+    panel.seen = enabled
+    panel.open = enabled
+    if (enabled && inverterLive?.dischargeCapKw != null)
+      panel.draft = String(inverterLive.dischargeCapKw)
+  }
+  return panel
 }
 /** 运行时通道索引：卡片编号 N ↔ channel.pcsNumber / compartmentNumber == N */
 const runtimeChannelMaps = computed(() => {
@@ -494,6 +559,10 @@ function emuBreakerLive(u) {
 }
 /** 母线分段断路器状态：绑定了 EMU 时取该运行时单元的实时遥信，否则回落组态静态参数 */
 function tieBreakerLive(br) {
+  const override = br.unitIndex == null ? protocolBreakerClosed(props.snap, br.id) : null
+  if (override != null) {
+    return { closed: override, tripped: false, label: fmtBreaker(override, false) }
+  }
   const live = br.unitIndex != null
     ? (props.snap.units || []).find(x => x.unitIndex === br.unitIndex)
     : null
@@ -508,6 +577,8 @@ function tieBreakerLive(br) {
 }
 function fmtBreaker(closed, tripped) { return tripped ? '跳闸' : closed ? '合' : '分' }
 function breakerClosed(node) {
+  const override = protocolBreakerClosed(props.snap, node?.id)
+  if (override != null) return override
   const v = node?.parameters?.closed
   return v === true || v === 'true' || v === 1
 }
@@ -607,6 +678,9 @@ const PvXfmrCard = defineComponent({
       const draftHost = { pvNumber }
       const halfW = XFMR_BOX_W / 2
       const running = live.running === true || Number(live.onOff) === 1
+      const standby = running && (live.standby === true
+        || (Math.abs(Number(live.targetActivePowerKw) || 0) <= 0.01
+          && Math.abs(Number(pKw) || 0) <= 0.01))
       const pKw = live.activePowerKw
       const qKvar = live.reactivePowerKvar
       const invCount = Number(u.inverterCount)
@@ -619,7 +693,7 @@ const PvXfmrCard = defineComponent({
         `实时 P ${pKw == null ? '—' : `${Number(pKw).toFixed(1)} kW`}`,
         `实时 Q ${qKvar == null ? '—' : `${Number(qKvar).toFixed(1)} kvar`}`,
         `可发 ${live.maximumDischargePowerKw == null ? '—' : `${Number(live.maximumDischargePowerKw).toFixed(1)} kW`}`,
-        `状态 ${running ? '运行' : '停机'}${gridCount != null ? ` · 并网 ${gridCount}` : ''}`
+        `状态 ${standby ? '待机' : (running ? '运行' : '停机')}${gridCount != null ? ` · 并网 ${gridCount}` : ''}`
       ]
       return h('g', { transform: `translate(${p.x}, 0)` }, [
         h('foreignObject', { x: -halfW, y: p.y, width: XFMR_BOX_W, height: p.h }, [
@@ -764,6 +838,182 @@ const PvArrayCard = defineComponent({
                   }
                 }, '设定')
               ])
+            ])
+          ])
+        ])
+      ])
+    }
+  }
+})
+
+const PvChainPcsCard = defineComponent({
+  props: { card: Object, live: Object, pvNumber: Number, x: Number, y: Number, h: Number },
+  emits: ['pv-pcs-set-power', 'pv-pcs-set-reactive', 'pv-pcs-start', 'pv-pcs-stop'],
+  setup(p, { emit }) {
+    return () => {
+      const c = p.card || {}
+      const live = p.live
+      const pvNumber = p.pvNumber || 0
+      const inverterNumber = (c.inverterIndex ?? 0) + 1
+      const draftHost = { pvNumber, side: `pcs${c.inverterIndex ?? 0}` }
+      const halfW = (c.w || BOX_W) / 2
+      const num = (v, digits, suffix) => (live == null || v == null || v === '' ? '—' : `${Number(v).toFixed(digits)}${suffix}`)
+      const pvStandby = live != null
+        && (live.running === true || Number(live.onOff) === 1)
+        && Math.abs(Number(live.activePowerSettingKw) || 0) <= 0.01
+        && Math.abs(Number(live.activePowerKw) || 0) <= 0.01
+      const lines = [
+        `状态:${pvStandby ? '待机' : (live?.stateText || '—')}`,
+        `启停:${live == null ? '—' : live.onOff}`,
+        `P设:${num(live?.activePowerSettingKw, 1, 'kW')}`,
+        `P实:${num(live?.activePowerKw, 1, 'kW')}`,
+        `Q设:${num(live?.reactivePowerSettingKvar, 1, 'kvar')}`,
+        `Q实:${num(live?.reactivePowerKvar, 1, 'kvar')}`,
+        `可发:${num(live?.availableAcPowerKw, 1, 'kW')}`
+      ]
+      return h('g', { transform: `translate(${p.x}, 0)` }, [
+        h('foreignObject', { x: -halfW, y: p.y, width: c.w || BOX_W, height: p.h }, [
+          h('div', { xmlns: 'http://www.w3.org/1999/xhtml', class: 'svg-device-box pcs-box' }, [
+            h('div', { class: 'box-title' }, c.title || `光伏PCS${inverterNumber}`),
+            ...lines.map(t => h('div', { class: 'box-line' }, t)),
+            h('div', { class: 'box-controls' }, [
+              h('div', { class: 'power-row' }, [
+                h('label', { class: 'power-label' }, 'P设(kW)'),
+                h('input', {
+                  type: 'text', inputMode: 'decimal', class: 'power-input',
+                  value: getDraft(draftHost, 'p', live?.activePowerSettingKw ?? 0),
+                  onInput: (e) => setDraft(draftHost, 'p', e.target.value)
+                }),
+                h('button', {
+                  type: 'button', class: 'act-btn act-set',
+                  onClick: (e) => {
+                    e.stopPropagation()
+                    const powerKw = Number(getDraft(draftHost, 'p', live?.activePowerSettingKw))
+                    if (!Number.isFinite(powerKw) || powerKw < 0) return
+                    emit('pv-pcs-set-power', { pvNumber, inverterNumber, powerKw })
+                  }
+                }, '设定')
+              ]),
+              h('div', { class: 'power-row' }, [
+                h('label', { class: 'power-label' }, 'Q设(kvar)'),
+                h('input', {
+                  type: 'text', inputMode: 'decimal', class: 'power-input',
+                  value: getDraft(draftHost, 'q', live?.reactivePowerSettingKvar ?? 0),
+                  onInput: (e) => setDraft(draftHost, 'q', e.target.value)
+                }),
+                h('button', {
+                  type: 'button', class: 'act-btn act-set',
+                  onClick: (e) => {
+                    e.stopPropagation()
+                    const reactiveKvar = Number(getDraft(draftHost, 'q', live?.reactivePowerSettingKvar))
+                    if (!Number.isFinite(reactiveKvar)) return
+                    emit('pv-pcs-set-reactive', { pvNumber, inverterNumber, reactiveKvar })
+                  }
+                }, '设定')
+              ]),
+              h('div', { class: 'box-actions' }, [
+                h('button', {
+                  type: 'button', class: 'act-btn act-on',
+                  onClick: (e) => { e.stopPropagation(); emit('pv-pcs-start', { pvNumber, inverterNumber }) }
+                }, '启动'),
+                h('button', {
+                  type: 'button', class: 'act-btn act-off',
+                  onClick: (e) => { e.stopPropagation(); emit('pv-pcs-stop', { pvNumber, inverterNumber }) }
+                }, '停机')
+              ])
+            ])
+          ])
+        ])
+      ])
+    }
+  }
+})
+
+const PvChainArrayCard = defineComponent({
+  props: { card: Object, live: Object, inverterLive: Object, pvNumber: Number, x: Number, y: Number, h: Number },
+  emits: ['pv-set-max', 'pv-clear-max', 'pv-set-temp', 'pv-set-angle'],
+  setup(p, { emit }) {
+    return () => {
+      const c = p.card || {}
+      const live = p.live
+      const pvNumber = p.pvNumber || 0
+      const side = c.side || 'A'
+      const inverterIndex = Number.isInteger(c.inverterIndex) ? c.inverterIndex : 0
+      const inverterNumber = inverterIndex + 1
+      const inv = p.inverterLive
+      const panel = capPanel(pvNumber, inverterIndex, inv)
+      const draftHost = { pvNumber, side }
+      const halfW = (c.w || BOX_W) / 2
+      const dash = (v, digits, suffix = '') => (v == null || v === '' ? '—' : `${Number(v).toFixed(digits)}${suffix}`)
+      const lines = [
+        `有功 ${dash(inv?.activePowerKw ?? live?.activePowerKw, 0)}  可发 ${dash(inv?.availableAcPowerKw ?? live?.availableAcPowerKw, 0)}`,
+        `直流 ${dash(live?.dcVoltageV, 0, 'V')} / ${dash(live?.dcCurrentA, 0, 'A')}`,
+        `辐照 ${dash(live?.planeOfArrayWm2, 0, ' W/㎡')}  组件 ${dash(live?.cellTemperatureC, 1, '℃')}`
+      ]
+      const climateLocked = panel.open
+      const climateRow = (label, kind, fallback, emitName, payloadKey) => h('div', { class: ['power-row', climateLocked ? 'climate-locked' : ''] }, [
+        h('label', { class: 'power-label' }, label),
+        h('input', {
+          type: 'text', inputMode: 'decimal', class: 'power-input',
+          value: getDraft(draftHost, kind, fallback),
+          disabled: climateLocked,
+          onInput: (e) => { if (!climateLocked) setDraft(draftHost, kind, e.target.value) }
+        }),
+        h('button', {
+          type: 'button', class: 'act-btn act-set',
+          disabled: climateLocked,
+          onClick: (e) => {
+            e.stopPropagation()
+            if (climateLocked) return
+            const value = Number(getDraft(draftHost, kind, fallback))
+            if (!Number.isFinite(value)) return
+            emit(emitName, { pvNumber, side, [payloadKey]: value })
+          }
+        }, '设定')
+      ])
+      return h('g', { transform: `translate(${p.x}, 0)` }, [
+        h('foreignObject', { x: -halfW, y: p.y, width: c.w || BOX_W, height: p.h }, [
+          h('div', { xmlns: 'http://www.w3.org/1999/xhtml', class: 'svg-device-box pv-array-box' }, [
+            h('div', { class: 'box-title' }, [
+              c.title || '方阵',
+              h('span', { class: 'box-title-meta' }, ` ${side} ${c.stringCount}串×${c.modulesPerString}块`)
+            ]),
+            h('div', { class: 'box-line' }, c.moduleModel || '—'),
+            ...lines.map(t => h('div', { class: 'box-line' }, t)),
+            h('div', { class: 'box-controls' }, [
+              h('label', { class: 'power-row power-label' }, [
+                h('input', {
+                  type: 'checkbox',
+                  class: 'cap-switch',
+                  checked: panel.open,
+                  onChange: (e) => {
+                    panel.open = !!e.target.checked
+                    if (!panel.open) emit('pv-clear-max', { pvNumber, inverterNumber })
+                  }
+                }),
+                '最大放电'
+              ]),
+              panel.open
+                ? h('div', { class: 'power-row' }, [
+                  h('label', { class: 'power-label' }, 'kW'),
+                  h('input', {
+                    type: 'text', inputMode: 'decimal', class: 'power-input',
+                    value: panel.draft,
+                    onInput: (e) => { panel.draft = e.target.value }
+                  }),
+                  h('button', {
+                    type: 'button', class: 'act-btn act-set',
+                    onClick: (e) => {
+                      e.stopPropagation()
+                      const powerKw = Number(panel.draft)
+                      if (!Number.isFinite(powerKw) || powerKw < 0) return
+                      emit('pv-set-max', { pvNumber, inverterNumber, powerKw })
+                    }
+                  }, '设定')
+                ])
+                : h('div', { class: 'power-row cap-reserve' }),
+              climateRow('环境℃', 't', live?.ambientTemperatureC ?? 25, 'pv-set-temp', 'temperatureC'),
+              climateRow('入射角°', 'ang', live?.incidenceAngleDeg ?? 90, 'pv-set-angle', 'angleDeg')
             ])
           ])
         ])
@@ -974,6 +1224,16 @@ const BmsCard = defineComponent({
 .svg-device-box.pv-array-box .power-row { margin-top: 2px; height: 16px; }
 .svg-device-box.pv-array-box .power-input { height: 16px; padding: 0 3px; }
 .svg-device-box.pv-array-box .act-btn { height: 16px; padding: 0 4px; line-height: 14px; }
+.svg-device-box.pv-array-box .cap-switch { margin: 0 4px 0 0; vertical-align: middle; }
+.svg-device-box.pv-array-box .cap-reserve { visibility: hidden; }
+.svg-device-box.pv-array-box .climate-locked { color: #c0c4cc; }
+.svg-device-box.pv-array-box .climate-locked .power-input,
+.svg-device-box.pv-array-box .climate-locked .act-btn {
+  color: #c0c4cc;
+  background: #f5f7fa;
+  border-color: #e4e7ed;
+  cursor: not-allowed;
+}
 .svg-device-box.pv-xfmr-box {
   background: #f3faf3; border: 1px solid #529b2e; color: #303133;
   padding: 3px 5px; font-size: 10px; line-height: 1.2;

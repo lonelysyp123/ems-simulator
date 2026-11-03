@@ -853,3 +853,49 @@ describe('edge-derived cable redraw', () => {
     assert.ok(Math.abs(onBarX - barEndX) < 1e-6, `clamped to bar end: ${onBarX} vs ${barEndX}`)
   })
 })
+
+describe('photovoltaic pcs and array placement', () => {
+  it('places one pcs mesh and one array mesh per branch', () => {
+    const nodes = [
+      node('grid', 'grid', '电网', 0, { outputVoltage: 220000 }),
+      node('bus', 'ac_bus', '35kV', 0, { nominalVoltage: 35000 }),
+      node('u1', 'pvu', '光伏单元', 0, {})
+    ]
+    const edges = [edge('grid', 'bus')]
+    for (let i = 0; i < 4; i++) {
+      nodes.push(node(`c${i}`, 'pv_pcs', `PCS-${i}`, i * 40, { pvuId: 'u1', pcsRatedPowerKw: 320 }))
+      nodes.push(node(`a${i}`, 'pv_array', `方阵-${i}`, i * 40, { stringCount: 16, modulesPerString: 30 }))
+      edges.push(edge(`c${i}`, 'bus'))
+      edges.push({ fromNodeId: `c${i}`, toNodeId: `a${i}`, fromPortId: 'dc_pos', toPortId: 'dc_pos' })
+    }
+    const layout = buildStation3dLayout({ topology: { nodes, edges }, units: [], pvUnits: [] })
+    const pcs = layout.items.filter(i => i.kind === 'pcs')
+    const arrays = layout.items.filter(i => i.templateId === 'pv_array')
+    assert.equal(pcs.length, 4)
+    assert.equal(arrays.length, 4)
+    const pcsXs = pcs.map(i => i.x).sort((a, b) => a - b)
+    const arrayXs = arrays.map(i => i.x).sort((a, b) => a - b)
+    assert.deepEqual(pcsXs, arrayXs)
+    assert.ok(!layout.items.some(i => i.templateId === 'pvu'))
+    assert.ok(!layout.items.some(i => i.templateId === 'dc_bus'))
+  })
+
+  it('keeps an energy-storage pcs and bms pair', () => {
+    const layout = buildStation3dLayout({
+      topology: {
+        nodes: [
+          node('grid', 'grid', '电网', 0, { outputVoltage: 35000 }),
+          node('bus', 'ac_bus', '35kV', 0, { nominalVoltage: 35000 }),
+          node('e1', 'emu', 'EMU', 0, {}),
+          node('p1', 'pcs', 'PCS', 0, { emuId: 'e1' }),
+          node('b1', 'bms', 'BMS', 0, {})
+        ],
+        edges: [edge('grid', 'bus'), edge('p1', 'bus'), edge('p1', 'b1')]
+      },
+      units: [],
+      pvUnits: []
+    })
+    assert.equal(layout.items.filter(i => i.kind === 'pcs').length, 1)
+    assert.equal(layout.items.filter(i => i.templateId === 'bms').length, 1)
+  })
+})
