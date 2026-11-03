@@ -84,7 +84,7 @@ namespace EssSimulator.Web.Topology
                 {
                     var json = File.ReadAllText(_projectPath);
                     var project = JsonSerializer.Deserialize<TopologyProject>(json, JsonOpts) ?? new TopologyProject();
-                    TopologyValidator.RefreshAcBusEnergization(project);
+                    PrepareLoaded(project);
                     return project;
                 }
                 catch
@@ -157,7 +157,7 @@ namespace EssSimulator.Web.Topology
                     var cur = JsonSerializer.Deserialize<TopologyProject>(File.ReadAllText(_projectPath), JsonOpts);
                     if (cur != null && string.Equals(cur.Id, id, StringComparison.OrdinalIgnoreCase))
                     {
-                        TopologyValidator.RefreshAcBusEnergization(cur);
+                        PrepareLoaded(cur);
                         return cur;
                     }
                 }
@@ -165,7 +165,7 @@ namespace EssSimulator.Web.Topology
                 try
                 {
                     var p = JsonSerializer.Deserialize<TopologyProject>(File.ReadAllText(path), JsonOpts);
-                    if (p != null) TopologyValidator.RefreshAcBusEnergization(p);
+                    if (p != null) PrepareLoaded(p);
                     return p;
                 }
                 catch { return null; }
@@ -380,13 +380,20 @@ namespace EssSimulator.Web.Topology
             UpdatedAtUtc = p.UpdatedAtUtc,
             NodeCount = p.Nodes?.Count ?? 0,
             EmuCount = p.Nodes?.Count(n => n.TemplateId == "emu") ?? 0,
-            PvCount = p.Nodes?.Count(n => n.TemplateId == "pv_unit") ?? 0
+            PvCount = p.Nodes?.Count(n => n.TemplateId is "pvu" or "pv_unit") ?? 0
         };
+
+        private static void PrepareLoaded(TopologyProject project)
+        {
+            PvUnitExpansion.Expand(project);
+            TopologyValidator.RefreshAcBusEnergization(project);
+        }
 
         private static void NormalizeParameters(TopologyProject project)
         {
             foreach (var node in project.Nodes)
                 node.Parameters = NormalizeDict(node.Parameters);
+            PvUnitExpansion.Expand(project);
             MigrateMeterUnifiedPorts(project);
             PruneInvalidEdges(project);
         }

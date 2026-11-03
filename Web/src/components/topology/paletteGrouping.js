@@ -15,7 +15,8 @@ function matchesQuery(text, query) {
 export function groupTemplatesByCategory(templates, query = '') {
   const q = norm(query)
   const filtered = (templates || []).filter(t =>
-    matchesQuery(t.name, q) || matchesQuery(t.category, q) || matchesQuery(t.id, q)
+    t.id !== 'pv_unit'
+    && (matchesQuery(t.name, q) || matchesQuery(t.category, q) || matchesQuery(t.id, q))
   )
 
   const buckets = new Map(PALETTE_CATEGORY_ORDER.map(c => [c, []]))
