@@ -226,7 +226,7 @@ namespace EssSimulator.Protocol.Iec61850
                 ied.UnbindGooseSubscribe();
                 if (ied.IsOnline)
                     ied.Stop();
-                SimServer.serverListenInfo.Remove($"{ied.ServerName}.iec61850");
+                SimServer.serverListenInfo.TryRemove($"{ied.ServerName}.iec61850", out _);
                 return true;
             }
         }
@@ -244,7 +244,7 @@ namespace EssSimulator.Protocol.Iec61850
                 {
                     ied.UnbindGooseSubscribe();
                     ied.Stop();
-                    SimServer.serverListenInfo.Remove($"{ied.ServerName}.iec61850");
+                    SimServer.serverListenInfo.TryRemove($"{ied.ServerName}.iec61850", out _);
                 }
                 catch (Exception ex)
                 {
