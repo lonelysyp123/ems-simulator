@@ -3,6 +3,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRe
 import { createApp, h, reactive } from 'vue'
 import { buildStation3dLayout, stationKey, paramNum } from './project3dLayout.js'
 import { makeGraph, runtimeUnitIndexOfEmu } from '../topology/topologyMainLineLayout.js'
+import { mvBreakerCodeMap, protocolBreakerClosed } from '../topology/mvBreakerLive.js'
 import { buildStation, setBreakerVisual, setPvArrayVisual } from './buildMeshes.js'
 import { buildEnvironment } from './environment.js'
 import { updateCableState, tickCable } from './powerFlow.js'
@@ -881,6 +882,7 @@ export class SceneController {
     })
 
     const mainLive = !!(snap.mainBreakerClosed && !snap.mainBreakerTripped)
+    const mvCodes = mvBreakerCodeMap(snap.topology?.nodes)
 
     for (const u of snap.units || []) {
       const idx = u.unitIndex
@@ -910,7 +912,7 @@ export class SceneController {
       setBreakerVisual(br, live
         ? { closed: !!live.unitBreakerClosed, tripped: !!live.unitBreakerTripped }
         : {
-          closed: !!item.node?.parameters?.closed,
+          closed: protocolBreakerClosed(snap, item.id || item.node?.id) ?? !!item.node?.parameters?.closed,
           tripped: !!item.node?.parameters?.tripped
         })
     }
@@ -1052,15 +1054,21 @@ export class SceneController {
           rated != null ? `额定 ${fmtVolt(rated)} / ${fmtHz(snap.gridNominalFrequencyHz)}` : ''
         ]
       } else if (kind === 'main-breaker' || kind === 'stem-breaker') {
+        const id = item.id || item.node?.id
+        const tag = mvCodes[id] ? `${mvCodes[id]} ` : ''
         lines = [
-          `${item.label || item.node?.label || '断路器'} ${fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}`
+          `${tag}${item.label || item.node?.label || '断路器'} ${fmtBreaker(snap.mainBreakerClosed, snap.mainBreakerTripped)}`
         ]
       } else if (kind === 'tie-breaker' || kind === 'branch-breaker') {
         const live = liveUnitForBreaker(snap, item)
-        const closed = live ? !!live.unitBreakerClosed : !!item.node?.parameters?.closed
+        const id = item.id || item.node?.id
+        const tag = mvCodes[id] ? `${mvCodes[id]} ` : ''
+        const closed = live
+          ? !!live.unitBreakerClosed
+          : (protocolBreakerClosed(snap, id) ?? !!item.node?.parameters?.closed)
         const tripped = live ? !!live.unitBreakerTripped : !!item.node?.parameters?.tripped
         lines = [
-          `${item.label || item.node?.label || '断路器'} ${fmtBreaker(closed, tripped)}`
+          `${tag}${item.label || item.node?.label || '断路器'} ${fmtBreaker(closed, tripped)}`
         ]
       } else if (kind === 'station-xf') {
         lines = [

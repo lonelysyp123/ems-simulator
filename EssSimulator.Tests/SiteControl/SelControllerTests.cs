@@ -10,12 +10,26 @@ public class SelControllerTests
     [InlineData(200, 138)]
     [InlineData(500, 345)]
     [InlineData(1000, 690)]
-    public void VoltageOutsideBlackStart_ConvertsPercentToVoltsImmediately(ushort raw, double volts)
+    public void VoltageWithoutRampTime_ConvertsPercentToVoltsImmediately(ushort raw, double volts)
     {
         var controller = new SelController();
-        Write(controller, 5, 500);
         var command = Write(controller, 2, raw);
         Assert.Equal(volts, command!.Value.VoltageV!.Value, 8);
+        Assert.False(controller.IsRamping);
+    }
+
+    [Fact]
+    public void RampTimeRaw3000_ReachesTargetInThirtySecondsNotAFew()
+    {
+        var controller = new SelController();
+        Write(controller, 2, 200);
+        Write(controller, 5, 3000);
+        Assert.Null(Write(controller, 2, 1000));
+        Assert.True(controller.IsRamping);
+
+        Assert.Equal(230, controller.Tick(TimeSpan.FromSeconds(5))!.Value.VoltageV!.Value, 8);
+        Assert.True(controller.IsRamping);
+        Assert.Equal(690, controller.Tick(TimeSpan.FromSeconds(30))!.Value.VoltageV);
         Assert.False(controller.IsRamping);
     }
 

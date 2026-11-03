@@ -12,6 +12,8 @@ namespace EssSimulator.Web.Topology
     ///   runtime-mode.json            — 工程模式开关与激活工程
     ///   generated/runtime-overlay.json — 应用到仿真的运行时补丁
     ///   library/{id}.json            — 设备库
+    ///   seed/projects、seed/library  — 随仓预置内容（入库）；上面的运行期目录被
+    ///                                   .gitignore 忽略，首次运行由本类从 seed 铺过去。
     /// </summary>
     public sealed class TopologyStore
     {
@@ -43,6 +45,29 @@ namespace EssSimulator.Web.Topology
             Directory.CreateDirectory(_libraryDir);
             Directory.CreateDirectory(_projectsDir);
             Directory.CreateDirectory(Path.GetDirectoryName(_overlayPath)!);
+
+            // 运行期目录被 .gitignore 忽略：全新克隆/发布包里是空的，从 seed 铺出预置工程与设备库
+            SeedIfEmpty(Path.Combine(_rootDir, "seed", "projects"), _projectsDir);
+            SeedIfEmpty(Path.Combine(_rootDir, "seed", "library"), _libraryDir);
+        }
+
+        /// <summary>目标目录里还没有 json 时，把预置内容复制过去（已存在则完全不动，避免覆盖用户工程）。</summary>
+        private static void SeedIfEmpty(string seedDir, string targetDir)
+        {
+            try
+            {
+                if (!Directory.Exists(seedDir))
+                    return;
+                if (Directory.EnumerateFiles(targetDir, "*.json").Any())
+                    return;
+
+                foreach (string file in Directory.EnumerateFiles(seedDir, "*.json"))
+                    File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), overwrite: false);
+            }
+            catch
+            {
+                // 预置失败不影响启动：组态页仍可从头新建工程
+            }
         }
 
         public string RootDirectory => _rootDir;
@@ -59,7 +84,7 @@ namespace EssSimulator.Web.Topology
                 {
                     var json = File.ReadAllText(_projectPath);
                     var project = JsonSerializer.Deserialize<TopologyProject>(json, JsonOpts) ?? new TopologyProject();
-                    TopologyValidator.RefreshAcBusEnergization(project);
+                    PrepareLoaded(project);
                     return project;
                 }
                 catch
@@ -132,7 +157,7 @@ namespace EssSimulator.Web.Topology
                     var cur = JsonSerializer.Deserialize<TopologyProject>(File.ReadAllText(_projectPath), JsonOpts);
                     if (cur != null && string.Equals(cur.Id, id, StringComparison.OrdinalIgnoreCase))
                     {
-                        TopologyValidator.RefreshAcBusEnergization(cur);
+                        PrepareLoaded(cur);
                         return cur;
                     }
                 }
@@ -140,7 +165,7 @@ namespace EssSimulator.Web.Topology
                 try
                 {
                     var p = JsonSerializer.Deserialize<TopologyProject>(File.ReadAllText(path), JsonOpts);
-                    if (p != null) TopologyValidator.RefreshAcBusEnergization(p);
+                    if (p != null) PrepareLoaded(p);
                     return p;
                 }
                 catch { return null; }
@@ -355,13 +380,20 @@ namespace EssSimulator.Web.Topology
             UpdatedAtUtc = p.UpdatedAtUtc,
             NodeCount = p.Nodes?.Count ?? 0,
             EmuCount = p.Nodes?.Count(n => n.TemplateId == "emu") ?? 0,
-            PvCount = p.Nodes?.Count(n => n.TemplateId == "pv_unit") ?? 0
+            PvCount = p.Nodes?.Count(n => n.TemplateId is "pvu" or "pv_unit") ?? 0
         };
+
+        private static void PrepareLoaded(TopologyProject project)
+        {
+            PvUnitExpansion.Expand(project);
+            TopologyValidator.RefreshAcBusEnergization(project);
+        }
 
         private static void NormalizeParameters(TopologyProject project)
         {
             foreach (var node in project.Nodes)
                 node.Parameters = NormalizeDict(node.Parameters);
+            PvUnitExpansion.Expand(project);
             MigrateMeterUnifiedPorts(project);
             PruneInvalidEdges(project);
         }

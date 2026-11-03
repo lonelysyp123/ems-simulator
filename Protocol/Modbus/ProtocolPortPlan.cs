@@ -21,7 +21,8 @@ namespace EssSimulator.Protocol.Modbus
         PvMeter,
         Sel,
         PvInverter,
-        Svg
+        Svg,
+        Mv
     }
 
     /// <summary>单个协议设备的端口/从站号计划条目。</summary>
@@ -38,6 +39,9 @@ namespace EssSimulator.Protocol.Modbus
 
         public int? PvUnitId { get; set; }
         public int? InverterIndex0 { get; set; }
+
+        /// <summary>中压断路器在协议页上显示的标签。其它设备为空。</summary>
+        public string Label { get; set; } = "";
 
         /// <summary>配置文件计算出的默认端口。</summary>
         public int DefaultPort { get; set; }
@@ -83,6 +87,22 @@ namespace EssSimulator.Protocol.Modbus
         };
 
         public List<ProtocolPortEntry> Entries { get; } = new();
+
+        /// <summary>
+        /// 就绪等待要看到的 Modbus 监听数：BMS、EMU、光伏、LC、中压断路器和电表。
+        /// SEL 与 SVG 不计入。
+        /// </summary>
+        public static int ExpectedListenCount(SimulatorConfig cfg)
+        {
+            int bms = cfg.UnitCount;
+            int emu = EmuProtocolLayout.Count(cfg);
+            int pv = cfg.PvUnitCount * 2 + PvInverterProtocolLayout.Enumerate(cfg).Count;
+            int lc = cfg.Protocol.EnableLocalControl && cfg.EffectiveEssUnitCount > 0
+                ? cfg.EffectiveEssUnitCount
+                : 0;
+            int mv = cfg.MvBreakers?.Count ?? 0;
+            return bms + emu + pv + lc + mv + 1;
+        }
 
         public ProtocolPortEntry? Find(string name) =>
             Entries.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
@@ -144,6 +164,15 @@ namespace EssSimulator.Protocol.Modbus
 
             if (cfg.EnableSvg)
                 plan.Entries.Add(MakeEntry("simSvg", ProtocolDeviceType.Svg, "svg.csv", p.SvgModbusPort));
+
+            var breakers = cfg.MvBreakers ?? new List<MvBreakerEndpoint>();
+            for (int i = 0; i < breakers.Count; i++)
+            {
+                var entry = MakeEntry($"simMv{i + 1}", ProtocolDeviceType.Mv, "mv.csv",
+                    p.BaseMvModbusPort + i * p.MvPortStep);
+                entry.Label = breakers[i].Label ?? "";
+                plan.Entries.Add(entry);
+            }
 
             return plan;
         }

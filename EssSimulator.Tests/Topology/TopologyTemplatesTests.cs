@@ -39,15 +39,67 @@ public class TopologyTemplatesTests
 
         Assert.Equal(30d, TopologyParamHelper.GetDouble(t.DefaultParameters, "modulesPerString"));
         Assert.Equal(16d, TopologyParamHelper.GetDouble(t.DefaultParameters, "stringCount"));
-        Assert.Equal(16d, TopologyParamHelper.GetDouble(t.DefaultParameters, "inverterCount"));
+        Assert.Equal(4d, TopologyParamHelper.GetDouble(t.DefaultParameters, "inverterCount"));
         Assert.Equal(320d, TopologyParamHelper.GetDouble(t.DefaultParameters, "inverterRatedPowerKw"));
         Assert.Equal(690d, TopologyParamHelper.GetDouble(t.DefaultParameters, "inverterAcVoltage"));
         Assert.Equal(690d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfSecondaryV"));
         Assert.Equal(35000d, TopologyParamHelper.GetDouble(t.DefaultParameters, "acVoltage"));
-        Assert.Equal(5120d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfRatedKva"));
+        Assert.Equal(1280d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfRatedKva"));
         Assert.Equal(100d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfNoLoadLossW"));
         Assert.Equal(200d, TopologyParamHelper.GetDouble(t.DefaultParameters, "unitXfLoadLossW"));
         Assert.Equal("TSM-NEG21C.20Q", TopologyParamHelper.GetString(t.DefaultParameters, "moduleModel"));
+        Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "operatingYears"));
+        Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "groundAlbedo"));
+    }
+
+    [Fact]
+    public void Pvu_is_virtual_without_a_built_in_transformer()
+    {
+        var t = TopologyTemplates.Get("pvu");
+        Assert.NotNull(t);
+        Assert.Equal("光伏单元", t!.Name);
+        Assert.Equal("光伏", t.Category);
+        Assert.True(t.IsVirtual);
+        Assert.Empty(t.Ports);
+        Assert.DoesNotContain(t.Parameters, p => p.Key.StartsWith("unitXf"));
+        Assert.Contains(t.Parameters, p => p.Key == "unitNumber" && p.Min == 1);
+    }
+
+    [Fact]
+    public void Pv_pcs_has_ac_and_dc_ports_and_320_kw_default()
+    {
+        var t = TopologyTemplates.Get("pv_pcs");
+        Assert.NotNull(t);
+        Assert.Equal("光伏 PCS 支路", t!.Name);
+        Assert.Equal("光伏", t.Category);
+        Assert.False(t.IsVirtual);
+        Assert.Collection(t.Ports,
+            p => { Assert.Equal("ac_a", p.Id); Assert.Equal("top", p.Side); Assert.Equal("acVoltage", p.VoltageParam); },
+            p => { Assert.Equal("ac_b", p.Id); Assert.Equal("top", p.Side); },
+            p => { Assert.Equal("ac_c", p.Id); Assert.Equal("top", p.Side); },
+            p => { Assert.Equal("dc_pos", p.Id); Assert.Equal("dc_pos", p.Kind); Assert.Equal("bottom", p.Side); },
+            p => { Assert.Equal("dc_neg", p.Id); Assert.Equal("dc_neg", p.Kind); Assert.Equal("bottom", p.Side); });
+        var owner = Assert.Single(t.Parameters, p => p.Key == "pvuId");
+        Assert.Equal("pvu_select", owner.Type);
+        Assert.Equal(320d, TopologyParamHelper.GetDouble(t.DefaultParameters, "pcsRatedPowerKw"));
+        Assert.Equal(690d, TopologyParamHelper.GetDouble(t.DefaultParameters, "acVoltage"));
+        Assert.Equal(500d, TopologyParamHelper.GetDouble(t.DefaultParameters, "dcVoltageMin"));
+        Assert.Equal(1500d, TopologyParamHelper.GetDouble(t.DefaultParameters, "dcVoltageMax"));
+    }
+
+    [Fact]
+    public void Pv_array_has_dc_ports_and_module_defaults()
+    {
+        var t = TopologyTemplates.Get("pv_array");
+        Assert.NotNull(t);
+        Assert.Equal("光伏方阵", t!.Name);
+        Assert.Equal("光伏", t.Category);
+        Assert.Collection(t.Ports,
+            p => { Assert.Equal("dc_pos", p.Id); Assert.Equal("dc_pos", p.Kind); Assert.Equal("top", p.Side); },
+            p => { Assert.Equal("dc_neg", p.Id); Assert.Equal("dc_neg", p.Kind); Assert.Equal("top", p.Side); });
+        Assert.Equal("TSM-NEG21C.20Q", TopologyParamHelper.GetString(t.DefaultParameters, "moduleModel"));
+        Assert.Equal(16d, TopologyParamHelper.GetDouble(t.DefaultParameters, "stringCount"));
+        Assert.Equal(30d, TopologyParamHelper.GetDouble(t.DefaultParameters, "modulesPerString"));
         Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "operatingYears"));
         Assert.Equal(0d, TopologyParamHelper.GetDouble(t.DefaultParameters, "groundAlbedo"));
     }

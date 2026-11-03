@@ -1,0 +1,6 @@
+{
+  "id": "mv",
+  "name": "中压断路器",
+  "description": "每台组态三相断路器一路 Modbus。点表与 LC 中压片段相同，ModelSim 不绑定。",
+  "files": [ "mv.csv" ]
+}

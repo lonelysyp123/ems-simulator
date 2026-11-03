@@ -144,6 +144,16 @@
                 @change="v => onBoolParamChange(def.key, v)"
               />
               <el-select
+                v-else-if="def.type === 'pvu_select'"
+                :model-value="selectedNode.parameters[def.key] || ''"
+                placeholder="选择光伏单元"
+                clearable
+                style="width:100%"
+                @change="v => onPvuParamChange(def.key, v)"
+              >
+                <el-option v-for="u in pvuNodes" :key="u.id" :label="u.label" :value="u.id" />
+              </el-select>
+              <el-select
                 v-else-if="def.type === 'emu_select'"
                 :model-value="selectedNode.parameters[def.key] || ''"
                 placeholder="选择 EMU 储能单元"
@@ -213,6 +223,26 @@
         </template>
         <p v-else class="empty">从画布选择设备，或打开储能单元。</p>
         </div>
+          </el-tab-pane>
+          <el-tab-pane name="pvu">
+            <template #label>光伏单元</template>
+            <div v-if="!pvuTree.length" class="empty">尚未添加光伏单元。从左侧拖入「光伏单元」，再把变压器和光伏 PCS 支路归入其中。</div>
+            <div v-for="u in pvuTree" :key="u.id" class="pvu-block">
+              <button type="button" class="pvu-title" @click="onSelectFromTree(u.id)">{{ u.label }} · 支路 {{ u.branchCount }}</button>
+              <button
+                v-if="u.transformer"
+                type="button"
+                class="pvu-branch"
+                @click="onSelectFromTree(u.transformer.id)"
+              >{{ u.transformer.label }}</button>
+              <button
+                v-for="b in u.branches"
+                :key="b.id"
+                type="button"
+                class="pvu-branch"
+                @click="onSelectFromTree(b.id)"
+              >{{ b.label }}</button>
+            </div>
           </el-tab-pane>
           <el-tab-pane name="emu">
             <template #label>储能单元</template>
@@ -318,6 +348,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import TopologyCanvas from '@/components/topology/TopologyCanvas.vue'
 import PalettePanel from '@/components/topology/PalettePanel.vue'
 import EmuTree from '@/components/topology/EmuTree.vue'
+import { buildPvuTree } from '@/components/topology/pvuTree.js'
 import { nodeSize, snapToGrid } from '@/components/topology/nodeLayout.js'
 import {
   applyEmuId,
@@ -496,6 +527,8 @@ const batchGroupHint = computed(() => {
 
 /** EMU 虚拟节点列表（画布不渲染，由右侧单元树管理） */
 const emuNodes = computed(() => project.nodes.filter(n => n.templateId === 'emu'))
+const pvuNodes = computed(() => project.nodes.filter(n => n.templateId === 'pvu'))
+const pvuTree = computed(() => buildPvuTree(project.nodes))
 const propsVisible = computed(() => !isNarrow.value || propsDrawerOpen.value)
 const highlightNodeIds = computed(() => highlightIdsForSelection(project.nodes, selectedNodeId.value))
 
@@ -549,6 +582,17 @@ function labelOf(id) {
   return project.nodes.find(n => n.id === id)?.label || id
 }
 
+function onPvuParamChange(key, value) {
+  if (!selectedNode.value) return
+  pushHistory()
+  selectedNode.value.parameters[key] = value || ''
+  if (key === 'pvuId') {
+    if ('emuId' in selectedNode.value.parameters) selectedNode.value.parameters.emuId = ''
+    if ('groupId' in selectedNode.value.parameters) selectedNode.value.parameters.groupId = ''
+  }
+  clearValidation()
+}
+
 function onEmuParamChange(key, value) {
   if (!selectedNode.value) return
   pushHistory()
@@ -556,6 +600,8 @@ function onEmuParamChange(key, value) {
   // 切换所属 EMU 后原分组必然失效，同步清空 groupId
   if (key === 'emuId' && 'groupId' in selectedNode.value.parameters)
     selectedNode.value.parameters.groupId = ''
+  if (key === 'emuId' && 'pvuId' in selectedNode.value.parameters)
+    selectedNode.value.parameters.pvuId = ''
   clearValidation()
 }
 
@@ -903,6 +949,8 @@ function addFromTemplate(t, x = 120, y = 100) {
   // PCS 新增时自动归入第一个 EMU 虚拟单元（若有）；分组自动归入第一个 EMU
   if ((t.id === 'pcs' || t.id === 'emu_group') && emuNodes.value.length > 0)
     node.parameters.emuId = emuNodes.value[0].id
+  if (t.id === 'pv_pcs' && pvuNodes.value.length > 0)
+    node.parameters.pvuId = pvuNodes.value[0].id
   project.nodes.push(node)
   selectedNodeIds.value = [node.id]
   selectedEdgeId.value = null
@@ -1373,6 +1421,13 @@ onBeforeUnmount(() => {
   pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
 }
 .empty { font-size: 12px; color: #909399; line-height: 1.5; }
+.pvu-block { margin-bottom: 10px; }
+.pvu-title, .pvu-branch {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  cursor: pointer; padding: 4px 2px; color: #303133;
+}
+.pvu-title { font-weight: 600; }
+.pvu-branch { padding-left: 14px; color: #606266; }
 .param-hint { font-size: 11px; color: #909399; margin-top: 2px; line-height: 1.3; }
 .bound-list { display: flex; flex-wrap: wrap; gap: 4px; }
 .bound-tag { margin: 0 6px 4px 0; cursor: pointer; }

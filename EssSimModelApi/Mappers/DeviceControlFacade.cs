@@ -12,7 +12,7 @@ namespace EssSimulator.EssSimModelApi.Mappers
     /// 外部 EMS 写 Modbus 的下行路径（ControlPipeline → Effects）在第三方 EMS 占用时由
     /// <see cref="ExternalControlGate"/> 拦截。
     /// </summary>
-    public static class DeviceControlFacade
+    public static partial class DeviceControlFacade
     {
         /// <summary>PCS 启停：写 EMU 镜像启停位后经共享命令链下发（联锁/故障锁存由链内把关）。</summary>
         public static bool TrySetPcsRun(int pcs1Based, bool run, out string message)
@@ -62,6 +62,25 @@ namespace EssSimulator.EssSimModelApi.Mappers
             }
 
             message = $"PCS{pcs1Based} 设定 P={pcs.PCSActivePowerSetting:0.##} kW · Q={pcs.PCSReactivePowerSetting:0.##} kvar（emu 单元 {unit1Based}）";
+            return true;
+        }
+
+        /// <summary>主断路器：与 Web/命令同一入口，经 ExternalControlGate 把关后写电气网络。</summary>
+        public static bool TrySetMainBreaker(bool closed, out string message)
+        {
+            if (!ExternalControlGate.TryAllow(out message))
+                return false;
+            message = string.Empty;
+            var ess = SimulatorHost.Instance.TryGetEss();
+            if (ess == null)
+            {
+                message = "找不到 ess 模型，请确认仿真已启动";
+                return false;
+            }
+
+            ess.SetMainBreakerClosed(closed);
+            UiSnapshotNotifier.RequestImmediatePush();
+            message = $"主断路器{(closed ? "合闸" : "分闸")}";
             return true;
         }
 
@@ -129,44 +148,6 @@ namespace EssSimulator.EssSimModelApi.Mappers
                 emu.Breaker.Closed = (ushort)(ess.IsUnitBreakerClosed(unit1Based - 1) ? 1 : 0);
             UiSnapshotNotifier.RequestImmediatePush();
             message = $"单元 {unit1Based} 高压断路器跳闸已复位";
-            return true;
-        }
-
-        /// <summary>光伏启停（直驱 PvLogger → PvUnitDevice）。</summary>
-        public static bool TrySetPvRun(int pv1Based, bool run, out string message)
-        {
-            if (!ExternalControlGate.TryAllow(out message))
-                return false;
-            var ess = SimulatorHost.Instance.TryGetEss();
-            if (ess == null)
-            {
-                message = "找不到 ess 模型，请确认仿真已启动";
-                return false;
-            }
-
-            if (!ess.TrySetPvRun(pv1Based, run, out message))
-                return false;
-
-            UiSnapshotNotifier.RequestImmediatePush();
-            return true;
-        }
-
-        /// <summary>光伏有功/无功设定（kW/kvar，缺省项保留现值）。</summary>
-        public static bool TrySetPvPower(int pv1Based, double? activeKw, double? reactiveKvar, out string message)
-        {
-            if (!ExternalControlGate.TryAllow(out message))
-                return false;
-            var ess = SimulatorHost.Instance.TryGetEss();
-            if (ess == null)
-            {
-                message = "找不到 ess 模型，请确认仿真已启动";
-                return false;
-            }
-
-            if (!ess.TrySetPvPower(pv1Based, activeKw, reactiveKvar, out message))
-                return false;
-
-            UiSnapshotNotifier.RequestImmediatePush();
             return true;
         }
 

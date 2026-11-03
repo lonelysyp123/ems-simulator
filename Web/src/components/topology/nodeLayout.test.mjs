@@ -1,46 +1,42 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  formatVoltage,
-  isSplitTransformer,
-  isTransformerLike,
-  nodeSize,
-  portPosition,
-  sldRole,
-  snapToGrid,
-  templateColor
-} from './nodeLayout.js'
+import { nodeSize, sldDraw, sldOtherWindings, sldRole, sldWinding } from './nodeLayout.js'
 
-describe('nodeLayout split transformer editor geometry', () => {
-  it('gives the dual-ear box a wider canvas than a two-winding transformer', () => {
-    assert.deepEqual(nodeSize('transformer'), { w: 100, h: 120 })
-    assert.deepEqual(nodeSize('split_transformer'), { w: 160, h: 120 })
-    assert.equal(sldRole('split_transformer'), 'coupling')
-    assert.equal(sldRole('transformer'), 'coupling')
-    assert.ok(isTransformerLike('split_transformer'))
-    assert.ok(isSplitTransformer('split_transformer'))
-    assert.equal(isSplitTransformer('transformer'), false)
-    assert.equal(templateColor('split_transformer'), templateColor('transformer'))
+describe('sld windings', () => {
+  it('groups transformer phases into pri and sec', () => {
+    assert.equal(sldWinding('transformer', 'pri_b'), 'pri')
+    assert.equal(sldWinding('transformer', 'sec_c'), 'sec')
+    assert.deepEqual(sldOtherWindings('transformer', 'pri'), ['sec'])
+    assert.deepEqual(sldOtherWindings('transformer', 'sec'), ['pri'])
   })
 
-  it('places left and right ear ports on the bottom at distinct x', () => {
-    const node = { id: 's1', templateId: 'split_transformer', x: 100, y: 200 }
-    const left = portPosition(node, { id: 'ear_l_a', side: 'bottom', offset: 0.15 })
-    const right = portPosition(node, { id: 'ear_r_a', side: 'bottom', offset: 0.65 })
-    const pri = portPosition(node, { id: 'pri_a', side: 'top', offset: 0.2 })
-    assert.equal(left.y, 200 + 120)
-    assert.equal(right.y, 200 + 120)
-    assert.equal(pri.y, 200)
-    assert.ok(left.x < right.x)
-    assert.equal(left.x, 100 + 160 * 0.15)
-    assert.equal(right.x, 100 + 160 * 0.65)
+  it('groups a split transformer into primary and two ears', () => {
+    assert.equal(sldWinding('split_transformer', 'ear_l_a'), 'ear_l')
+    assert.equal(sldWinding('split_transformer', 'ear_r_c'), 'ear_r')
+    assert.deepEqual(sldOtherWindings('split_transformer', 'pri'), ['ear_l', 'ear_r'])
   })
 
-  it('snaps coordinates and formats voltages used by the inspector', () => {
-    assert.equal(snapToGrid(27), 20)
-    assert.equal(snapToGrid(31), 40)
-    assert.equal(formatVoltage(35000), '35kV')
-    assert.equal(formatVoltage(690), '690V')
-    assert.equal(formatVoltage(0), '—')
+  it('returns empty for unknown templates and ports', () => {
+    assert.equal(sldWinding('transformer', 'ac_a'), '')
+    assert.equal(sldWinding('pv_unit', 'ac_a'), '')
+    assert.equal(sldWinding('', null), '')
+    assert.equal(sldWinding('transformer', ''), '')
+    assert.deepEqual(sldOtherWindings('pv_unit', 'pri'), [])
+    assert.deepEqual(sldOtherWindings('nope'), [])
+  })
+
+  it('names a draw scheme per device and leaves other templates unnamed', () => {
+    assert.equal(sldDraw('pv_unit'), 'pvLegend')
+    assert.equal(sldDraw('pcs'), 'pcsChain')
+    assert.equal(sldDraw('pv_pcs'), 'pvChain')
+    assert.equal(nodeSize('pv_pcs').w, 120)
+    assert.equal(nodeSize('pv_array').h, 72)
+    assert.deepEqual(nodeSize('pvu'), { w: 0, h: 0 })
+    assert.equal(sldRole('pvu'), 'virtual')
+    assert.equal(sldRole('pv_pcs'), 'feeder')
+    assert.equal(sldRole('pv_array'), 'dc')
+    assert.equal(sldDraw('ac_bus'), '')
+    assert.equal(sldDraw(''), '')
+    assert.equal(sldDraw(undefined), '')
   })
 })

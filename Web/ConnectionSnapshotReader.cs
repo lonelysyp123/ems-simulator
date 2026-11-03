@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using EssSimulator.Configuration;
 using EssSimulator.Display;
 
 namespace EssSimulator.Web
@@ -34,6 +35,10 @@ namespace EssSimulator.Web
     {
         public string Server { get; set; } = "";
         public string ListenInfo { get; set; } = "";
+        /// <summary>三相断路器编号，与一次图 MV1、MV2 相同。其它服务为空。</summary>
+        public string Code { get; set; } = "";
+        /// <summary>组态里这台断路器的标签。</summary>
+        public string BreakerLabel { get; set; } = "";
     }
 
     public sealed class ClientConnectDto
@@ -60,7 +65,7 @@ namespace EssSimulator.Web
 
     public static class ConnectionSnapshotReader
     {
-        public static ConnectionSnapshotDto Read()
+        public static ConnectionSnapshotDto Read(IReadOnlyList<MvBreakerEndpoint>? mvBreakers = null)
         {
             var dto = new ConnectionSnapshotDto();
 
@@ -87,7 +92,7 @@ namespace EssSimulator.Web
             {
                 foreach (var kv in SimServer.serverListenInfo.OrderBy(kv => ServerSortKey(kv.Key)))
                 {
-                    dto.Servers.Add(new ServerListenDto { Server = kv.Key, ListenInfo = kv.Value });
+                    dto.Servers.Add(DescribeServer(kv.Key, kv.Value, mvBreakers));
                 }
             }
 
@@ -144,6 +149,21 @@ namespace EssSimulator.Web
             return dto;
         }
 
+        private static ServerListenDto DescribeServer(
+            string name, string listenInfo, IReadOnlyList<MvBreakerEndpoint>? mvBreakers)
+        {
+            var dto = new ServerListenDto { Server = name, ListenInfo = listenInfo };
+            if (!name.StartsWith("simMv", StringComparison.OrdinalIgnoreCase))
+                return dto;
+            int n = ExtractTrailingNumber(name);
+            if (n < 1)
+                return dto;
+            dto.Code = $"MV{n}";
+            if (mvBreakers != null && n <= mvBreakers.Count)
+                dto.BreakerLabel = mvBreakers[n - 1].Label ?? "";
+            return dto;
+        }
+
         private static string ListenInfo(EssSimulator.Protocol.Iec61850.Iec61850DeviceSnapshot ied)
         {
             var parts = new List<string> { $"IEC 61850 MMS {ied.IedName} :{ied.Port}" };
@@ -168,6 +188,7 @@ namespace EssSimulator.Web
             if (name.StartsWith("simLc")) return (3, ExtractTrailingNumber(name));
             if (name.StartsWith("simPvMeter")) return (5, ExtractTrailingNumber(name));
             if (name.StartsWith("simPv")) return (4, ExtractTrailingNumber(name));
+            if (name.StartsWith("simMv")) return (8, ExtractTrailingNumber(name));
             return (99, 0);
         }
 

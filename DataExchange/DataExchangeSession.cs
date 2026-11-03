@@ -34,13 +34,16 @@ namespace EssSimulator.DataExchange
         private readonly ControlEffectRegistry _effects;
 
         private readonly object _controlGate = new();
+
+        /// <summary>共享调度线程执行本会话某一拍时的互斥门；Stop 用它等待在途的一拍结束。</summary>
+        internal readonly object TickGate = new();
+
         private readonly ControlDrainCoalescer _controlDrain = new();
         private volatile bool _running;
         private bool _hadPreviousSession;
-        private Thread? _telemetryThread;
-        private Thread? _rackTelemetryThread;
-        private Thread? _controlThread;
-        private Thread? _feedbackThread;
+
+        /// <summary>设备名（调度器日志用）。</summary>
+        internal string DeviceName => _deviceInfo.name ?? "?";
 
         public DataExchangeSession(
             IModbusSlave slave,
@@ -76,6 +79,18 @@ namespace EssSimulator.DataExchange
             else if (serverName.StartsWith("simBms", StringComparison.OrdinalIgnoreCase))
             {
                 _effects.Register(new BmsLinkControlEffect());
+            }
+            else if (serverName.StartsWith("simPvInv", StringComparison.OrdinalIgnoreCase))
+            {
+                // 逆变器最大可发由模型 AvailableAcPowerKw 计算（点表 yc29）
+                telemetryPlugins.Register(new PvInverterMaxAvailablePlugin());
+            }
+            else if (serverName.StartsWith("simPv", StringComparison.OrdinalIgnoreCase)
+                     && !serverName.StartsWith("simPvMeter", StringComparison.OrdinalIgnoreCase))
+            {
+                // PV Logger（simPvN）的 yc20 最大可调有功：读点时按上限/辐照实时汇总，
+                // 避免模型每拍 Refresh 与门面步末覆盖之间的采样窗口。
+                telemetryPlugins.Register(new PvLoggerMaxAdjustablePlugin());
             }
 
             bool logChanges = ShouldLogChanges(deviceInfo.name);
@@ -271,39 +286,13 @@ namespace EssSimulator.DataExchange
             _modbusAdapter.WriteDefaults(_catalog.DefaultValues);
             InitializeControlRegistersFromSimulation();
 
-            _telemetryThread = new Thread(TelemetryLoop)
-            {
-                IsBackground = true,
-                Priority = ThreadPriority.BelowNormal,
-                Name = $"DataExchange-Telemetry-{_deviceInfo.name}"
-            };
+            // 交给共享调度器：每台设备不再各起 3~4 条线程，而是所有会话的同一条管道共用一条线程
+            var scheduler = DataExchangeScheduler.Instance;
+            scheduler.Register(this, DataExchangeScheduler.Pipeline.Telemetry, TelemetryIntervalForDevice, TickTelemetry);
             if (_rackTelemetryPipeline != null)
-            {
-                _rackTelemetryThread = new Thread(RackTelemetryLoop)
-                {
-                    IsBackground = true,
-                    Priority = ThreadPriority.BelowNormal,
-                    Name = $"DataExchange-RackTelemetry-{_deviceInfo.name}"
-                };
-            }
-
-            _controlThread = new Thread(ControlLoop)
-            {
-                IsBackground = true,
-                Priority = ThreadPriority.BelowNormal,
-                Name = $"DataExchange-Control-{_deviceInfo.name}"
-            };
-            _feedbackThread = new Thread(FeedbackLoop)
-            {
-                IsBackground = true,
-                Priority = ThreadPriority.BelowNormal,
-                Name = $"DataExchange-Feedback-{_deviceInfo.name}"
-            };
-
-            _telemetryThread.Start();
-            _rackTelemetryThread?.Start();
-            _controlThread.Start();
-            _feedbackThread.Start();
+                scheduler.Register(this, DataExchangeScheduler.Pipeline.RackTelemetry, TelemetryIntervalForDevice, TickRackTelemetry);
+            scheduler.Register(this, DataExchangeScheduler.Pipeline.Control, ControlIntervalMs, TickControl);
+            scheduler.Register(this, DataExchangeScheduler.Pipeline.Feedback, ControlIntervalMs, TickFeedback);
             string rackInfo = _rackTelemetryPipeline != null ? $", rackTelemetry={TelemetryIntervalForDevice}ms×{_clusterCount}" : string.Empty;
             string controlMode = _options.ControlEventDriven ? "event+poll" : "poll";
             _log.Info($"[DataExchange] {_deviceInfo.name} 已启动（telemetry={TelemetryIntervalForDevice}ms, control={controlMode}/{_options.ControlPollIntervalMs}ms, feedback={_options.ControlPollIntervalMs}ms{rackInfo}）");
@@ -316,14 +305,11 @@ namespace EssSimulator.DataExchange
 
             _running = false;
             _hadPreviousSession = true;
-            TryJoin(_telemetryThread);
-            TryJoin(_rackTelemetryThread);
-            TryJoin(_controlThread);
-            TryJoin(_feedbackThread);
-            _telemetryThread = null;
-            _rackTelemetryThread = null;
-            _controlThread = null;
-            _feedbackThread = null;
+            DataExchangeScheduler.Instance.Unregister(this);
+
+            // 注销后不会再派新的一拍；这里等正在执行的那拍收尾（原来是 Join(2000)）
+            if (Monitor.TryEnter(TickGate, 2000))
+                Monitor.Exit(TickGate);
         }
 
         /// <summary>
@@ -444,10 +430,15 @@ namespace EssSimulator.DataExchange
             }
         }
 
-        private void TelemetryLoop()
+        private int ControlIntervalMs => Math.Max(10, _options.ControlPollIntervalMs);
+
+        private void TickTelemetry()
         {
-            while (_running)
+            lock (TickGate)
             {
+                if (!_running)
+                    return;
+
                 try
                 {
                     _telemetryPipeline.RunOnce();
@@ -456,18 +447,19 @@ namespace EssSimulator.DataExchange
                 {
                     _log.Error($"Telemetry loop error [{_deviceInfo.name}]", ex);
                 }
-
-                Thread.Sleep(TelemetryIntervalForDevice);
             }
         }
 
-        private void RackTelemetryLoop()
+        private void TickRackTelemetry()
         {
             if (_rackTelemetryPipeline == null)
                 return;
 
-            while (_running)
+            lock (TickGate)
             {
+                if (!_running)
+                    return;
+
                 try
                 {
                     _rackTelemetryPipeline.RunOnce();
@@ -476,15 +468,16 @@ namespace EssSimulator.DataExchange
                 {
                     _log.Error($"Rack telemetry loop error [{_deviceInfo.name}]", ex);
                 }
-
-                Thread.Sleep(TelemetryIntervalForDevice);
             }
         }
 
-        private void ControlLoop()
+        private void TickControl()
         {
-            while (_running)
+            lock (TickGate)
             {
+                if (!_running)
+                    return;
+
                 try
                 {
                     DrainControlPipeline();
@@ -494,40 +487,27 @@ namespace EssSimulator.DataExchange
                 {
                     _log.Error($"Control loop error [{_deviceInfo.name}]", ex);
                 }
-
-                Thread.Sleep(Math.Max(10, _options.ControlPollIntervalMs));
             }
         }
 
-        private void FeedbackLoop()
+        private void TickFeedback()
         {
-            while (_running)
+            lock (TickGate)
             {
+                if (!_running)
+                    return;
+
                 try
                 {
                     // 寄存器回填和 shadow 提交必须与控制快照读取互斥。
                     lock (_controlGate)
-                    {
-                        if (_running)
-                            _feedbackPipeline.RunOnce();
-                    }
+                        _feedbackPipeline.RunOnce();
                 }
                 catch (Exception ex)
                 {
                     _log.Error($"Feedback loop error [{_deviceInfo.name}]", ex);
                 }
-
-                Thread.Sleep(Math.Max(10, _options.ControlPollIntervalMs));
             }
-        }
-
-        private static void TryJoin(Thread? thread)
-        {
-            if (thread == null || !thread.IsAlive)
-                return;
-
-            try { thread.Join(2000); }
-            catch { /* ignore */ }
         }
     }
 }

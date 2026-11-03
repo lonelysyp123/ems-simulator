@@ -85,8 +85,10 @@ public class PvInverterModbusTests : SimulatorHostTestBase
             Assert.InRange(Math.Abs(connection.Read(voltagePoints[i]) - target.Protocol.MpptVoltageV[i]), 0, 0.051);
             Assert.InRange(Math.Abs(connection.Read(currentPoints[i]) - target.Protocol.MpptCurrentA[i]), 0, 0.051);
         }
-        foreach (string point in new[] { "yc19", "yc29", "yc30" })
-            Assert.Equal(0, connection.Read(point));
+        Assert.Equal(0, connection.Read("yc19"));
+        double maxAvailable = Math.Min(target.RatedPowerKw, Math.Max(0, target.AvailableAcPowerKw));
+        await WaitUntil(() => Math.Abs(connection.Read("yc29") - maxAvailable) <= 0.051,
+            "yc29 最大可发未按额定封顶发布");
 
         connection.Master.WriteSingleRegister(1, 5006, PvInverterProtocolData.RunCommandStop);
         await WaitUntil(() => fixture.Capture.Events.Count == 4, "单机停机命令未执行");
@@ -333,8 +335,12 @@ public class PvInverterModbusTests : SimulatorHostTestBase
             "Logger 保持寄存器遥测未发布");
         Assert.Equal(0, connection.Read("yc12"));
 
+        int before = fixture.Capture.Events.Count;
         connection.Write("yt6", 40);
         await WaitUntil(() => unit.Logger.SubarrayActivePowerPercent == 40, "百分比设定未执行");
+        // 模型属性先于控制捕获落库，这里要等捕获把这一次写点记下来再取样，
+        // 否则取到的 applied 还停在写入前的值，随后的 1 次事件就被误判成"重复触发"。
+        await WaitUntil(() => fixture.Capture.Events.Count > before, "百分比控制未记录到捕获");
         int applied = fixture.Capture.Events.Count;
         await Task.Delay(200);
         fixture.Step();

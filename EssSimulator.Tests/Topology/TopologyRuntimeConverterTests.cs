@@ -247,7 +247,7 @@ public class TopologyRuntimeConverterTests
         Assert.Empty(overlay!.EssUnits);
         Assert.Single(overlay.PvUnits);
         Assert.Equal("光伏单元-1", overlay.PvUnits[0].Name);
-        Assert.Equal(16, overlay.PvUnits[0].InverterCount);
+        Assert.Equal(4, overlay.PvUnits[0].InverterCount);
         Assert.Equal(320, overlay.PvUnits[0].InverterRatedPowerKw);
         Assert.Equal(35000, overlay.PvUnits[0].UnitXfPrimaryV);
         Assert.Contains(overlay.Notes, n => n.Contains("光伏单元") && n.Contains("已展开"));
@@ -259,6 +259,96 @@ public class TopologyRuntimeConverterTests
         Assert.NotNull(overlay.Pcs);
         Assert.Equal(320, overlay.Pcs!.RatedPower);
         Assert.False(overlay.EnableSvg);
+    }
+
+    [Fact]
+    public void Convert_collapses_four_pv_branches_into_one_runtime_unit()
+    {
+        var project = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("u1", "pvu", "光伏单元-1", y: 10),
+                Node("xf1", "transformer", "光伏箱变", new Dictionary<string, object?>
+                {
+                    ["pvuId"] = "u1",
+                    ["primaryVoltage"] = 35000d,
+                    ["secondaryVoltage"] = 690d,
+                    ["ratedPowerKva"] = 1280d
+                }, y: 0),
+                Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "u1" }, x: 1, y: 20),
+                Node("c2", "pv_pcs", "光伏PCS-2", new Dictionary<string, object?> { ["pvuId"] = "u1" }, x: 2, y: 20),
+                Node("c3", "pv_pcs", "光伏PCS-3", new Dictionary<string, object?> { ["pvuId"] = "u1" }, x: 3, y: 20),
+                Node("c4", "pv_pcs", "光伏PCS-4", new Dictionary<string, object?> { ["pvuId"] = "u1" }, x: 4, y: 20),
+                Node("a1", "pv_array", "方阵-1", x: 1, y: 40),
+                Node("a2", "pv_array", "方阵-2", x: 2, y: 40),
+                Node("a3", "pv_array", "方阵-3", x: 3, y: 40),
+                Node("a4", "pv_array", "方阵-4", x: 4, y: 40)
+            },
+            Edges =
+            {
+                Edge("d1", "c1", "dc_pos", "a1", "dc_pos"),
+                Edge("d2", "c2", "dc_pos", "a2", "dc_pos"),
+                Edge("d3", "c3", "dc_pos", "a3", "dc_pos"),
+                Edge("d4", "c4", "dc_pos", "a4", "dc_pos")
+            }
+        };
+
+        var (overlay, validation) = TopologyRuntimeConverter.Convert(project);
+        Assert.True(validation.Ok, validation.Message);
+        Assert.Empty(overlay!.EssUnits);
+        var unit = Assert.Single(overlay.PvUnits);
+        Assert.Equal("光伏单元-1", unit.Name);
+        Assert.Equal(4, unit.InverterCount);
+        Assert.Equal(320, unit.InverterRatedPowerKw);
+        Assert.Equal(1280, unit.UnitXfRatedKva);
+        Assert.Equal(35000, unit.UnitXfPrimaryV);
+        Assert.Equal(690, unit.UnitXfSecondaryV);
+        Assert.Equal("TSM-NEG21C.20Q", unit.ModuleModel);
+        Assert.Equal(16, unit.StringCount);
+        Assert.Equal(30, unit.ModulesPerString);
+        Assert.Equal(320, overlay.Pcs!.RatedPower);
+        Assert.Contains(overlay.Notes, n => n.Contains("光伏单元") && n.Contains("已展开"));
+    }
+
+    [Fact]
+    public void Convert_orders_pv_units_by_unit_number_before_canvas_position()
+    {
+        var project = new TopologyProject
+        {
+            Nodes =
+            {
+                Node("top", "pvu", "靠上", new Dictionary<string, object?> { ["unitNumber"] = 2d }, x: 2000, y: 10),
+                Node("left", "pvu", "靠左", new Dictionary<string, object?> { ["unitNumber"] = 1d }, x: 100, y: 900),
+                Node("topXf", "transformer", "上箱变", new Dictionary<string, object?>
+                {
+                    ["pvuId"] = "top",
+                    ["primaryVoltage"] = 35000d,
+                    ["secondaryVoltage"] = 690d,
+                    ["ratedPowerKva"] = 1280d
+                }),
+                Node("leftXf", "transformer", "左箱变", new Dictionary<string, object?>
+                {
+                    ["pvuId"] = "left",
+                    ["primaryVoltage"] = 35000d,
+                    ["secondaryVoltage"] = 690d,
+                    ["ratedPowerKva"] = 1280d
+                }),
+                Node("topPcs", "pv_pcs", "上PCS", new Dictionary<string, object?> { ["pvuId"] = "top" }, x: 2000, y: 40),
+                Node("leftPcs", "pv_pcs", "左PCS", new Dictionary<string, object?> { ["pvuId"] = "left" }, x: 100, y: 940),
+                Node("topArray", "pv_array", "上方阵", x: 2000, y: 80),
+                Node("leftArray", "pv_array", "左方阵", x: 100, y: 980)
+            },
+            Edges =
+            {
+                Edge("d1", "topPcs", "dc_pos", "topArray", "dc_pos"),
+                Edge("d2", "leftPcs", "dc_pos", "leftArray", "dc_pos")
+            }
+        };
+
+        var (overlay, validation) = TopologyRuntimeConverter.Convert(project);
+        Assert.True(validation.Ok, validation.Message);
+        Assert.Equal(new[] { "靠左", "靠上" }, overlay!.PvUnits.Select(u => u.Name).ToArray());
     }
 
     [Fact]

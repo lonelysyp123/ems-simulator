@@ -107,6 +107,7 @@ curl -s http://127.0.0.1:5050/api/health     # {"status":"ok","ready":true,...}
 | 光伏低压电表 | `simPvMeterN` | 1901 + (N-1) | `pv_apm810.csv` |
 | 站点级 SEL 装置 | `simSel` | 2001 | `sel.csv`（`EnableSel=true`） |
 | 光伏逆变器 | `simPvInvN` | 2101 + (N-1) | `pv_inverter.csv` |
+| 中压断路器 | `simMvN` | 2301 + (N-1) | `mv.csv`（组态里每台三相断路器一路） |
 | IEC 61850 MMS（IED） | 按 EMU | 8102 + (N-1) | `pointmaps/models/emu/iec61850/mapping.csv` |
 | Web / REST / SignalR | — | 5050 | — |
 
@@ -196,6 +197,7 @@ EssSimulator.Tests/  xUnit 测试
 dotnet build ./EssSimulator.csproj
 dotnet test                                   # xUnit，覆盖潮流、控制桥、点表管道、BMS 保护、组态、IEC 61850 映射等
 cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，dotnet publish 自动带上
+cd Web && npm test                             # 前端单元测试（node --test，纯逻辑模块）
 ```
 
 发布脚本：`scripts/publish-windows.sh`（自包含单文件，出 `EssSimulator-win-x64.zip`）；打 `v*` tag 由 GitHub Actions 自动发布到 Releases。
@@ -210,5 +212,5 @@ cd Web && npm install && npm run build        # Vite 直出仓库根 wwwroot/，
 ## 反馈与贡献
 
 - 问题与建议请开 [Issue](https://github.com/lonelysyp123/ems-simulator/issues)，**点表相关问题请附 CSV 片段 + 端口 + 日志**，定位会快很多；
-- 欢迎 PR：新设备点表、新协议适配、文档修正都很有价值；
+- 欢迎 PR：新设备点表、新协议适配、文档修正都很有价值，分工与提交约定见 [CONTRIBUTING](https://github.com/lonelysyp123/ems-simulator/blob/develop/CONTRIBUTING.md)；
 - 分支约定：`master` 为发布分支，`develop` 为集成分支，功能分支用 `feature_*` / `fix_*`，合入后删除；

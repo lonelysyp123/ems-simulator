@@ -189,6 +189,7 @@ namespace EssSimulator.Protocol.Modbus
                         RackCount = entry.RackCount,
                         PvUnitId = entry.PvUnitId,
                         InverterIndex0 = entry.InverterIndex0,
+                        Label = entry.Label,
                         DefaultPort = entry.DefaultPort,
                         DefaultSlaveId = entry.DefaultSlaveId,
                         Port = entry.Port,
@@ -338,7 +339,7 @@ namespace EssSimulator.Protocol.Modbus
         {
             if (!started)
             {
-                SimServer.serverListenInfo.Remove(reg.Server.ServerName);
+                SimServer.serverListenInfo.TryRemove(reg.Server.ServerName, out _);
                 return;
             }
 
@@ -442,6 +443,8 @@ namespace EssSimulator.Protocol.Modbus
         public int RackCount { get; set; }
         public int? PvUnitId { get; set; }
         public int? InverterIndex0 { get; set; }
+        /// <summary>中压断路器标签。其它设备为空。</summary>
+        public string Label { get; set; } = "";
         public int DefaultPort { get; set; }
         public byte DefaultSlaveId { get; set; }
         public int Port { get; set; }

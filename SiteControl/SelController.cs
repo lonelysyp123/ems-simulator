@@ -83,7 +83,8 @@ internal sealed class SelController
             StartVoltagePercent = CurrentVoltagePercent;
             _rampTargetPercent = _registers[2] / 10.0;
             _rampDurationSeconds = _registers[5] / 100.0;
-            IsRamping = _registers[4] == 1 && _rampDurationSeconds > 0
+            // 软启动时间单独生效：原始值 3000、比例 100 即 30 秒。黑启动模式只负责退出时冻结斜坡。
+            IsRamping = _rampDurationSeconds > 0
                 && _rampTargetPercent != CurrentVoltagePercent;
             if (IsRamping)
             {

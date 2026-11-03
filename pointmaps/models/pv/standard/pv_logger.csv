@@ -35,7 +35,7 @@ FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
 3,8076,int64,64,yc17,1,"Logger总无功功率(var)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.TotalReactivePowerVar|arg2=|arg3=|arg4=1000
 3,8080,u64,64,yc18,10,"Logger累计发电量(kWh) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.TotalYieldKwh|arg2=|arg3=|arg4=1000
 3,8084,u32,32,yc19,10,"Logger最小可调有功功率(kW) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MinAdjustableActivePowerKw|arg2=|arg3=|arg4=1000
-3,8086,u32,32,yc20,10,"Logger最大可调有功功率(kW) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MaxAdjustableActivePowerKw|arg2=|arg3=|arg4=1000
+3,8086,u32,32,yc20,10,"Logger最大可调有功功率(kW) 系数0.1(Device ID 247, FC 0x03); 读点时按单机上限/辐照汇总",model=plugin|arg1=PvLoggerMaxAdjustableKw|arg2=pvDeviceId|arg3=|arg4=1000
 3,8088,int32,32,yc21,10,"Logger最小可调无功功率(kVar) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MinAdjustableReactivePowerKvar|arg2=|arg3=|arg4=1000
 3,8090,int32,32,yc22,10,"Logger最大可调无功功率(kVar) 系数0.1(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.MaxAdjustableReactivePowerKvar|arg2=|arg3=|arg4=1000
 3,8092,u32,32,yc23,10,"Logger额定有功功率(kW) 系数0.1(协议单位误写为KVAR)(Device ID 247, FC 0x03, 通信地址=协议地址-1)",model=4|arg1=pvDeviceId.Logger.NominalActivePowerKw|arg2=|arg3=|arg4=1000

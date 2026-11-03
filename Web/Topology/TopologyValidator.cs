@@ -380,7 +380,7 @@ namespace EssSimulator.Web.Topology
         }
 
         private static bool IsAcFeederUnit(string templateId) =>
-            templateId == "pcs" || templateId == "pv_unit";
+            templateId == "pcs" || templateId == "pv_unit" || templateId == "pv_pcs";
 
         private static TopologyValidationResult ValidateEmuBusVoltage(
             TopologyNode a, TopologyTemplate aTpl, TopologyPortDef aPort,
@@ -400,10 +400,11 @@ namespace EssSimulator.Web.Topology
             double busV = TopologyParamHelper.GetDouble(bus!.Parameters, "nominalVoltage", 0);
             if (busV > 1 && !VoltageMatches(busV, unitV))
             {
-                bool pv = unit.TemplateId == "pv_unit";
+                bool pv = unit.TemplateId is "pv_unit" or "pv_pcs";
+                string kind = unit.TemplateId == "pv_pcs" ? "光伏 PCS" : pv ? "光伏单元" : "PCS";
                 return Fail(
                     pv ? "PV_BUS_MISMATCH" : "PCS_BUS_MISMATCH",
-                    $"{(pv ? "光伏单元" : "PCS")}「{unit.Label}」交流侧 {unitV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配",
+                    $"{kind}「{unit.Label}」交流侧 {unitV:0.##} V 与母线「{bus.Label}」{busV:0.##} V 不匹配",
                     newEdge.Id);
             }
 
@@ -936,7 +937,7 @@ namespace EssSimulator.Web.Topology
             if (groupBindingCheck != null)
                 return groupBindingCheck;
 
-            // 至少一个含 PCS 的 EMU 或光伏单元
+            // 至少一个含 PCS 的 EMU，或旧光伏单元，或含支路的光伏单元
             var emusWithPcs = project.Nodes
                 .Where(n => n.TemplateId == "emu")
                 .Where(e => project.Nodes.Any(p =>
@@ -944,10 +945,14 @@ namespace EssSimulator.Web.Topology
                     TopologyParamHelper.GetString(p.Parameters, "emuId") == e.Id))
                 .ToList();
             var pvUnits = project.Nodes.Where(n => n.TemplateId == "pv_unit").ToList();
+            var branchCheck = ValidatePvBranches(project, details);
+            if (branchCheck != null)
+                return branchCheck;
             var moduleCheck = ValidatePvModuleModels(project, details);
             if (moduleCheck != null)
                 return moduleCheck;
-            if (emusWithPcs.Count == 0 && pvUnits.Count == 0)
+            var pvuWithPcs = ListPvBranches(project);
+            if (emusWithPcs.Count == 0 && pvUnits.Count == 0 && pvuWithPcs.Count == 0)
             {
                 details.Add("工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元");
                 return Fail("NO_GENERATION_UNIT", "工程中至少需要一个含 PCS 的 EMU 储能单元或光伏单元",
@@ -1044,7 +1049,7 @@ namespace EssSimulator.Web.Topology
         }
 
         /// <summary>
-        /// 双耳变压器必须绑定有效 EMU，且每个 EMU 至多 2 台（含组级绑定）。
+        /// 双耳变压器归属 EMU 可选；已选时每个 EMU 至多 2 台（含组级绑定）。
         /// </summary>
         private static TopologyValidationResult? ValidateSplitTransformerBindings(
             TopologyProject project, HashSet<string> emuIds, List<string> details)
@@ -1053,21 +1058,8 @@ namespace EssSimulator.Web.Topology
             if (splits.Count == 0)
                 return null;
 
-            var missing = splits
-                .Where(n =>
-                {
-                    string emuId = TopologyParamHelper.GetString(n.Parameters, "emuId");
-                    return string.IsNullOrWhiteSpace(emuId) || !emuIds.Contains(emuId);
-                })
-                .ToList();
-            if (missing.Count > 0)
-            {
-                details.Add($"以下双耳变压器未选择有效的所属 EMU：{string.Join("、", missing.Select(n => n.Label))}");
-                return Fail("SPLIT_XFMR_EMU_REQUIRED", "双耳变压器必须归属工程内存在的 EMU 储能单元",
-                    details: details, problemNodeIds: missing.Select(n => n.Id).ToList());
-            }
-
             var dupGroups = splits
+                .Where(n => emuIds.Contains(TopologyParamHelper.GetString(n.Parameters, "emuId")))
                 .GroupBy(n => TopologyParamHelper.GetString(n.Parameters, "emuId"))
                 .Where(g => g.Count() > TopologyTemplates.MaxSplitTransformersPerEmu)
                 .ToList();
@@ -1306,6 +1298,254 @@ namespace EssSimulator.Web.Topology
             var json = System.Text.Json.JsonSerializer.Serialize(project);
             return System.Text.Json.JsonSerializer.Deserialize<TopologyProject>(json)
                    ?? new TopologyProject();
+        }
+
+        internal readonly record struct PvBranchGroup(
+            TopologyNode Unit,
+            IReadOnlyList<TopologyNode> Branches,
+            IReadOnlyList<TopologyNode> Arrays);
+
+        /// <summary>
+        /// 光伏单元端口次序：先比编号，编号空缺的排在后面；编号相同或都空缺时按节点从上到下、从左到右。
+        /// </summary>
+        internal static int ComparePvu(TopologyNode a, TopologyNode b)
+        {
+            int rankA = PvuRank(a);
+            int rankB = PvuRank(b);
+            int byRank = rankA.CompareTo(rankB);
+            if (byRank != 0)
+                return byRank;
+            int byY = a.Y.CompareTo(b.Y);
+            if (byY != 0)
+                return byY;
+            int byX = a.X.CompareTo(b.X);
+            if (byX != 0)
+                return byX;
+            return string.CompareOrdinal(a.Id, b.Id);
+        }
+
+        private static readonly IComparer<TopologyNode> PvuOrder = Comparer<TopologyNode>.Create(ComparePvu);
+
+        /// <summary>编号从 1 起。缺省、0 和非正数视为未编号，排到已编号单元之后。</summary>
+        private static int PvuRank(TopologyNode node)
+        {
+            double raw = TopologyParamHelper.GetDouble(node.Parameters, "unitNumber", 0);
+            if (raw < 1)
+                return int.MaxValue;
+            return (int)Math.Round(raw);
+        }
+
+        /// <summary>含至少一条光伏 PCS 支路的光伏单元。次序见 <see cref="ComparePvu"/>，支路按 Y/X。</summary>
+        internal static List<PvBranchGroup> ListPvBranches(TopologyProject project)
+        {
+            var groups = new List<PvBranchGroup>();
+            foreach (var unit in project.Nodes.Where(n => n.TemplateId == "pvu").OrderBy(n => n, PvuOrder))
+            {
+                var branches = project.Nodes
+                    .Where(n => n.TemplateId == "pv_pcs" && TopologyParamHelper.GetString(n.Parameters, "pvuId") == unit.Id)
+                    .OrderBy(n => n.Y).ThenBy(n => n.X).ThenBy(n => n.Id)
+                    .ToList();
+                if (branches.Count == 0)
+                    continue;
+                var arrays = branches
+                    .Select(b => DirectNeighbors(project, b.Id).FirstOrDefault(n => n.TemplateId == "pv_array"))
+                    .Where(n => n != null)
+                    .Cast<TopologyNode>()
+                    .ToList();
+                groups.Add(new PvBranchGroup(unit, branches, arrays));
+            }
+            return groups;
+        }
+
+        internal static List<TopologyNode> DirectNeighbors(TopologyProject project, string nodeId)
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var e in project.Edges)
+            {
+                if (e.FromNodeId == nodeId) ids.Add(e.ToNodeId);
+                else if (e.ToNodeId == nodeId) ids.Add(e.FromNodeId);
+            }
+            return project.Nodes.Where(n => ids.Contains(n.Id)).ToList();
+        }
+
+        /// <summary>
+        /// 光伏 PCS 必须归入 pvu，直流口直连恰好一个方阵。
+        /// 同一单元内组件型号、串数和额定功率必须一致。
+        /// </summary>
+        internal static TopologyValidationResult? ValidatePvBranches(TopologyProject project, List<string> details)
+        {
+            var pvuIds = project.Nodes.Where(n => n.TemplateId == "pvu").Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+            var branches = project.Nodes.Where(n => n.TemplateId == "pv_pcs").ToList();
+            var unassigned = branches
+                .Where(n => !pvuIds.Contains(TopologyParamHelper.GetString(n.Parameters, "pvuId")))
+                .ToList();
+            if (unassigned.Count > 0)
+            {
+                details.Add($"以下光伏 PCS 未选择有效的所属光伏单元：{string.Join("、", unassigned.Select(n => n.Label))}");
+                return Fail("PV_PCS_UNASSIGNED", "每条光伏 PCS 支路须在参数中选择所属光伏单元",
+                    details: details, problemNodeIds: unassigned.Select(n => n.Id).ToList());
+            }
+
+            var viaBus = new List<TopologyNode>();
+            var unpaired = new List<TopologyNode>();
+            foreach (var branch in branches)
+            {
+                var neighbors = DirectNeighbors(project, branch.Id);
+                if (neighbors.Any(n => n.TemplateId == "dc_bus"))
+                    viaBus.Add(branch);
+                else if (neighbors.Count(n => n.TemplateId == "pv_array") != 1)
+                    unpaired.Add(branch);
+            }
+            if (viaBus.Count > 0)
+            {
+                details.Add($"以下光伏 PCS 经过直流母线：{string.Join("、", viaBus.Select(n => n.Label))}");
+                return Fail("PV_PCS_DC_BUS", "光伏 PCS 的直流口须直连光伏方阵，不能经过直流母线",
+                    details: details, problemNodeIds: viaBus.Select(n => n.Id).ToList());
+            }
+            if (unpaired.Count > 0)
+            {
+                details.Add($"以下光伏 PCS 没有恰好一个方阵：{string.Join("、", unpaired.Select(n => n.Label))}");
+                return Fail("PV_PCS_ARRAY", "每条光伏 PCS 支路的直流口须直连恰好一个光伏方阵",
+                    details: details, problemNodeIds: unpaired.Select(n => n.Id).ToList());
+            }
+
+            var shared = project.Nodes
+                .Where(n => n.TemplateId == "pv_array")
+                .Where(n => DirectNeighbors(project, n.Id).Count(b => b.TemplateId == "pv_pcs") > 1)
+                .ToList();
+            if (shared.Count > 0)
+            {
+                details.Add($"以下方阵连接了多条光伏 PCS：{string.Join("、", shared.Select(n => n.Label))}");
+                return Fail("PV_ARRAY_SHARED", "每个光伏方阵只能直连一条光伏 PCS 支路",
+                    details: details, problemNodeIds: shared.Select(n => n.Id).ToList());
+            }
+
+            foreach (var group in ListPvBranches(project))
+            {
+                var models = group.Arrays
+                    .Select(a => TopologyParamHelper.GetString(a.Parameters, "moduleModel"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var strings = group.Arrays
+                    .Select(a => (int)TopologyParamHelper.GetDouble(a.Parameters, "stringCount", 16))
+                    .Distinct()
+                    .ToList();
+                var modules = group.Arrays
+                    .Select(a => (int)TopologyParamHelper.GetDouble(a.Parameters, "modulesPerString", 30))
+                    .Distinct()
+                    .ToList();
+                var rated = group.Branches
+                    .Select(b => TopologyParamHelper.GetDouble(b.Parameters, "pcsRatedPowerKw", 320))
+                    .Distinct()
+                    .ToList();
+                if (models.Count > 1 || strings.Count > 1 || modules.Count > 1 || rated.Count > 1)
+                {
+                    details.Add($"光伏单元「{group.Unit.Label}」内支路的组件型号、串数或额定功率不一致");
+                    var ids = group.Branches.Select(b => b.Id).Concat(group.Arrays.Select(a => a.Id)).ToList();
+                    return Fail("PV_BRANCH_MISMATCH", "同一光伏单元内的组件型号、串数和 PCS 额定功率必须一致",
+                        details: details, problemNodeIds: ids);
+                }
+
+                var unknown = group.Arrays.Where(a =>
+                {
+                    var model = TopologyParamHelper.GetString(a.Parameters, "moduleModel");
+                    return !string.IsNullOrWhiteSpace(model)
+                        && !EssDeviceSimModel.Pv.TrinaPvModuleCatalog.TryGet(model, out _);
+                }).ToList();
+                if (unknown.Count > 0)
+                {
+                    var known = string.Join("、", EssDeviceSimModel.Pv.TrinaPvModuleCatalog.KnownModels);
+                    foreach (var n in unknown)
+                        details.Add($"{n.Label}：{TopologyParamHelper.GetString(n.Parameters, "moduleModel")}");
+                    return Fail("PV_UNKNOWN_MODULE", $"未知光伏组件型号。已知型号：{known}",
+                        details: details, problemNodeIds: unknown.Select(n => n.Id).ToList());
+                }
+            }
+
+            return ValidatePvTransformers(project, pvuIds, details);
+        }
+
+        /// <summary>归入指定光伏单元的普通变压器，按 Y/X 排序。</summary>
+        internal static List<TopologyNode> TransformersOfPvu(TopologyProject project, string pvuId) =>
+            project.Nodes
+                .Where(n => n.TemplateId == "transformer"
+                    && string.Equals(TopologyParamHelper.GetString(n.Parameters, "pvuId"), pvuId, StringComparison.Ordinal))
+                .OrderBy(n => n.Y).ThenBy(n => n.X).ThenBy(n => n.Id)
+                .ToList();
+
+        /// <summary>
+        /// 光伏箱变是画布上的变压器：与 EMU 归属互斥，每个含支路的光伏单元恰好一台。
+        /// 变压器二次电压须与该单元光伏 PCS 的交流侧一致。
+        /// </summary>
+        private static TopologyValidationResult? ValidatePvTransformers(
+            TopologyProject project, HashSet<string> pvuIds, List<string> details)
+        {
+            var bound = project.Nodes
+                .Where(n => n.TemplateId == "transformer")
+                .Where(n => !string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "pvuId")))
+                .ToList();
+
+            var both = bound
+                .Where(n => !string.IsNullOrWhiteSpace(TopologyParamHelper.GetString(n.Parameters, "emuId")))
+                .ToList();
+            if (both.Count > 0)
+            {
+                details.Add($"以下变压器同时选择了储能单元和光伏单元：{string.Join("、", both.Select(n => n.Label))}");
+                return Fail("PV_XFMR_BOTH", "变压器的所属 EMU 与所属光伏单元只能选一个",
+                    details: details, problemNodeIds: both.Select(n => n.Id).ToList());
+            }
+
+            var orphan = bound
+                .Where(n => !pvuIds.Contains(TopologyParamHelper.GetString(n.Parameters, "pvuId")))
+                .ToList();
+            if (orphan.Count > 0)
+            {
+                details.Add($"以下变压器选择了不存在的所属光伏单元：{string.Join("、", orphan.Select(n => n.Label))}");
+                return Fail("PV_XFMR_UNASSIGNED", "变压器的所属光伏单元须为工程内存在的光伏单元",
+                    details: details, problemNodeIds: orphan.Select(n => n.Id).ToList());
+            }
+
+            var dupGroups = bound
+                .GroupBy(n => TopologyParamHelper.GetString(n.Parameters, "pvuId"), StringComparer.Ordinal)
+                .Where(g => g.Count() > 1)
+                .ToList();
+            if (dupGroups.Count > 0)
+            {
+                var labels = project.Nodes.Where(n => n.TemplateId == "pvu").ToDictionary(n => n.Id, n => n.Label);
+                foreach (var g in dupGroups)
+                {
+                    var name = labels.TryGetValue(g.Key, out var l) && !string.IsNullOrWhiteSpace(l) ? l : g.Key;
+                    details.Add($"光伏单元「{name}」绑定了 {g.Count()} 台变压器：{string.Join("、", g.Select(n => n.Label))}");
+                }
+                return Fail("PV_XFMR_DUPLICATE", "每个光伏单元只能绑定一台变压器",
+                    details: details, problemNodeIds: dupGroups.SelectMany(g => g.Select(n => n.Id)).ToList());
+            }
+
+            foreach (var group in ListPvBranches(project))
+            {
+                var xf = TransformersOfPvu(project, group.Unit.Id);
+                if (xf.Count == 0)
+                {
+                    details.Add($"光伏单元「{group.Unit.Label}」没有绑定变压器");
+                    return Fail("PV_XFMR_MISSING", "每个含支路的光伏单元须绑定一台变压器作为箱变",
+                        details: details, problemNodeIds: new List<string> { group.Unit.Id });
+                }
+
+                double secondary = TopologyParamHelper.GetDouble(xf[0].Parameters, "secondaryVoltage", 0);
+                var mismatch = group.Branches
+                    .Where(b => !VoltageMatches(secondary, TopologyParamHelper.GetDouble(b.Parameters, "acVoltage", 0)))
+                    .ToList();
+                if (mismatch.Count > 0)
+                {
+                    details.Add(
+                        $"变压器「{xf[0].Label}」二次 {secondary:0.##} V 与光伏 PCS 交流侧不一致：{string.Join("、", mismatch.Select(n => n.Label))}");
+                    return Fail("PV_XFMR_VOLTAGE", "光伏箱变二次电压须与该单元光伏 PCS 的交流侧线电压一致",
+                        details: details,
+                        problemNodeIds: mismatch.Select(n => n.Id).Append(xf[0].Id).ToList());
+                }
+            }
+
+            return null;
         }
 
         private static TopologyValidationResult? ValidatePvModuleModels(TopologyProject project, List<string> details)

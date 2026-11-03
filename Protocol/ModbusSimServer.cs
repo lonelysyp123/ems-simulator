@@ -105,6 +105,23 @@ namespace EssSimulator
             return false;
         }
 
+        /// <summary>
+        /// 读保持寄存器上的当前值，不走点影子。
+        /// 外部主站写入只改寄存器；点影子里可能还留着启动时的默认值。
+        /// </summary>
+        public object? ReadLivePoint(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+
+            var raw = _slave.Read(name);
+            if (raw == null || raw.Length == 0)
+                return null;
+
+            var parsed = _parser.DataParse(new Dictionary<string, object> { { name, raw } });
+            return parsed.TryGetValue(name, out var value) ? value : null;
+        }
+
         public void Stop()
         {
             try { _dataSync.Stop(); }

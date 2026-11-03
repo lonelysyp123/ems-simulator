@@ -2,6 +2,7 @@ using EssSimulator.EssDeviceSimModel;
 using EssSimulator.EssDeviceSimModel.Devices;
 using EssSimulator.EssDeviceSimModel.Diagnostics;
 using EssSimulator.EssSimModelApi.BatteryManagementSystem;
+using log4net;
 
 namespace EssSimulator.EssSimModelApi.Mappers
 {
@@ -11,6 +12,8 @@ namespace EssSimulator.EssSimModelApi.Mappers
     /// </summary>
     public static class BmsMapper
     {
+        private static readonly ILog Log = LogManager.GetLogger(typeof(BmsMapper));
+
         /// <summary>堆级系统运行状态（bank yc3）：0正常 1禁充 2禁放 3待机 4停机。</summary>
         public const int StackOpNormal = 0;
         public const int StackOpChargeForbidden = 1;
@@ -137,6 +140,12 @@ namespace EssSimulator.EssSimModelApi.Mappers
         {
             var clusterStates = rackSim.GetRackState().ClusterStates;
             var clusterConfig = rackSim.GetRackConfig().ClusterConfig;
+            if (clusterStates == null || clusterConfig == null)
+            {
+                Log.Warn("[BmsMapper] 簇状态或簇配置缺失，跳过簇映射");
+                return;
+            }
+
             int packSerial = rackSim._clusters[0]._packs[0].GetPackConfiguration().SeriesCount;
 
             for (int i = 0; i < clusterStates.Count; i++)
@@ -264,6 +273,12 @@ namespace EssSimulator.EssSimModelApi.Mappers
         {
             var clusterStates = rackSim.GetRackState().ClusterStates;
             var clusterConfig = rackSim.GetRackConfig().ClusterConfig;
+            if (clusterStates == null || clusterConfig == null)
+            {
+                Log.Warn("[BmsMapper] 簇状态或簇配置缺失，跳过保护评估");
+                return;
+            }
+
             int packSerial = rackSim._clusters[0]._packs[0].GetPackConfiguration().SeriesCount;
             var stack = bmsData.BatteryStacks[0];
 

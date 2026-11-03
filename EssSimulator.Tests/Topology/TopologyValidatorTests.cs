@@ -47,8 +47,11 @@ public class TopologyValidatorTests
             p.Nodes.Add(n);
         }
 
-        // 保存级校验要求至少一个含 PCS 的 EMU；补一个不参与连线的独立单元，避免干扰连线回放用例
-        if (!p.Nodes.Any(n => n.TemplateId == "emu") && !p.Nodes.Any(n => n.TemplateId == "pv_unit"))
+        // 保存级校验要求至少一个发电单元；补一个不参与连线的独立单元，避免干扰连线回放用例
+        bool hasPv = p.Nodes.Any(n => n.TemplateId == "pv_unit")
+            || p.Nodes.Any(n => n.TemplateId == "pvu" && p.Nodes.Any(b =>
+                b.TemplateId == "pv_pcs" && TopologyParamHelper.GetString(b.Parameters, "pvuId") == n.Id));
+        if (!p.Nodes.Any(n => n.TemplateId == "emu") && !hasPv)
         {
             p.Nodes.Add(Node("role_emu", "emu", "EMU"));
             p.Nodes.Add(Node("role_pcs", "pcs", "PCS", new Dictionary<string, object?> { ["emuId"] = "role_emu" }));
@@ -849,7 +852,7 @@ public class TopologyValidatorTests
     }
 
     [Fact]
-    public void Split_transformer_requires_emu_and_rejects_more_than_two_on_same_emu()
+    public void Split_transformer_allows_missing_emu_and_rejects_more_than_two_on_same_emu()
     {
         var p = Energized35kVPlant(
             Node("split1", "split_transformer", "双耳1"),
@@ -858,8 +861,7 @@ public class TopologyValidatorTests
 
         Assert.True(Connect(p, Edge("split1", "pri_a", "bus35", "a2")).Ok);
         var save = Save(p);
-        Assert.False(save.Ok);
-        Assert.Equal("SPLIT_XFMR_EMU_REQUIRED", save.Code);
+        Assert.True(save.Ok, save.Message);
 
         p.Nodes.First(n => n.Id == "split1").Parameters["emuId"] = "role_emu";
         p.Nodes.Add(Node("split2", "split_transformer", "双耳2",
@@ -940,6 +942,138 @@ public class TopologyValidatorTests
         var save = Save(p);
         Assert.False(save.Ok);
         Assert.Equal("SPLIT_XFMR_PCS_OVERLAP", save.Code);
+    }
+
+    [Fact]
+    public void Pv_branch_pair_saves_when_each_pcs_has_its_own_array()
+    {
+        var p = Energized35kVPlant(
+            Node("u1", "pvu", "光伏单元-1"),
+            Node("xf1", "transformer", "光伏箱变", new Dictionary<string, object?>
+            {
+                ["pvuId"] = "u1",
+                ["primaryVoltage"] = 35000d,
+                ["secondaryVoltage"] = 690d,
+                ["ratedPowerKva"] = 1280d
+            }),
+            Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("c2", "pv_pcs", "光伏PCS-2", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("a1", "pv_array", "方阵-1"),
+            Node("a2", "pv_array", "方阵-2"));
+        Assert.True(Connect(p, Edge("c1", "dc_pos", "a1", "dc_pos")).Ok, "支路1直流");
+        Assert.True(Connect(p, Edge("c2", "dc_pos", "a2", "dc_pos")).Ok, "支路2直流");
+
+        var save = Save(p);
+        Assert.True(save.Ok, save.Message);
+        Assert.DoesNotContain(p.Nodes, n => n.Id == "role_emu");
+    }
+
+    [Fact]
+    public void Pv_pcs_without_pvu_fails()
+    {
+        var p = Energized35kVPlant(
+            Node("c1", "pv_pcs", "光伏PCS-1"),
+            Node("a1", "pv_array", "方阵-1"));
+        Assert.True(Connect(p, Edge("c1", "dc_pos", "a1", "dc_pos")).Ok);
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PV_PCS_UNASSIGNED", save.Code);
+    }
+
+    [Fact]
+    public void Pv_pcs_assigned_to_emu_fails()
+    {
+        var p = Energized35kVPlant(
+            Node("e1", "emu", "EMU-1"),
+            Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "e1" }),
+            Node("a1", "pv_array", "方阵-1"));
+        Assert.True(Connect(p, Edge("c1", "dc_pos", "a1", "dc_pos")).Ok);
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PV_PCS_UNASSIGNED", save.Code);
+    }
+
+    [Fact]
+    public void Storage_pcs_assigned_to_pvu_fails()
+    {
+        var p = Energized35kVPlant(
+            Node("u1", "pvu", "光伏单元-1"),
+            Node("p1", "pcs", "PCS-1", new Dictionary<string, object?> { ["emuId"] = "u1" }));
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PCS_EMU_UNASSIGNED", save.Code);
+    }
+
+    [Fact]
+    public void Pv_pcs_through_dc_bus_fails()
+    {
+        var p = Energized35kVPlant(
+            Node("u1", "pvu", "光伏单元-1"),
+            Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("dc", "dc_bus", "直流母线"),
+            Node("a1", "pv_array", "方阵-1"));
+        Assert.True(Connect(p, Edge("c1", "dc_pos", "dc", "pos_t")).Ok);
+        Assert.True(Connect(p, Edge("a1", "dc_pos", "dc", "pos_b")).Ok);
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PV_PCS_DC_BUS", save.Code);
+    }
+
+    [Fact]
+    public void Two_pv_pcs_sharing_one_array_fails()
+    {
+        var p = Energized35kVPlant(
+            Node("u1", "pvu", "光伏单元-1"),
+            Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("c2", "pv_pcs", "光伏PCS-2", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("a1", "pv_array", "方阵-1"));
+        p.Edges.Add(Edge("c1", "dc_pos", "a1", "dc_pos"));
+        p.Edges.Add(Edge("c2", "dc_pos", "a1", "dc_pos"));
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PV_ARRAY_SHARED", save.Code);
+    }
+
+    [Fact]
+    public void Pv_unit_rejects_mixed_module_or_rated_power()
+    {
+        var p = Energized35kVPlant(
+            Node("u1", "pvu", "光伏单元-1"),
+            Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("c2", "pv_pcs", "光伏PCS-2", new Dictionary<string, object?> { ["pvuId"] = "u1", ["pcsRatedPowerKw"] = 300d }),
+            Node("a1", "pv_array", "方阵-1"),
+            Node("a2", "pv_array", "方阵-2"));
+        Assert.True(Connect(p, Edge("c1", "dc_pos", "a1", "dc_pos")).Ok);
+        Assert.True(Connect(p, Edge("c2", "dc_pos", "a2", "dc_pos")).Ok);
+
+        var rated = Save(p);
+        Assert.False(rated.Ok);
+        Assert.Equal("PV_BRANCH_MISMATCH", rated.Code);
+
+        p.Nodes.First(n => n.Id == "c2").Parameters["pcsRatedPowerKw"] = 320d;
+        p.Nodes.First(n => n.Id == "a2").Parameters["moduleModel"] = "OTHER";
+        var model = Save(p);
+        Assert.False(model.Ok);
+        Assert.Equal("PV_BRANCH_MISMATCH", model.Code);
+    }
+
+    [Fact]
+    public void Pv_array_rejects_unknown_module_model()
+    {
+        var p = Energized35kVPlant(
+            Node("u1", "pvu", "光伏单元-1"),
+            Node("c1", "pv_pcs", "光伏PCS-1", new Dictionary<string, object?> { ["pvuId"] = "u1" }),
+            Node("a1", "pv_array", "方阵-1", new Dictionary<string, object?> { ["moduleModel"] = "NO-SUCH" }));
+        Assert.True(Connect(p, Edge("c1", "dc_pos", "a1", "dc_pos")).Ok);
+
+        var save = Save(p);
+        Assert.False(save.Ok);
+        Assert.Equal("PV_UNKNOWN_MODULE", save.Code);
     }
 
     private static TopologyProject Energized35kVPlant(params TopologyNode[] extra)

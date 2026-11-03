@@ -51,7 +51,8 @@ namespace EssSimulator.DataExchange.Pipeline
                         continue;
 
                     var applied = ControlValueCoercion.CoerceForModbusRegister(binding, raw);
-                    if (!_shadow.TryDetectControlChange(binding.ParamName, applied, out _))
+                    var comparable = QuantizeForRegister(binding, applied);
+                    if (!_shadow.TryDetectControlChange(binding.ParamName, comparable, out _))
                         continue;
 
                     writeBuffer[binding.ParamName] = applied;
@@ -153,6 +154,20 @@ namespace EssSimulator.DataExchange.Pipeline
 
             double halfQuantum = 0.5 / scale;
             return Math.Abs(written - echoed) <= halfQuantum + 1e-9;
+        }
+
+        /// <summary>
+        /// 整数寄存器按 Scale 量化后的工程值；与 shadow 比较用它，避免模型全精度值
+        /// （如 33.3333）与寄存器回读（33.3）永久不相等，导致每个周期都重写同一设定。
+        /// </summary>
+        private static object QuantizeForRegister(PointBinding binding, object value)
+        {
+            int scale = binding.Entry.Scale;
+            if (scale <= 1 || !IsIntegerRegister(binding.Entry) || !TryToDouble(value, out double number))
+                return value;
+            if (!double.IsFinite(number))
+                return value;
+            return Math.Round(number * scale, MidpointRounding.ToEven) / scale;
         }
 
         private static bool IsIntegerRegister(MapEntry entry)

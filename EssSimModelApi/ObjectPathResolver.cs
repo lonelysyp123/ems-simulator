@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -8,6 +9,30 @@ namespace EssSimulator.EssSimModelApi
 {
     public static class ObjectPathResolver
     {
+        /// <summary>
+        /// 属性查找缓存：类型 → (属性名 → PropertyInfo?)，内层按忽略大小写比较（与原来的
+        /// <c>BindingFlags.IgnoreCase</c> 语义一致）。
+        /// 路径在运行期固定，每次读点都重新做元数据扫描是纯浪费；找不到的属性也缓存 null，
+        /// 避免拼错的点位每拍都去扫一遍。
+        /// </summary>
+        private static readonly ConcurrentDictionary<Type, ConcurrentDictionary<string, PropertyInfo?>> PropertyCache = new();
+
+        private static PropertyInfo? FindProperty(Type type, string name)
+        {
+            var perType = PropertyCache.GetOrAdd(
+                type,
+                static _ => new ConcurrentDictionary<string, PropertyInfo?>(StringComparer.OrdinalIgnoreCase));
+
+            if (perType.TryGetValue(name, out var cached))
+                return cached;
+
+            var prop = type.GetProperty(name,
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+
+            perType[name] = prop;
+            return prop;
+        }
+
         public static object? GetValue(object? target, string path)
         {
             if (target == null || string.IsNullOrWhiteSpace(path))
@@ -35,7 +60,7 @@ namespace EssSimulator.EssSimModelApi
 
             for (int i = 0; i < segments.Length - 1; i++)
             {
-                currentObj = GetValue(currentObj, segments[i]);
+                currentObj = ResolveSegment(currentObj, segments[i]);
                 if (currentObj == null)
                     return false;
             }
@@ -65,10 +90,7 @@ namespace EssSimulator.EssSimModelApi
 
         private static object? GetSimplePropertyValue(object target, string propName)
         {
-            var type = target.GetType();
-            var prop = type.GetProperty(propName,
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
+            var prop = FindProperty(target.GetType(), propName);
             return prop?.GetValue(target);
         }
 
@@ -109,9 +131,7 @@ namespace EssSimulator.EssSimModelApi
 
         private static bool SetSimplePropertyValue(object target, string propName, object value)
         {
-            var type = target.GetType();
-            var prop = type.GetProperty(propName,
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            var prop = FindProperty(target.GetType(), propName);
 
             if (prop == null || !prop.CanWrite)
                 return false;

@@ -40,15 +40,20 @@ namespace EssSimulator.Display
             if (parts[0].Equals("unit", StringComparison.OrdinalIgnoreCase) && parts.Length >= 3 &&
                 int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int unitIndex))
             {
-                var unit = snap.Units.FirstOrDefault(u => u.UnitIndex == unitIndex);
-                if (unit == null)
+                // UnitBranchSnapshot 是 readonly record struct：FirstOrDefault 会返回 default，
+                // 找不到单元时不能靠 == null 判断，否则会静默拿 0 号单元的状态。
+                var unit = snap.Units
+                    .Where(u => u.UnitIndex == unitIndex)
+                    .Select(u => (UnitBranchSnapshot?)u)
+                    .FirstOrDefault();
+                if (unit is null)
                     return false;
 
                 if (parts[2].Equals("breaker", StringComparison.OrdinalIgnoreCase) &&
                     parts.Length >= 4 &&
                     parts[3].Equals("closed", StringComparison.OrdinalIgnoreCase))
                 {
-                    value = unit.UnitBreakerClosed ? 1 : 0;
+                    value = unit.Value.UnitBreakerClosed ? 1 : 0;
                     return true;
                 }
 
@@ -57,8 +62,8 @@ namespace EssSimulator.Display
                     parts.Length >= 4 &&
                     parts[3].Equals("activePowerKw", StringComparison.OrdinalIgnoreCase) &&
                     TryParseSlotToken(parts[2], out int pcsSlot) &&
-                    pcsSlot < unit.PcsChannels.Count &&
-                    unit.PcsChannels[pcsSlot] is { } pcsSnap)
+                    pcsSlot < unit.Value.PcsChannels.Count &&
+                    unit.Value.PcsChannels[pcsSlot] is { } pcsSnap)
                 {
                     value = pcsSnap.ActivePowerKw;
                     return true;
@@ -70,7 +75,7 @@ namespace EssSimulator.Display
                     TryParseSlotToken(parts[2], out int bmsSlot))
                 {
                     var layout = GuiSimDataAccess.GetPcsPerUnit();
-                    int bmsIndex = EssDeviceSimModel.PcsUnitLayout.BaseIndexOfUnit(layout, unit.UnitIndex) + bmsSlot;
+                    int bmsIndex = EssDeviceSimModel.PcsUnitLayout.BaseIndexOfUnit(layout, unit.Value.UnitIndex) + bmsSlot;
                     value = 100 * GuiSimDataAccess.SafeGetDouble($"ess._batteryRacks[{bmsIndex}]._currentState.MinClusterSOC");
                     return true;
                 }

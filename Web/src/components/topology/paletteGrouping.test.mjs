@@ -20,6 +20,9 @@ const builtins = [
   tpl('emu_group', 'EMU分组', '储能'),
   tpl('pcs', 'PCS变流器', '储能'),
   tpl('bms', 'BMS', '储能'),
+  tpl('pvu', '光伏单元', '光伏'),
+  tpl('pv_pcs', '光伏 PCS 支路', '光伏'),
+  tpl('pv_array', '光伏方阵', '光伏'),
   tpl('pv_unit', '光伏单元', '光伏')
 ]
 
@@ -45,17 +48,21 @@ describe('groupTemplatesByCategory', () => {
     assert.deepEqual(groups[0].items.map(t => t.id), ['split_transformer'])
   })
 
-  it('search pcs hits the PCS template only', () => {
+  it('search pcs hits the storage PCS and the photovoltaic PCS', () => {
     const groups = groupTemplatesByCategory(builtins, 'pcs')
-    assert.equal(groups.length, 1)
-    assert.equal(groups[0].category, '储能')
-    assert.deepEqual(groups[0].items.map(t => t.id), ['pcs'])
+    const ids = groups.flatMap(g => g.items.map(t => t.id)).sort()
+    assert.deepEqual(ids, ['pcs', 'pv_pcs'])
   })
 
   it('empty query returns every non-empty group', () => {
     const groups = groupTemplatesByCategory(builtins, '  ')
     const ids = groups.flatMap(g => g.items.map(t => t.id))
-    assert.deepEqual(ids, builtins.map(t => t.id))
+    assert.deepEqual(ids, builtins.filter(t => t.id !== 'pv_unit').map(t => t.id))
+  })
+
+  it('lists photovoltaic pcs and array and hides the legacy pv unit', () => {
+    const pv = groupTemplatesByCategory(builtins).find(g => g.category === '光伏')
+    assert.deepEqual(pv.items.map(t => t.id), ['pvu', 'pv_pcs', 'pv_array'])
   })
 
   it('unknown categories append after the known order and keep all items', () => {
@@ -63,7 +70,7 @@ describe('groupTemplatesByCategory', () => {
     const groups = groupTemplatesByCategory([...builtins, extra])
     assert.equal(groups.at(-1).category, '插件')
     assert.deepEqual(groups.at(-1).items.map(t => t.id), ['foo'])
-    assert.equal(groups.flatMap(g => g.items).length, builtins.length + 1)
+    assert.equal(groups.flatMap(g => g.items).length, builtins.filter(t => t.id !== 'pv_unit').length + 1)
   })
 })
 

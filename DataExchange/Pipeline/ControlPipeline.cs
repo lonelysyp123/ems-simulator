@@ -1,5 +1,6 @@
 using EssSimulator.Core;
 using EssSimulator.DataExchange.Adapters;
+using EssSimulator.EssSimModelApi.Mappers;
 using EssSimulator.DataExchange.Catalog;
 using EssSimulator.DataExchange.Effects;
 using EssSimulator.EssDeviceSimModel;
@@ -103,6 +104,7 @@ namespace EssSimulator.DataExchange.Pipeline
             }
 
             ControlPointCapture.Current.OnControlApplied(_serverName, binding, applied, previous);
+            DeviceControlFacade.OnPvModelControlWritten(path);
 
             if (_logControlChanges)
             {

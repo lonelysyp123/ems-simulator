@@ -10,7 +10,7 @@ namespace EssSimulator.EssDeviceSimModel
     public class ClusterConfiguration
     {
         public int PackCount { get; set; }                  // 串联模组数量
-        public PackConfiguration PackConfig { get; set; } // 模组配置模板
+        public PackConfiguration PackConfig { get; set; } = new(); // 模组配置模板
         public double ClusterInternalResistance { get; set; } // 簇总内阻(Ohm)
         public double MaxVoltageImbalance { get; set; } = 5.0; // 允许的最大模组电压不平衡(V)
         public double MaxTempDifference { get; set; } = 15.0; // 允许的最大模组温差(°C)
@@ -42,7 +42,7 @@ namespace EssSimulator.EssDeviceSimModel
         public double RemainingCapacity { get; set; }        // 剩余容量(kWh)
         public double TotalCapacity { get; set; }           // 总容量(kWh)
         public DateTime Timestamp { get; set; }             // 状态时间
-        public List<PackState> PackStates { get; set; } // 所有模组状态
+        public List<PackState> PackStates { get; set; } = new(); // 所有模组状态
     }
 
     public class BatteryClusterSimulator
@@ -50,7 +50,7 @@ namespace EssSimulator.EssDeviceSimModel
         public readonly ClusterConfiguration _config;
         public readonly List<BatteryPackSimulator> _packs; // 串联的电池模组
         private readonly Random _random = new Random();
-        public ClusterState _currentState;
+        public ClusterState _currentState = new();
         private bool _equivalentLatched;
 
         // 构造函数
@@ -91,7 +91,7 @@ namespace EssSimulator.EssDeviceSimModel
             foreach (var pack in _packs)
                 pack.SetSoc(soc);
 
-            UpdateClusterState(_currentState?.TotalCurrent ?? 0, _currentState?.AvgPackTemp ?? 25.0, DateTime.UtcNow);
+            UpdateClusterState(_currentState.TotalCurrent, _currentState.AvgPackTemp, DateTime.UtcNow);
         }
 
         // 更新簇状态
@@ -137,8 +137,8 @@ namespace EssSimulator.EssDeviceSimModel
             var lead = _packs[0];
             if (!_equivalentLatched)
             {
-                double soc = _currentState?.AvgPackSOC ?? lead.GetPackSOC();
-                double temp = _currentState?.AvgPackTemp ?? 25.0;
+                double soc = _currentState.AvgPackSOC;
+                double temp = _currentState.AvgPackTemp;
                 lead.SetRepresentative(soc, temp);
                 _equivalentLatched = true;
             }

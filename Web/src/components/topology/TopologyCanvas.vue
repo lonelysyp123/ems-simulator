@@ -75,6 +75,21 @@
               :d="`M ${sizeOf(node).w * 0.36} 40 Q ${sizeOf(node).w * 0.44} 32 ${sizeOf(node).w * 0.5} 40 T ${sizeOf(node).w * 0.64} 40`"
             />
           </g>
+          <g v-if="node.templateId === 'pv_pcs'" fill="none" stroke="#fff" stroke-width="1.6">
+            <line :x1="sizeOf(node).w * 0.28" y1="22" :x2="sizeOf(node).w * 0.28" y2="40" />
+            <line :x1="sizeOf(node).w * 0.5" y1="22" :x2="sizeOf(node).w * 0.5" y2="40" />
+            <line :x1="sizeOf(node).w * 0.72" y1="22" :x2="sizeOf(node).w * 0.72" y2="40" />
+            <rect :x="sizeOf(node).w * 0.3" y="44" :width="sizeOf(node).w * 0.4" height="22" rx="2" />
+            <line :x1="sizeOf(node).w * 0.38" :y1="sizeOf(node).h - 16" :x2="sizeOf(node).w * 0.38" :y2="sizeOf(node).h - 6" />
+            <line :x1="sizeOf(node).w * 0.62" :y1="sizeOf(node).h - 16" :x2="sizeOf(node).w * 0.62" :y2="sizeOf(node).h - 6" />
+          </g>
+          <g v-if="node.templateId === 'pv_array'" fill="none" stroke="#fff" stroke-width="1.4">
+            <rect :x="sizeOf(node).w * 0.22" y="22" :width="sizeOf(node).w * 0.56" height="32" />
+            <line :x1="sizeOf(node).w * 0.22" y1="33" :x2="sizeOf(node).w * 0.78" y2="33" />
+            <line :x1="sizeOf(node).w * 0.22" y1="43" :x2="sizeOf(node).w * 0.78" y2="43" />
+            <line :x1="sizeOf(node).w * 0.4" y1="22" :x2="sizeOf(node).w * 0.4" y2="54" />
+            <line :x1="sizeOf(node).w * 0.6" y1="22" :x2="sizeOf(node).w * 0.6" y2="54" />
+          </g>
           <g v-if="node.templateId === 'pv_unit'" fill="none" stroke="#fff" stroke-width="1.6">
             <rect :x="sizeOf(node).w * 0.22" y="28" :width="sizeOf(node).w * 0.56" height="36" rx="2" />
             <line :x1="sizeOf(node).w * 0.22" y1="40" :x2="sizeOf(node).w * 0.78" y2="40" />
@@ -287,6 +302,15 @@ function voltageHint(node) {
     return `${formatVoltage(p.primaryVoltage)}/${formatVoltage(p.secondaryVoltage)} · 双耳`
   }
   if (node.templateId === 'emu') return formatVoltage(p.acVoltage)
+  if (node.templateId === 'pv_pcs') {
+    const kw = Number(p.pcsRatedPowerKw || 0)
+    return kw > 0 ? `${kw.toFixed(0)} kW` : formatVoltage(p.acVoltage)
+  }
+  if (node.templateId === 'pv_array') {
+    const model = p.moduleModel || ''
+    const strings = Number(p.stringCount || 0)
+    return strings > 0 ? `${model} · ${strings.toFixed(0)}串` : model
+  }
   if (node.templateId === 'pv_unit') {
     const n = Number(p.inverterCount || 1)
     const kw = Number(p.inverterRatedPowerKw || 0)

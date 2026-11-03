@@ -72,6 +72,11 @@ namespace EssSimulator.Display
                 "  bmsN fault clear               // 待机时清除充放电方向内部故障，恢复可并网",
                 "  setpvN run on|off              // 光伏单元启停（直控仿真设备）",
                 "  setpvN power <kW>              // 光伏有功设定（限发 kW，≥0）",
+                "  setpvN maxpower <kW>|off       // 给该单元每台逆变器设相同的最大放电上限",
+                "  setpvN pcs M maxpower <kW>|off // 只设第 M 台逆变器（一块方阵）的最大放电上限",
+                "  setpvN pcs M power <kW>       // 第 M 台光伏逆变器有功设定（0～最大功率）",
+                "  setpvN pcs M reactive <kvar>  // 第 M 台光伏逆变器无功设定",
+                "  setpvN pcs M run on|off       // 第 M 台光伏逆变器启停",
                 "  setpvN reactive <kvar>         // 光伏无功设定（kvar，可正可负）",
                 "  setpvN array A|B temperature <℃> // 设定光伏方阵环境温度（电池温度由 NOCT 估算）",
                 "  setpvN array A|B angle <度>    // 设定光伏方阵光照入射角（90=正对 1000 W/㎡，0/180=0）",
@@ -394,6 +399,28 @@ namespace EssSimulator.Display
                 return CommandResult.Ok($"执行成功: {runMessage}");
             }
 
+            if (args.Length >= 2 && args[1].Equals("maxpower", StringComparison.OrdinalIgnoreCase))
+            {
+                if (args.Length == 3 && args[2].Equals("off", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DeviceControlFacade.TryClearPvMaxDischarge(pv1Based, out var clearMessage))
+                        return CommandResult.Fail($"操作失败: {clearMessage}");
+                    return CommandResult.Ok($"执行成功: {clearMessage}");
+                }
+
+                if (args.Length == 3 && double.TryParse(args[2], out var capKw))
+                {
+                    if (!DeviceControlFacade.TrySetPvMaxDischarge(pv1Based, capKw, out var capMessage))
+                        return CommandResult.Fail($"操作失败: {capMessage}");
+                    return CommandResult.Ok($"执行成功: {capMessage}");
+                }
+
+                return CommandResult.Fail("用法: esscmd setpvN maxpower <kW>|off");
+            }
+
+            if (args.Length >= 2 && args[1].Equals("pcs", StringComparison.OrdinalIgnoreCase))
+                return ExecuteSetPvInverter(pv1Based, args);
+
             if (args.Length == 3 &&
                 (args[1].Equals("power", StringComparison.OrdinalIgnoreCase) ||
                  args[1].Equals("reactive", StringComparison.OrdinalIgnoreCase)))
@@ -416,7 +443,7 @@ namespace EssSimulator.Display
                 || !args[1].Equals("array", StringComparison.OrdinalIgnoreCase))
             {
                 return CommandResult.Fail(
-                    "用法: esscmd setpvN run on|off\n      esscmd setpvN power <kW>\n      esscmd setpvN reactive <kvar>\n      esscmd setpvN array A|B temperature|angle|albedo <数值>\n示例: esscmd setpv1 run on\n      esscmd setpv1 array A temperature 35");
+                    "用法: esscmd setpvN run on|off\n      esscmd setpvN power <kW>\n      esscmd setpvN reactive <kvar>\n      esscmd setpvN maxpower <kW>|off\n      esscmd setpvN pcs M power <kW>|reactive <kvar>|run on|off|maxpower <kW>|off\n      esscmd setpvN array A|B temperature|angle|albedo <数值>\n示例: esscmd setpv1 run on\n      esscmd setpv1 pcs 1 power 100\n      esscmd setpv1 pcs 1 maxpower 40\n      esscmd setpv1 array A temperature 35");
             }
 
             string side = args[2].Trim().ToUpperInvariant();
@@ -435,6 +462,56 @@ namespace EssSimulator.Display
 
             UiSnapshotNotifier.RequestImmediatePush();
             return CommandResult.Ok($"执行成功: {message}");
+        }
+
+        private static CommandResult ExecuteSetPvInverter(int pv1Based, string[] args)
+        {
+            const string usage = "用法: esscmd setpvN pcs M power <kW>|reactive <kvar>|run on|off|maxpower <kW>|off";
+            if (args.Length != 5 || !int.TryParse(args[2], out int inverter1Based) || inverter1Based < 1)
+                return CommandResult.Fail(usage);
+
+            if (args[3].Equals("run", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!TryParseLinkState(args[4], out bool run, out var stateMessage))
+                    return CommandResult.Fail(stateMessage);
+                if (!DeviceControlFacade.TrySetPvInverterRun(pv1Based, inverter1Based, run, out var runMessage))
+                    return CommandResult.Fail($"操作失败: {runMessage}");
+                return CommandResult.Ok($"执行成功: {runMessage}");
+            }
+
+            if (args[3].Equals("maxpower", StringComparison.OrdinalIgnoreCase))
+            {
+                if (args[4].Equals("off", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DeviceControlFacade.TryClearPvInverterMaxDischarge(pv1Based, inverter1Based, out var clearMessage))
+                        return CommandResult.Fail($"操作失败: {clearMessage}");
+                    return CommandResult.Ok($"执行成功: {clearMessage}");
+                }
+
+                if (!double.TryParse(args[4], out var capKw))
+                    return CommandResult.Fail("请输入有效的数字");
+                if (!DeviceControlFacade.TrySetPvInverterMaxDischarge(pv1Based, inverter1Based, capKw, out var capMessage))
+                    return CommandResult.Fail($"操作失败: {capMessage}");
+                return CommandResult.Ok($"执行成功: {capMessage}");
+            }
+
+            if (args[3].Equals("power", StringComparison.OrdinalIgnoreCase) ||
+                args[3].Equals("reactive", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(args[4], out var value))
+                    return CommandResult.Fail("请输入有效的数字");
+                bool active = args[3].Equals("power", StringComparison.OrdinalIgnoreCase);
+                if (!DeviceControlFacade.TrySetPvInverterPower(
+                    pv1Based,
+                    inverter1Based,
+                    active ? value : null,
+                    active ? null : value,
+                    out var powerMessage))
+                    return CommandResult.Fail($"操作失败: {powerMessage}");
+                return CommandResult.Ok($"执行成功: {powerMessage}");
+            }
+
+            return CommandResult.Fail(usage);
         }
 
         private static bool TryParseSetPvIndex(string verb, out int pv1Based, out string message)

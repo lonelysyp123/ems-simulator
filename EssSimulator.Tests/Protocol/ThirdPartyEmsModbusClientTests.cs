@@ -4,7 +4,7 @@ namespace EssSimulator.Tests.Protocol;
 
 public class ThirdPartyEmsModbusClientTests
 {
-    private static int NextPort() => Random.Shared.Next(42000, 58000);
+    private static int NextPort() => FreePort.Next();
 
     [Fact]
     public void WriteHolding_1010_RoundTripsEngineeringValue()

@@ -24,7 +24,9 @@
     <div class="card">
       <p class="card-title">Modbus 服务监听</p>
       <el-table :data="data?.servers || []" size="small" border stripe>
-        <el-table-column prop="server" label="服务" width="160" />
+        <el-table-column prop="server" label="服务" width="140" />
+        <el-table-column prop="code" label="编号" width="80" />
+        <el-table-column prop="breakerLabel" label="断路器" width="160" />
         <el-table-column prop="listenInfo" label="监听信息" />
       </el-table>
     </div>
