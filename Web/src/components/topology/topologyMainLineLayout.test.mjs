@@ -34,6 +34,7 @@ describe('buildTopologyMainLineLayout pv units', () => {
     assert.equal(layout.units.length, 1)
     const u = layout.units[0]
     assert.equal(u.kind, 'pv')
+    assert.equal(u.draw, 'pvLegend')
     assert.equal(u.label, '光伏单元-1')
     assert.equal(u.pvIndex, 0)
     assert.equal(u.modulesPerString, 30)
@@ -97,6 +98,7 @@ describe('buildTopologyMainLineLayout pv units', () => {
     assert.equal(layout.units.length, 2)
     assert.equal(layout.units[0].kind, 'pv')
     assert.equal(layout.units[1].kind, 'emu')
+    assert.equal(layout.units[1].draw, 'pcsChain')
     assert.equal(layout.units[1].pcsNodes.length, 2)
     assert.deepEqual(layout.units[1].pcsNums, [1, 2], 'PCS 全局编号与卡片 num 一致')
     assert.equal(layout.units[1].emu?.id, 'emu1')
@@ -777,5 +779,242 @@ describe('buildTopologyMainLineLayout series breaker on transformer branch', () 
     assert.equal(emus.length, 6)
     assert.ok(emus.every(u => u.unitBreakerOnXfmr && u.pcsTop === 18))
     assert.equal(new Set(layout.branchBreakers.map(b => b.unitIndex)).size, 3)
+  })
+})
+
+describe('buildTopologyMainLineLayout winding downstreams', () => {
+  function windingEdges(xfmrId, winding, otherId) {
+    return ['a', 'b', 'c'].map(phase => ({
+      fromNodeId: xfmrId,
+      toNodeId: otherId,
+      fromPortId: `${winding}_${phase}`,
+      toPortId: `ac_${phase}`
+    }))
+  }
+
+  it('hangs each pv on its own ear of the split transformer', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 400, { outputVoltage: 220000 }),
+        node('hv', 'ac_bus', '220kV', 400, { nominalVoltage: 220000 }),
+        node('cb', 'ac_breaker', '光伏进线', 400, { closed: true }),
+        node('split', 'split_transformer', '光伏双耳', 400, { primaryVoltage: 35000, secondaryVoltage: 690 }),
+        node('pvL', 'pv_unit', '光伏左', 200, { inverterCount: 8 }),
+        node('pvR', 'pv_unit', '光伏右', 600, { inverterCount: 8 })
+      ],
+      edges: [
+        edge('grid', 'hv'),
+        edge('hv', 'cb'),
+        ...windingEdges('split', 'pri', 'cb'),
+        ...windingEdges('split', 'ear_l', 'pvL'),
+        ...windingEdges('split', 'ear_r', 'pvR')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    const left = layout.units.find(u => u.pv?.id === 'pvL')
+    const right = layout.units.find(u => u.pv?.id === 'pvR')
+    assert.ok(left && right)
+    assert.equal(left.xfmrId, 'split')
+    assert.equal(right.xfmrId, 'split')
+    assert.ok(left.cx < right.cx)
+    assert.equal(layout.buses.filter(b => Number(b.voltage) === 690).length, 0)
+    assert.equal(layout.branchBreakers.map(b => b.id).join(), 'cb')
+    const hv = layout.buses.find(b => b.id === 'hv')
+    assert.ok(left.originY > hv.y)
+    assert.equal(left.busCx, left.cx)
+    assert.equal(right.busCx, right.cx)
+  })
+
+  it('keeps a 690V ear bus and a pv on the other ear in separate slots', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 400, { outputVoltage: 35000 }),
+        node('hv', 'ac_bus', '35kV', 400, { nominalVoltage: 35000 }),
+        node('split', 'split_transformer', '双耳', 400, { primaryVoltage: 35000, secondaryVoltage: 690 }),
+        node('bus690', 'ac_bus', '690V', 200, { nominalVoltage: 690 }),
+        node('pcs1', 'pcs', 'PCS-1', 200, { emuId: 'emu1' }),
+        node('emu1', 'emu', 'EMU-1', 200),
+        node('pv1', 'pv_unit', '光伏', 700, { inverterCount: 8 })
+      ],
+      edges: [
+        edge('grid', 'hv'),
+        ...windingEdges('split', 'pri', 'hv'),
+        ...windingEdges('split', 'ear_l', 'bus690'),
+        edge('bus690', 'pcs1'),
+        ...windingEdges('split', 'ear_r', 'pv1')
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    const lv = layout.buses.filter(b => Number(b.voltage) === 690)
+    assert.equal(lv.length, 1)
+    assert.equal(lv[0].id, 'bus690')
+    const pv = layout.units.find(u => u.kind === 'pv')
+    const pcs = layout.units.find(u => u.kind === 'emu')
+    assert.equal(pv.xfmrId, 'split')
+    assert.equal(pcs.xfmrId, 'split')
+    assert.ok(pv.cx > lv[0].x2, 'pv sits beside the 690V bus, not on it')
+    assert.ok(pcs.cx >= lv[0].x1 && pcs.cx <= lv[0].x2)
+  })
+
+  it('draws a feeder with no bus connection as its own island', () => {
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 0, { outputVoltage: 35000 }),
+        node('bus', 'ac_bus', '35kV', 0, { nominalVoltage: 35000 }),
+        node('pvOn', 'pv_unit', 'PV-on', 0, { inverterCount: 8 }),
+        node('pvOff', 'pv_unit', 'PV-off', 800, { inverterCount: 8 })
+      ],
+      edges: [edge('grid', 'bus'), edge('bus', 'pvOn')]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    const bus = layout.buses.find(b => b.id === 'bus')
+    const on = layout.units.find(u => u.pv?.id === 'pvOn')
+    const off = layout.units.find(u => u.pv?.id === 'pvOff')
+    assert.ok(on && off && bus)
+    assert.ok(on.cx >= bus.x1 && on.cx <= bus.x2)
+    assert.ok(off.cx > bus.x2)
+    assert.equal(off.xfmrId, null)
+  })
+})
+
+describe('buildTopologyMainLineLayout pv pcs chain', () => {
+  it('draws four pcs cards over four arrays with no dc bus', () => {
+    const branches = [0, 1, 2, 3].flatMap(i => [
+      node(`c${i}`, 'pv_pcs', `光伏PCS-${i + 1}`, 100 + i * 40, {
+        pvuId: 'u1', pcsRatedPowerKw: 320, pcsMaxPowerKw: 352, dcVoltageMin: 500, dcVoltageMax: 1500
+      }),
+      node(`a${i}`, 'pv_array', `方阵-${i + 1}`, 100 + i * 40, {
+        moduleModel: 'TSM-NEG21C.20Q', stringCount: 16, modulesPerString: 30
+      })
+    ])
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 200, { outputVoltage: 220000 }),
+        node('bus', 'ac_bus', '35kV', 200, { nominalVoltage: 35000 }),
+        node('u1', 'pvu', '光伏单元-1', 160, {}),
+        ...branches
+      ],
+      edges: [
+        edge('grid', 'bus'),
+        ...[0, 1, 2, 3].flatMap(i => [
+          edge(`c${i}`, 'bus'),
+          { fromNodeId: `c${i}`, toNodeId: `a${i}`, fromPortId: 'dc_pos', toPortId: 'dc_pos' }
+        ])
+      ]
+    }
+    const layout = buildTopologyMainLineLayout(topology, [])
+    const units = layout.units.filter(u => u.kind === 'pvChain')
+    assert.equal(units.length, 1)
+    const u = units[0]
+    assert.equal(u.dcBus, null)
+    assert.equal(u.pcsNodes.length, 4)
+    assert.equal(u.bmsNodes.length, 4)
+    const pcs = u.cards.filter(c => c.tone === 'pvPcs')
+    const arrays = u.cards.filter(c => c.tone === 'pvArray')
+    assert.equal(pcs.length, 4)
+    assert.equal(arrays.length, 4)
+    assert.deepEqual(pcs.map(c => c.inverterIndex), [0, 1, 2, 3])
+    assert.ok(pcs.every(c => c.pvIndex === 0))
+    assert.ok(pcs.every(c => c.title.startsWith('光伏PCS')))
+    assert.ok(pcs.every(c => c.lines.some(ln => ln.includes('320'))))
+    assert.ok(arrays.every(c => c.title.startsWith('方阵')))
+    assert.ok(arrays.every(c => c.lines.includes('TSM-NEG21C.20Q')))
+    assert.ok(arrays.every(c => c.lines.some(ln => ln.includes('16') && ln.includes('30'))))
+    assert.deepEqual(arrays.map(c => c.side), ['A', 'A', 'B', 'B'])
+    assert.deepEqual(arrays.map(c => c.inverterIndex), [0, 1, 2, 3])
+    assert.equal(u.pvIndex, 0)
+    assert.ok(arrays.every(c => c.stringCount === 16 && c.modulesPerString === 30))
+    assert.ok(!u.cards.some(c => String(c.title).includes('BMS')))
+  })
+
+  it('numbers photovoltaic units by canvas Y then X', () => {
+    const unit = (id, y, x) => {
+      const pvu = node(id, 'pvu', id, x, {})
+      pvu.y = y
+      const pcs = node(`${id}-pcs`, 'pv_pcs', id, x, { pvuId: id })
+      pcs.y = y
+      const array = node(`${id}-a`, 'pv_array', id, x, { stringCount: 16, modulesPerString: 30 })
+      array.y = y
+      return [pvu, pcs, array]
+    }
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 200, { outputVoltage: 220000 }),
+        node('bus', 'ac_bus', '35kV', 200, { nominalVoltage: 35000 }),
+        ...unit('low', 0, 400),
+        ...unit('high', 0, 100)
+      ],
+      edges: [
+        edge('grid', 'bus'),
+        edge('low-pcs', 'bus'),
+        edge('high-pcs', 'bus'),
+        { fromNodeId: 'low-pcs', toNodeId: 'low-a', fromPortId: 'dc_pos', toPortId: 'dc_pos' },
+        { fromNodeId: 'high-pcs', toNodeId: 'high-a', fromPortId: 'dc_pos', toPortId: 'dc_pos' }
+      ]
+    }
+    const units = buildTopologyMainLineLayout(topology, []).units.filter(u => u.kind === 'pvChain')
+    const byPvu = Object.fromEntries(units.map(u => [u.pcsNodes[0].parameters.pvuId, u.pvIndex]))
+    assert.equal(byPvu.high, 0)
+    assert.equal(byPvu.low, 1)
+  })
+
+  it('numbers photovoltaic units by unitNumber ahead of canvas position', () => {
+    const unit = (id, y, x, unitNumber) => {
+      const pvu = node(id, 'pvu', id, x, { unitNumber })
+      pvu.y = y
+      const pcs = node(`${id}-pcs`, 'pv_pcs', id, x, { pvuId: id })
+      pcs.y = y
+      const array = node(`${id}-a`, 'pv_array', id, x, { stringCount: 16, modulesPerString: 30 })
+      array.y = y
+      return [pvu, pcs, array]
+    }
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 200, { outputVoltage: 220000 }),
+        node('bus', 'ac_bus', '35kV', 200, { nominalVoltage: 35000 }),
+        ...unit('right', 0, 400, 1),
+        ...unit('left', 0, 100, 2)
+      ],
+      edges: [
+        edge('grid', 'bus'),
+        edge('right-pcs', 'bus'),
+        edge('left-pcs', 'bus'),
+        { fromNodeId: 'right-pcs', toNodeId: 'right-a', fromPortId: 'dc_pos', toPortId: 'dc_pos' },
+        { fromNodeId: 'left-pcs', toNodeId: 'left-a', fromPortId: 'dc_pos', toPortId: 'dc_pos' }
+      ]
+    }
+    const units = buildTopologyMainLineLayout(topology, []).units.filter(u => u.kind === 'pvChain')
+    const byPvu = Object.fromEntries(units.map(u => [u.pcsNodes[0].parameters.pvuId, u.pvIndex]))
+    assert.equal(byPvu.right, 0)
+    assert.equal(byPvu.left, 1)
+  })
+
+  it('numbers inverters by canvas Y then X inside one unit', () => {
+    const pcs = (id, x, y) => {
+      const nodePcs = node(id, 'pv_pcs', id, x, { pvuId: 'u1' })
+      nodePcs.y = y
+      return nodePcs
+    }
+    const topology = {
+      nodes: [
+        node('grid', 'grid', '电网', 200, { outputVoltage: 220000 }),
+        node('bus', 'ac_bus', '35kV', 200, { nominalVoltage: 35000 }),
+        node('u1', 'pvu', '光伏单元', 0, {}),
+        pcs('west', 0, 20),
+        pcs('east', 200, 0)
+      ],
+      edges: [
+        edge('grid', 'bus'),
+        edge('west', 'bus'),
+        edge('east', 'bus')
+      ]
+    }
+    const cards = buildTopologyMainLineLayout(topology, []).units
+      .filter(u => u.kind === 'pvChain')
+      .flatMap(u => u.cards.filter(c => c.tone === 'pvPcs'))
+    const byId = Object.fromEntries(cards.map(c => [c.id, c.inverterIndex]))
+    assert.equal(byId['pv-pcs-east'], 0)
+    assert.equal(byId['pv-pcs-west'], 1)
+    assert.ok(cards[0].x < cards[1].x)
   })
 })

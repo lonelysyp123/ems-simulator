@@ -764,6 +764,42 @@ function expandEmuDevices(unit, origin, items, cables, graph, live, base, ctx) {
 
 }
 
+function expandPvBranches(unit, origin, items) {
+  const pcsNodes = unit.pcsNodes || []
+  const arrays = unit.bmsNodes || []
+  const cx = toX(unit.cx, origin)
+  const zPcs = toZ(unit.originY + (unit.pcsTop || 0), origin)
+  const zArr = toZ(unit.originY + (unit.bmsTop || unit.bottom || 0), origin)
+  const pcsXs = slotXs(cx, pcsNodes.length, 5.5)
+  const arrayXs = slotXs(cx, arrays.length, 5.5)
+  pcsNodes.forEach((p, i) => {
+    addItem(items, {
+      key: `pv-pcs-${p.id}`,
+      templateId: 'pcs',
+      kind: 'pcs',
+      x: pcsXs[i],
+      z: zPcs,
+      node: p,
+      label: p.label,
+      labelOffset: { x: 0, y: 4.4, z: 0.3 }
+    })
+  })
+  arrays.forEach((a, i) => {
+    addItem(items, {
+      key: `pv-array-${a.id}`,
+      templateId: 'pv_array',
+      kind: 'pv-array',
+      x: arrayXs[i] ?? pcsXs[Math.min(i, pcsXs.length - 1)],
+      z: zArr,
+      node: a,
+      stringCount: countFromParam(a, 'stringCount', 16),
+      modulesPerString: countFromParam(a, 'modulesPerString', 30),
+      label: a.label,
+      labelOffset: { x: 0, y: 3.6, z: 0.3 }
+    })
+  })
+}
+
 function pvGroupsFromUnit(unit) {
   const inv = countFromParam(unit.pv, 'inverterCount', 0)
   const split = splitCount(inv)
@@ -1253,6 +1289,7 @@ function fromTopology(topology, unitsSnap, pvSnap) {
   const live = buildLiveDeviceMaps(unitsSnap)
   for (const unit of sld.units || []) {
     if (unit.kind === 'pv') expandPv(unit, origin, items, cables, pvSnap, ctx)
+    else if (unit.kind === 'pvChain') expandPvBranches(unit, origin, items)
     else expandEmu(unit, origin, items, cables, ctx, graph, live)
   }
 

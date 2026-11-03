@@ -6,11 +6,13 @@
  * 光伏单元按设备类型展开内部图例，不按某个具体工程写死站侧骨架。
  *
  * 耦合器件（变压器 / 双耳 / 未来 N 绕组）一律展开为 downstreams[]：
- * 遍历、测宽、落位必须走同一列表，禁止再为某模板单开 extra 字段。
- * 器件如何入图由 nodeLayout.sldRole 登记；未登记的模板按 unknown 挂件画出。
+ * 有绕组端口时按绕组分组，下游可以是母线、发电设备或下一台耦合设备；
+ * 没有绕组端口时仍按每条交流母线一路。遍历、测宽、落位走同一列表。
+ * 器件如何入图由 nodeLayout.sldRole 登记，怎么画由 sldDraw 登记；未登记的模板按 unknown 挂件画出。
  */
 
-import { isSplitTransformer, isTransformerLike, sldRole } from './nodeLayout.js'
+import { isSplitTransformer, isTransformerLike, sldDraw, sldRole, sldWinding } from './nodeLayout.js'
+import { comparePvu } from './pvuTree.js'
 
 const CARD_W = 132
 const CARD_GAP = 20
@@ -134,6 +136,163 @@ function xfmrConnectedBuses(graph, xfmrId) {
   return buses
 }
 
+function portOnEdge(edge, nodeId) {
+  if (edge.fromNodeId === nodeId) return edge.fromPortId || ''
+  if (edge.toNodeId === nodeId) return edge.toPortId || ''
+  return ''
+}
+
+function otherEnd(edge, nodeId) {
+  return edge.fromNodeId === nodeId ? edge.toNodeId : edge.fromNodeId
+}
+
+/** 从耦合设备的一条边走到对端；断路器记在引线上，再跳一层。 */
+function resolveCouplingFar(graph, xfmrId, neighborId) {
+  const n = graph.byId.get(neighborId)
+  if (!n) return []
+  if (n.templateId === 'ac_breaker') {
+    return farSideOfBreaker(graph, n, xfmrId, new Set()).map(node => ({ node, viaBreaker: n }))
+  }
+  return [{ node: n, viaBreaker: null }]
+}
+
+/**
+ * 按变压器侧端口把对端归到绕组。
+ * recognized 为 false 时边上没有登记过的绕组端口，调用方沿用「每条交流母线一路下游」。
+ */
+function couplingAttachmentGroups(graph, xfmr) {
+  const grouped = new Map()
+  let recognized = false
+  for (const edge of graph.edges || []) {
+    if (edge.fromNodeId !== xfmr.id && edge.toNodeId !== xfmr.id) continue
+    const port = portOnEdge(edge, xfmr.id)
+    const winding = sldWinding(xfmr.templateId, port)
+    if (winding) recognized = true
+    const key = winding || `__port:${port || otherEnd(edge, xfmr.id)}`
+    if (!grouped.has(key)) grouped.set(key, new Map())
+    const bucket = grouped.get(key)
+    for (const far of resolveCouplingFar(graph, xfmr.id, otherEnd(edge, xfmr.id))) {
+      const role = sldRole(far.node.templateId)
+      if (role === 'source' || role === 'dc' || role === 'virtual') continue
+      if (!bucket.has(far.node.id)) bucket.set(far.node.id, far)
+    }
+  }
+  return { recognized, grouped }
+}
+
+function repX(bucket) {
+  let x = Infinity
+  for (const att of bucket.values()) x = Math.min(x, att.node.x || 0)
+  return x
+}
+
+function framesForWinding(graph, xfmr, attachments, fromNodeId, visitedBuses, visitedXfmrs) {
+  const atts = attachments.filter(a => a.node.id !== fromNodeId)
+  const buses = atts
+    .filter(a => sldRole(a.node.templateId) === 'bus' && !visitedBuses.has(a.node.id))
+    .sort((a, b) => (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.id).localeCompare(String(b.node.id)))
+  const feeders = atts.filter(a => sldRole(a.node.templateId) === 'feeder')
+  const couplings = atts.filter(a => sldRole(a.node.templateId) === 'coupling' && !visitedXfmrs.has(a.node.id))
+  const taps = atts.filter(a => {
+    const role = sldRole(a.node.templateId)
+    return role === 'tap' || role === 'unknown'
+  })
+  const frames = []
+
+  const pushExtra = (frame, busNode) => {
+    const neighbors = busNode ? new Set(neighborsOf(graph.adj, busNode.id)) : new Set()
+    for (const att of [...feeders, ...taps]) {
+      if (neighbors.has(att.node.id)) continue
+      if (att.node.templateId === 'ac_meter' && paramStr(att.node, 'emuId')) continue
+      frame.hangs.push({ node: att.node, viaBreaker: att.viaBreaker || null })
+    }
+    if (buses.length === 1) {
+      for (const att of couplings) {
+        if (neighbors.has(att.node.id) || visitedXfmrs.has(att.node.id)) continue
+        visitedXfmrs.add(att.node.id)
+        frame.xfmrs.push({
+          xfmr: att.node,
+          downstreams: buildCouplingDownstreams(graph, att.node, xfmr.id, visitedBuses, visitedXfmrs),
+          split: isSplitTransformer(att.node.templateId),
+          viaBreaker: att.viaBreaker || null
+        })
+      }
+    }
+  }
+
+  if (buses.length) {
+    for (const busAtt of buses) {
+      const frame = buildBusFrame(graph, busAtt.node, xfmr.id, visitedBuses, visitedXfmrs)
+      frame.incomingBreaker = busAtt.viaBreaker || null
+      if (buses.length === 1) pushExtra(frame, busAtt.node)
+      frames.push(frame)
+    }
+    return frames
+  }
+
+  const hangs = []
+  for (const att of [...feeders, ...taps]) {
+    if (att.node.templateId === 'ac_meter' && paramStr(att.node, 'emuId')) continue
+    hangs.push({ node: att.node, viaBreaker: att.viaBreaker || null })
+  }
+  const xfmrs = []
+  for (const att of couplings) {
+    if (visitedXfmrs.has(att.node.id)) continue
+    visitedXfmrs.add(att.node.id)
+    xfmrs.push({
+      xfmr: att.node,
+      downstreams: buildCouplingDownstreams(graph, att.node, xfmr.id, visitedBuses, visitedXfmrs),
+      split: isSplitTransformer(att.node.templateId),
+      viaBreaker: att.viaBreaker || null
+    })
+  }
+  if (!hangs.length && !xfmrs.length) return []
+  return [{
+    node: null,
+    incomingXfmrId: xfmr.id,
+    hangs,
+    xfmrs,
+    busLinks: [],
+    synthetic: true,
+    incomingBreaker: (feeders[0] || couplings[0] || taps[0])?.viaBreaker || null
+  }]
+}
+
+/**
+ * 耦合设备的下游帧。边上有绕组端口时按绕组分组；否则每条尚未走过的交流母线一路。
+ * fromNodeId 是走过来的那一侧（母线或上一级耦合设备）。
+ */
+function buildCouplingDownstreams(graph, xfmr, fromNodeId, visitedBuses, visitedXfmrs) {
+  const { recognized, grouped } = couplingAttachmentGroups(graph, xfmr)
+  if (!recognized) {
+    return xfmrConnectedBuses(graph, xfmr.id)
+      .filter(b => b.bus.id !== fromNodeId && !visitedBuses.has(b.bus.id))
+      .sort((a, b) => (a.bus.x - b.bus.x) || (a.bus.y - b.bus.y) || String(a.bus.id).localeCompare(String(b.bus.id)))
+      .map(far => {
+        const frame = buildBusFrame(graph, far.bus, xfmr.id, visitedBuses, visitedXfmrs)
+        frame.incomingBreaker = far.viaBreaker || null
+        return frame
+      })
+  }
+
+  let incoming = ''
+  for (const [key, bucket] of grouped) {
+    if (String(key).startsWith('__port:')) continue
+    if (bucket.has(fromNodeId)) incoming = key
+  }
+  const entries = [...grouped.entries()].filter(([key, bucket]) => {
+    if (key === incoming) return false
+    if (bucket.has(fromNodeId) && [...bucket.values()].every(att => att.node.id === fromNodeId)) return false
+    return bucket.size > 0
+  })
+  entries.sort((a, b) => repX(a[1]) - repX(b[1]) || String(a[0]).localeCompare(String(b[0])))
+  const frames = []
+  for (const [, bucket] of entries) {
+    frames.push(...framesForWinding(graph, xfmr, [...bucket.values()], fromNodeId, visitedBuses, visitedXfmrs))
+  }
+  return frames
+}
+
 function emuOwnsBreakerIn(idSet, graph, emuId) {
   if (!emuId || !idSet?.size) return false
   for (const id of idSet) {
@@ -210,14 +369,7 @@ function buildBusFrame(graph, bus, incomingXfmrId, visitedBuses, visitedXfmrs) {
     if (role === 'coupling' || isTransformerLike(n.templateId)) {
       if (visitedXfmrs.has(n.id)) continue
       visitedXfmrs.add(n.id)
-      const others = xfmrConnectedBuses(graph, n.id)
-        .filter(b => b.bus.id !== bus.id && !visitedBuses.has(b.bus.id))
-        .sort((a, b) => (a.bus.x - b.bus.x) || (a.bus.y - b.bus.y) || String(a.bus.id).localeCompare(String(b.bus.id)))
-      const downstreams = others.map(far => {
-        const frame = buildBusFrame(graph, far.bus, n.id, visitedBuses, visitedXfmrs)
-        frame.incomingBreaker = far.viaBreaker || null
-        return frame
-      })
+      const downstreams = buildCouplingDownstreams(graph, n, bus.id, visitedBuses, visitedXfmrs)
       xfmrs.push({
         xfmr: n,
         downstreams,
@@ -286,7 +438,7 @@ function clusterOfPcs(graph, pcsNode) {
   if (dcBus) {
     key = `dc:${dcBus.id}`
     const near = new Set(neighborsOf(graph.adj, dcBus.id))
-    pcsNodes = graph.nodes.filter(n => n.templateId === 'pcs' && near.has(n.id))
+    pcsNodes = graph.nodes.filter(n => sldDraw(n.templateId) === 'pcsChain' && near.has(n.id))
   } else {
     key = `pcs:${pcsNode.id}`
     pcsNodes = [pcsNode]
@@ -311,11 +463,11 @@ function pcsHangOf(graph, pcsNode) {
 
 /** 帧内多台 PCS 按直流母线簇合并为一个支路挂点（每台设备仍全量绘制） */
 function groupFramePcsHangs(graph, frame) {
-  if (!frame.hangs.some(h => h.node.templateId === 'pcs')) return
+  if (!frame.hangs.some(h => sldDraw(h.node.templateId) === 'pcsChain')) return
   const others = []
   const merged = new Map()
   for (const h of frame.hangs) {
-    if (h.node.templateId !== 'pcs') { others.push(h); continue }
+    if (sldDraw(h.node.templateId) !== 'pcsChain') { others.push(h); continue }
     const hang = pcsHangOf(graph, h.node)
     if (h.viaBreaker) hang.viaBreaker = hang.viaBreaker || h.viaBreaker
     if (!merged.has(hang.clusterKey)) {
@@ -325,6 +477,58 @@ function groupFramePcsHangs(graph, frame) {
   }
   frame.hangs = others.sort((a, b) =>
     (a.node.x - b.node.x) || String(a.node.id).localeCompare(String(b.node.id)))
+}
+
+function pvBranchKey(node) {
+  return `pvu:${paramStr(node, 'pvuId') || node.id}`
+}
+
+function pvHangOf(graph, pcsNode) {
+  const key = pvBranchKey(pcsNode)
+  const pvuId = paramStr(pcsNode, 'pvuId')
+  const pcsNodes = graph.nodes
+    .filter(n => n.templateId === 'pv_pcs' && (pvuId ? paramStr(n, 'pvuId') === pvuId : n.id === pcsNode.id))
+    .sort((a, b) => (a.x - b.x) || (a.y - b.y))
+  const arrays = []
+  const arrayPcsIds = []
+  for (const p of pcsNodes) {
+    const near = new Set(neighborsOf(graph.adj, p.id))
+    const array = graph.nodes
+      .filter(n => n.templateId === 'pv_array' && near.has(n.id))
+      .sort((a, b) => (a.x - b.x) || (a.y - b.y))[0]
+    if (!array) continue
+    arrays.push(array)
+    arrayPcsIds.push(p.id)
+  }
+  return {
+    node: pcsNodes[0] || pcsNode,
+    pcsCluster: { key, pcsNodes, bmsNodes: arrays, arrayPcsIds, dcBus: null, pv: true },
+    clusterKey: key
+  }
+}
+
+/** 同一光伏单元的支路合并成一条 PCS 链，方阵作为下排卡片。 */
+function groupFramePvHangs(graph, frame) {
+  if (!frame.hangs.some(h => sldDraw(h.node.templateId) === 'pvChain')) return
+  const others = []
+  const merged = new Map()
+  for (const h of frame.hangs) {
+    if (sldDraw(h.node.templateId) !== 'pvChain') { others.push(h); continue }
+    const hang = pvHangOf(graph, h.node)
+    if (h.viaBreaker) hang.viaBreaker = hang.viaBreaker || h.viaBreaker
+    if (!merged.has(hang.clusterKey)) {
+      merged.set(hang.clusterKey, hang)
+      others.push(hang)
+    }
+  }
+  frame.hangs = others.sort((a, b) =>
+    (a.node.x - b.node.x) || String(a.node.id).localeCompare(String(b.node.id)))
+}
+
+/** 槽位宽度由绘制方案决定：光伏图例占一个单元宽，储能链按卡片列数加边距。 */
+function feederSlotWidth(hang, unitW, pad) {
+  if (sldDraw(hang?.node?.templateId) === 'pvLegend') return unitW
+  return Math.max(clusterSpan(hang) + pad, 240)
 }
 
 /** 支路簇占位宽度：PCS / BMS 两行卡片中较宽的一行 */
@@ -348,15 +552,106 @@ function busLabel(bus, fallbackV = 0) {
   return `${bus.label || 'AC母线'} ${fmtKv(v)}`
 }
 
+function expandPvChain(opts) {
+  const { feeder, cx, originY, index, scene, busCx, LINK_STUB, pcsCluster } = opts
+  const pcsNodes = pcsCluster?.pcsNodes?.length ? pcsCluster.pcsNodes : (feeder ? [feeder] : [])
+  const arrays = pcsCluster?.bmsNodes || []
+  const arrayPcsIds = pcsCluster?.arrayPcsIds || []
+  const n = Math.max(1, pcsNodes.length)
+  const m = arrays.length
+  const cols = Math.max(n, m)
+  const span = cnt => cnt * CARD_W + (cnt - 1) * CARD_GAP
+  const cardX = (cnt, i) => -span(cnt) / 2 + CARD_W / 2 + i * (CARD_W + CARD_GAP)
+  const pcsTop = LINK_STUB
+  const pcsH = 236
+  const inverterOrder = [...pcsNodes].sort((a, b) => (a.y - b.y) || (a.x - b.x) || String(a.id).localeCompare(String(b.id)))
+  const inverterIndexOf = new Map(inverterOrder.map((p, i) => [p.id, i]))
+  const bmsTop = pcsTop + pcsH + LINK_STUB * 2
+  const bmsH = 208
+  const cards = []
+  const pvuId = paramStr(pcsNodes[0], 'pvuId')
+  const pvIndex = opts.pvuRank?.get(pvuId) ?? -1
+  const sideA = Math.ceil(m / 2)
+  const wires = []
+  pcsNodes.forEach((p, i) => {
+    const x = cardX(n, i)
+    const kw = paramNum(p, 'pcsRatedPowerKw', 320)
+    const inverterIndex = inverterIndexOf.get(p.id) ?? i
+    cards.push({
+      id: `pv-pcs-${p.id}`,
+      tone: 'pvPcs',
+      x, y: pcsTop, w: CARD_W, h: pcsH,
+      pvIndex,
+      inverterIndex,
+      title: `光伏PCS${inverterIndex + 1}`,
+      lines: [
+        `额定 ${kw} kW`,
+        `最大 ${paramNum(p, 'pcsMaxPowerKw', kw)} kW`,
+        `直流 ${paramNum(p, 'dcVoltageMin', 500)}~${paramNum(p, 'dcVoltageMax', 1500)} V`
+      ]
+    })
+    wires.push({ x1: cx + x, y1: originY, x2: cx + x, y2: originY + pcsTop })
+  })
+  arrays.forEach((a, j) => {
+    const x = cardX(m, j)
+    const stringCount = paramNum(a, 'stringCount', 16)
+    const modulesPerString = paramNum(a, 'modulesPerString', 30)
+    const moduleModel = paramStr(a, 'moduleModel', 'TSM-NEG21C.20Q')
+    const pcsId = arrayPcsIds[j]
+    const paired = pcsId ? pcsNodes.find(p => p.id === pcsId) : pcsNodes[j]
+    const inverterIndex = paired ? (inverterIndexOf.get(paired.id) ?? j) : j
+    cards.push({
+      id: `pv-array-${a.id}`,
+      tone: 'pvArray',
+      x, y: bmsTop, w: CARD_W, h: bmsH,
+      title: `方阵${j + 1}`,
+      side: j < sideA ? 'A' : 'B',
+      inverterIndex,
+      stringCount,
+      modulesPerString,
+      moduleModel,
+      lines: [
+        moduleModel,
+        `${stringCount} 串 × ${modulesPerString} 块`
+      ]
+    })
+    const pcsX = cardX(n, Math.min(j, n - 1))
+    wires.push({ x1: cx + pcsX, y1: originY + pcsTop + pcsH, x2: cx + x, y2: originY + bmsTop })
+  })
+  scene.wires.push(...wires.map(w => ({ ...w, unitWire: true })))
+  const bottom = (m > 0 ? bmsTop + bmsH : pcsTop + pcsH) + 16
+  return {
+    unit: {
+      index,
+      pvIndex,
+      kind: 'pvChain',
+      draw: 'pvChain',
+      cx,
+      originY,
+      busCx: busCx ?? cx,
+      pcsNodes,
+      bmsNodes: arrays,
+      dcBus: null,
+      cards,
+      labels: [],
+      halfSpan: span(cols) / 2,
+      bottom
+    },
+    unitBottom: bottom
+  }
+}
+
 function expandFeederUnit(opts) {
   const {
     feeder, cx, xfmrId, originY, index, pvRank, graph, scene,
     busCx, UNIT_W, LINK_STUB, BRK_SPAN, pcsCluster, pcsRank, bmsRank, boundClaim,
     sectionBreakerIds, xfmrBranchBreakerIds, stemBreakerIds, viaBreaker
   } = opts
-  const kind = feeder?.templateId === 'pv_unit' ? 'pv' : 'emu'
+  const draw = sldDraw(feeder?.templateId)
+  if (draw === 'pvChain' || pcsCluster?.pv) return expandPvChain(opts)
+  const kind = draw === 'pvLegend' ? 'pv' : 'emu'
 
-  if (kind === 'emu') {
+  if (draw !== 'pvLegend') {
     // 储能支路：按物理拓扑全量绘制 PCS → 直流母线 → BMS 设备链；
     // 不引入 EMU / EMU 分组 / 单元断 / 单元变等虚拟概念；卡片绑定运行时实时数据与控制
     const c = pcsCluster || { pcsNodes: [], dcBus: null, bmsNodes: [] }
@@ -495,7 +790,7 @@ function expandFeederUnit(opts) {
 
     return {
       unit: {
-        index, unitIndex, kind, cx, originY, xfmrId,
+        index, unitIndex, kind, draw: 'pcsChain', cx, originY, xfmrId,
         busCx: busCx ?? cx,
         emu,
         pcsNodes,
@@ -536,7 +831,7 @@ function expandFeederUnit(opts) {
   const arraySplitY = xfmrCardTop + xfmrCardH + LINK_STUB
   const unitBottom = bmsTop + bmsH + 16
 
-  const inverterCount = Math.max(1, Math.round(paramNum(pv, 'inverterCount', 16)))
+  const inverterCount = Math.max(1, Math.round(paramNum(pv, 'inverterCount', 4)))
   const inverterRatedKw = paramNum(pv, 'inverterRatedPowerKw', 320)
   const stringCount = Math.max(1, Math.round(paramNum(pv, 'stringCount', 16)))
   const modulesPerString = Math.max(1, Math.round(paramNum(pv, 'modulesPerString', 30)))
@@ -567,6 +862,7 @@ function expandFeederUnit(opts) {
   const unit = {
     index,
     kind,
+    draw: 'pvLegend',
     cx,
     busCx: busCx ?? cx,
     originY,
@@ -635,20 +931,22 @@ export function buildTopologyMainLineLayout(topology) {
     paramNum(b, 'nominalVoltage') - paramNum(a, 'nominalVoltage') || (a.x - b.x)
   )
   const feeders = nodes
-    .filter(n => n.templateId === 'pcs' || n.templateId === 'pv_unit')
+    .filter(n => sldRole(n.templateId) === 'feeder')
     .sort((a, b) => (a.x - b.x) || (a.y - b.y))
 
   // 设备编号秩：按画布坐标 (Y,X) 排序，与运行时转换器顺序保持一致
   const byYX = (a, b) => (a.y - b.y) || (a.x - b.x)
   const pcsRank = new Map()
-  nodes.filter(n => n.templateId === 'pcs').sort(byYX).forEach((n, i) => pcsRank.set(n.id, i))
+  nodes.filter(n => sldDraw(n.templateId) === 'pcsChain').sort(byYX).forEach((n, i) => pcsRank.set(n.id, i))
   const bmsRank = new Map()
   nodes.filter(n => n.templateId === 'bms').sort(byYX).forEach((n, i) => bmsRank.set(n.id, i))
   const pvRank = new Map()
   nodes
-    .filter(n => n.templateId === 'pv_unit')
+    .filter(n => sldDraw(n.templateId) === 'pvLegend')
     .sort((a, b) => (a.y - b.y) || (a.x - b.x))
     .forEach((n, i) => pvRank.set(n.id, i))
+  const pvuRank = new Map()
+  nodes.filter(n => n.templateId === 'pvu').sort(comparePvu).forEach((n, i) => pvuRank.set(n.id, i))
 
   const visitedBuses = new Set()
   const visitedXfmrs = new Set()
@@ -662,7 +960,10 @@ export function buildTopologyMainLineLayout(topology) {
     }
   }
 
-  for (const root of roots) walkFrames(root, fr => groupFramePcsHangs(graph, fr))
+  for (const root of roots) walkFrames(root, fr => {
+    groupFramePcsHangs(graph, fr)
+    groupFramePvHangs(graph, fr)
+  })
   const hangingIds = new Set()
   for (const root of roots) walkFrames(root, fr => {
     for (const h of fr.hangs) {
@@ -670,6 +971,52 @@ export function buildTopologyMainLineLayout(topology) {
       for (const p of h.pcsCluster?.pcsNodes || []) hangingIds.add(p.id)
     }
   })
+  // 图上到不了的发电设备单独成岛，不再按画布坐标贴到最近母线
+  const loose = []
+  const seenLoose = new Set()
+  for (const f of feeders) {
+    if (hangingIds.has(f.id) || seenLoose.has(f.id)) continue
+    if (sldDraw(f.templateId) === 'pvChain') {
+      const key = pvBranchKey(f)
+      if (seenLoose.has(key) || hangingIds.has(f.id)) {
+        seenLoose.add(key)
+        continue
+      }
+      const hang = pvHangOf(graph, f)
+      if ((hang.pcsCluster?.pcsNodes || []).some(p => hangingIds.has(p.id))) {
+        seenLoose.add(key)
+        continue
+      }
+      seenLoose.add(key)
+      for (const p of hang.pcsCluster.pcsNodes) seenLoose.add(p.id)
+      loose.push(hang)
+    } else if (sldDraw(f.templateId) === 'pcsChain') {
+      const hang = pcsHangOf(graph, f)
+      const members = hang.pcsCluster?.pcsNodes || [f]
+      if (members.some(p => hangingIds.has(p.id))) {
+        for (const p of members) seenLoose.add(p.id)
+        continue
+      }
+      for (const p of members) seenLoose.add(p.id)
+      loose.push(hang)
+    } else {
+      seenLoose.add(f.id)
+      loose.push({ node: f })
+    }
+  }
+  if (loose.length) {
+    const island = {
+      node: null,
+      incomingXfmrId: null,
+      hangs: loose,
+      xfmrs: [],
+      busLinks: [],
+      synthetic: true
+    }
+    groupFramePcsHangs(graph, island)
+    groupFramePvHangs(graph, island)
+    roots.push(island)
+  }
   const frames = []
   for (const root of roots) walkFrames(root, fr => frames.push(fr))
   // 母线分段/联络断路器：两端皆为母线，已随 tieBreakers 画在母线上
@@ -678,45 +1025,6 @@ export function buildTopologyMainLineLayout(topology) {
     for (const bl of fr.busLinks || []) {
       if (bl.breaker) sectionBreakerIds.add(bl.breaker.id)
     }
-  }
-  for (const f of feeders) {
-    if (hangingIds.has(f.id)) continue
-    const hang = f.templateId === 'pcs' ? pcsHangOf(graph, f) : { node: f }
-    let best = frames[0] || null
-    let bestDist = Infinity
-    for (const fr of frames) {
-      const d = Math.abs((hang.node.x || 0) - (fr.node?.x || 0))
-      if (d < bestDist) {
-        best = fr
-        bestDist = d
-      }
-    }
-    if (best) {
-      best.hangs.push(hang)
-      hangingIds.add(hang.node.id)
-      for (const p of hang.pcsCluster?.pcsNodes || []) hangingIds.add(p.id)
-    }
-  }
-  if (!roots.length && feeders.length) {
-    const hangs = []
-    const seenClusters = new Set()
-    for (const f of feeders) {
-      if (f.templateId === 'pcs') {
-        const hang = pcsHangOf(graph, f)
-        if (seenClusters.has(hang.clusterKey)) continue
-        seenClusters.add(hang.clusterKey)
-        hangs.push(hang)
-      } else {
-        hangs.push({ node: f })
-      }
-    }
-    roots.push({
-      node: null,
-      incomingXfmrId: null,
-      hangs,
-      xfmrs: [],
-      synthetic: true
-    })
   }
 
   const kept = roots.filter(fr => fr.hangs.length > 0 || fr.xfmrs.length > 0 || fr === roots[0])
@@ -745,14 +1053,7 @@ export function buildTopologyMainLineLayout(topology) {
         measure(item.bl.downstream)
         slots.push({ item, w: Math.max(item.bl.downstream.width || 0, UNIT_W) })
       } else {
-        // 光伏支路图例按 channelX 两翼展开，槽位至少占一个单元宽，避免相邻光伏单元叠板。
-        // 储能馈线槽宽 = 卡片行 + 边距，避免相邻 EMU 卡片贴在一起。
-        slots.push({
-          item,
-          w: item.hang.node.templateId === 'pv_unit'
-            ? UNIT_W
-            : Math.max(clusterSpan(item.hang) + FEEDER_SLOT_PAD, 240)
-        })
+        slots.push({ item, w: feederSlotWidth(item.hang, UNIT_W, FEEDER_SLOT_PAD) })
       }
     }
     frame.slots = slots
@@ -946,7 +1247,7 @@ export function buildTopologyMainLineLayout(topology) {
           cx,
           xfmrId: frame.incomingXfmrId || null,
           originY: yBus,
-          busCx: frame.cx,
+          busCx: frame.node ? frame.cx : cx,
           pcsCluster: item.hang.pcsCluster || null,
           viaBreaker: item.hang.viaBreaker || null
         })
@@ -1089,6 +1390,7 @@ export function buildTopologyMainLineLayout(topology) {
       originY: p.originY,
       index: i,
       pvRank,
+      pvuRank,
       graph,
       scene,
       UNIT_W,

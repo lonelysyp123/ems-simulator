@@ -103,6 +103,12 @@
         @pv-set-temp="onPvSetTemp"
         @pv-set-angle="onPvSetAngle"
         @pv-set-albedo="onPvSetAlbedo"
+        @pv-set-max="onPvSetMax"
+        @pv-clear-max="onPvClearMax"
+        @pv-pcs-set-power="onPvPcsSetPower"
+        @pv-pcs-set-reactive="onPvPcsSetReactive"
+        @pv-pcs-start="onPvPcsStart"
+        @pv-pcs-stop="onPvPcsStop"
         @pcs-start="onPcsStart"
         @pcs-stop="onPcsStop"
         @pcs-set-power="onPcsSetPower"
@@ -450,14 +456,20 @@ function fmtPvArray(a) {
   return parts.join(' ')
 }
 
-const pvRows = computed(() => (snap.value.pvUnits || []).map(p => ({
+const pvRows = computed(() => (snap.value.pvUnits || []).map(p => {
+  const standby = p.standby === true
+    || (p.running === true
+      && Math.abs(Number(p.targetActivePowerKw) || 0) <= 0.01
+      && Math.abs(Number(p.activePowerKw) || 0) <= 0.01)
+  return {
   pv: `PV ${p.pvNumber ?? p.pvIndex + 1}`,
-  status: `${p.running ? '运行' : '待机'} | 并网设备 ${p.gridConnectedDeviceCount ?? 0} 台`,
+  status: `${standby ? '待机' : (p.running ? '运行' : '停机')} | 并网设备 ${p.gridConnectedDeviceCount ?? 0} 台`,
   activePower: `设 ${fmtKw(p.targetActivePowerKw)} / 实 ${fmtKw(p.activePowerKw)}`,
   reactivePower: `设 ${fmtKvar(p.targetReactivePowerKvar)} / 实 ${fmtKvar(p.reactivePowerKvar)}`,
   arrayA: fmtPvArray(p.arrayA),
   arrayB: fmtPvArray(p.arrayB)
-})))
+  }
+}))
 
 async function refreshSnap() {
   try {
@@ -627,6 +639,86 @@ async function onPvSetAngle(payload = {}) {
     return
   }
   await runChannelCommand(`esscmd setpv${n} array ${side} angle ${angleDeg}`)
+}
+
+function resolvePvInverterNumber(payload) {
+  const n = Number(payload?.inverterNumber)
+  return Number.isFinite(n) && n >= 1 ? n : 0
+}
+
+async function onPvPcsSetPower(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const m = resolvePvInverterNumber(payload)
+  const kw = Number(payload.powerKw)
+  if (!n || !m) {
+    ElMessage.error('无法解析光伏 PCS')
+    return
+  }
+  if (!Number.isFinite(kw) || kw < 0) {
+    ElMessage.warning('请输入有效的有功功率（≥0）')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} pcs ${m} power ${kw}`)
+}
+
+async function onPvPcsSetReactive(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const m = resolvePvInverterNumber(payload)
+  const kvar = Number(payload.reactiveKvar)
+  if (!n || !m) {
+    ElMessage.error('无法解析光伏 PCS')
+    return
+  }
+  if (!Number.isFinite(kvar)) {
+    ElMessage.warning('请输入有效的无功功率')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} pcs ${m} reactive ${kvar}`)
+}
+
+async function onPvPcsStart(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const m = resolvePvInverterNumber(payload)
+  if (!n || !m) {
+    ElMessage.error('无法解析光伏 PCS')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} pcs ${m} run on`)
+}
+
+async function onPvPcsStop(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const m = resolvePvInverterNumber(payload)
+  if (!n || !m) {
+    ElMessage.error('无法解析光伏 PCS')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} pcs ${m} run off`)
+}
+
+async function onPvSetMax(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const m = resolvePvInverterNumber(payload)
+  const kw = Number(payload.powerKw)
+  if (!n || !m) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  if (!Number.isFinite(kw) || kw < 0) {
+    ElMessage.warning('请输入有效的最大放电功率（≥0）')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} pcs ${m} maxpower ${kw}`)
+}
+
+async function onPvClearMax(payload = {}) {
+  const n = resolvePvNumber(payload)
+  const m = resolvePvInverterNumber(payload)
+  if (!n || !m) {
+    ElMessage.error('无法解析光伏方阵')
+    return
+  }
+  await runChannelCommand(`esscmd setpv${n} pcs ${m} maxpower off`)
 }
 
 async function onPvSetAlbedo(payload = {}) {
