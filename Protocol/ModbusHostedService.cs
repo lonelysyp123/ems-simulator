@@ -115,6 +115,12 @@ namespace EssSimulator
                         _manager.RegisterDevice(svg, ProtocolDeviceType.Svg, "svg.csv");
                     }
 
+                    foreach (var mv in CreateMvServers(_cfg))
+                    {
+                        store.Register(mv.ServerName, mv);
+                        _manager.RegisterDevice(mv, ProtocolDeviceType.Mv, "mv.csv");
+                    }
+
                     // 按端口计划（默认配置 + protocol-ports.json 覆盖）统一分配端口并启动
                     var result = _manager.StartAll(_cfg);
                     Log.Info($"Modbus 从站注册完成，共 {result.Devices.Count} 个设备，成功启动 {result.Devices.Count(d => d.Started)} 个");
@@ -131,6 +137,17 @@ namespace EssSimulator
             }, cancellationToken);
 
             return Task.CompletedTask;
+        }
+
+        /// <summary>按断路器清单创建 simMv。不在这里监听，端口由协议层计划分配。</summary>
+        internal static List<ModbusSimServer> CreateMvServers(SimulatorConfig cfg)
+        {
+            var servers = new List<ModbusSimServer>();
+            int count = cfg.MvBreakers?.Count ?? 0;
+            for (int i = 0; i < count; i++)
+                servers.Add(new ModbusSimServer("mv.csv", 0, $"simMv{i + 1}"));
+
+            return servers;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

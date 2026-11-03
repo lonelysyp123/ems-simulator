@@ -105,7 +105,12 @@
         stripe
         :row-class-name="rowClass"
       >
-        <el-table-column prop="name" label="设备" width="130" />
+        <el-table-column label="设备" min-width="200">
+          <template #default="{ row }">
+            <span>{{ row.name }}</span>
+            <span v-if="row.label" class="device-label">{{ row.label }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="类型" width="120">
           <template #default="{ row }">{{ typeLabel(row.type) }}</template>
         </el-table-column>
@@ -217,7 +222,8 @@ const TYPE_LABELS = {
   3: 'LC 就地控制',
   4: '光伏 Logger',
   5: '光伏电表',
-  7: '光伏逆变器'
+  7: '光伏逆变器',
+  9: '中压断路器'
 }
 
 function typeLabel(t) { return TYPE_LABELS[t] ?? String(t) }
@@ -448,6 +454,7 @@ onMounted(reload)
 </script>
 
 <style scoped>
+.device-label { margin-left: 8px; color: var(--el-text-color-secondary); }
 .mark-override { color: #e6a23c; margin-right: 8px; }
 .mark-shared { color: #409eff; margin-right: 8px; }
 .mark-rack { color: #909399; margin-right: 8px; }

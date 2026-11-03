@@ -51,6 +51,7 @@
   - `BaseLocalControlModbusPort = 1701`，`LocalControlPortStep = 1`，`LocalControlEmuPerGroup = 4`
   - `BasePvLoggerModbusPort = 1801`，`PvLoggerPortStep = 1`
   - `BasePvMeterModbusPort = 1901`，`PvMeterPortStep = 1`
+  - `BaseMvModbusPort = 2301`，`MvPortStep = 1`（中压断路器，组态里有几台三相断路器就有几路 `simMvN`）
 - **`EssUnits`**
   - 共 **8** 个 Unit（Unit-1 ~ Unit-8），每单元 2 路 PCS + 2 路 BMS
   - BMS 拓扑一致：`ClusterCount=12`、`PackCount=4`、`CellSeriesCount=104`、`CellParallelCount=1`

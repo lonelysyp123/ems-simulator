@@ -1,0 +1,18 @@
+FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim
+4,25306,float,32,mvyc25306,1,MV-电表-AB 线电压,0
+4,25308,float,32,mvyc25308,1,MV-电表-BC 线电压,0
+4,25310,float,32,mvyc25310,1,MV-电表-CA 线电压,0
+4,25312,float,32,mvyc25312,1,MV-电表-A 相电流,0
+4,25314,float,32,mvyc25314,1,MV-电表-B 相电流,0
+4,25316,float,32,mvyc25316,1,MV-电表-C 相电流,0
+4,25318,float,32,mvyc25318,1,MV-电表-N 线电流,0
+4,25326,float,32,mvyc25326,1,MV-电表-总有功功率,0
+4,25334,float,32,mvyc25334,1,MV-电表-总无功功率,0
+4,25342,float,32,mvyc25342,1,MV-电表-总视在功率,0
+4,25350,float,32,mvyc25350,1,MV-电表-总功率因数,0
+4,25352,float,32,mvyc25352,1,MV-电表-频率,0
+4,25362,float,32,mvyc25362,1,MV-电表-正向有功电能二次值,0
+4,25364,float,32,mvyc25364,1,MV-电表-反向有功电能二次值,0
+4,25368,float,32,mvyc25368,1,MV-电表-正向无功电能二次值,0
+4,25370,float,32,mvyc25370,1,MV-电表-反向无功电能二次值,0
+6,33200,u16,16,mv_param1,1,MV-测控-高压开关远方遥控(AA:动作;EE: 复归),0

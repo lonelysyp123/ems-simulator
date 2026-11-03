@@ -61,7 +61,8 @@ namespace EssSimulator.Web.Topology
             {
                 SourceProjectId = project.Id,
                 SourceProjectName = project.Name,
-                GeneratedAtUtc = DateTime.UtcNow
+                GeneratedAtUtc = DateTime.UtcNow,
+                MvBreakers = MvBreakerProtocolLayout.Enumerate(project)
             };
 
             var grid = project.Nodes.FirstOrDefault(n => n.TemplateId == "grid");
