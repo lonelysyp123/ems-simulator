@@ -1,5 +1,6 @@
 ﻿using System;
 using EssSimulator.Core;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,7 +15,11 @@ namespace EssSimulator
     public class SimServer
     {
         public static Dictionary<string, bool> clientConnectState { get; set; } = new();
-        public static Dictionary<string,string> serverListenInfo = new Dictionary<string, string>();
+        /// <summary>
+        /// 各从站的监听信息。设备并行启动时会在 <see cref="Modbus.ProtocolLayerManager"/> 里
+        /// 被多个线程写入，web 端同时还会遍历读，必须是并发字典。
+        /// </summary>
+        public static ConcurrentDictionary<string, string> serverListenInfo = new();
         
         /// <summary>
         /// 从外部接口或者实时仿真模型产出数据

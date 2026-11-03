@@ -335,8 +335,12 @@ public class PvInverterModbusTests : SimulatorHostTestBase
             "Logger 保持寄存器遥测未发布");
         Assert.Equal(0, connection.Read("yc12"));
 
+        int before = fixture.Capture.Events.Count;
         connection.Write("yt6", 40);
         await WaitUntil(() => unit.Logger.SubarrayActivePowerPercent == 40, "百分比设定未执行");
+        // 模型属性先于控制捕获落库，这里要等捕获把这一次写点记下来再取样，
+        // 否则取到的 applied 还停在写入前的值，随后的 1 次事件就被误判成"重复触发"。
+        await WaitUntil(() => fixture.Capture.Events.Count > before, "百分比控制未记录到捕获");
         int applied = fixture.Capture.Events.Count;
         await Task.Delay(200);
         fixture.Step();

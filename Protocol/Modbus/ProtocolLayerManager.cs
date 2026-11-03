@@ -339,7 +339,7 @@ namespace EssSimulator.Protocol.Modbus
         {
             if (!started)
             {
-                SimServer.serverListenInfo.Remove(reg.Server.ServerName);
+                SimServer.serverListenInfo.TryRemove(reg.Server.ServerName, out _);
                 return;
             }
 
