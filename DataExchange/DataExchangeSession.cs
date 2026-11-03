@@ -80,6 +80,18 @@ namespace EssSimulator.DataExchange
             {
                 _effects.Register(new BmsLinkControlEffect());
             }
+            else if (serverName.StartsWith("simPvInv", StringComparison.OrdinalIgnoreCase))
+            {
+                // 逆变器最大可发由模型 AvailableAcPowerKw 计算（点表 yc29）
+                telemetryPlugins.Register(new PvInverterMaxAvailablePlugin());
+            }
+            else if (serverName.StartsWith("simPv", StringComparison.OrdinalIgnoreCase)
+                     && !serverName.StartsWith("simPvMeter", StringComparison.OrdinalIgnoreCase))
+            {
+                // PV Logger（simPvN）的 yc20 最大可调有功：读点时按上限/辐照实时汇总，
+                // 避免模型每拍 Refresh 与门面步末覆盖之间的采样窗口。
+                telemetryPlugins.Register(new PvLoggerMaxAdjustablePlugin());
+            }
 
             bool logChanges = ShouldLogChanges(deviceInfo.name);
 

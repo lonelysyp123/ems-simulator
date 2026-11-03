@@ -72,7 +72,6 @@ public class PvPointMapBindingTests
         "yc17:Logger.TotalReactivePowerVar",
         "yc18:Logger.TotalYieldKwh",
         "yc19:Logger.MinAdjustableActivePowerKw",
-        "yc20:Logger.MaxAdjustableActivePowerKw",
         "yc21:Logger.MinAdjustableReactivePowerKvar",
         "yc22:Logger.MaxAdjustableReactivePowerKvar",
         "yc23:Logger.NominalActivePowerKw",
@@ -131,8 +130,7 @@ public class PvPointMapBindingTests
         ("yc26", 4, 5118, "u16", 16, 10, "MpptCurrentA[4]"),
         ("yc27", 4, 5119, "u16", 16, 10, "MpptVoltageV[5]"),
         ("yc28", 4, 5120, "u16", 16, 10, "MpptCurrentA[5]"),
-        ("yc29", 4, 5194, "u16", 16, 1, null),
-        ("yc30", 4, 5195, "u16", 16, 1, null),
+        ("yc29", 4, 5194, "u32", 32, 10, null),
         ("yk0", 6, 5006, "u16", 16, 1, "RunCommand"),
         ("yt0", 6, 5039, "u16", 16, 10, "ActivePowerSettingKw"),
         ("yt1", 6, 5040, "int16", 16, 10, "ReactivePowerSettingKvar")
@@ -169,7 +167,11 @@ public class PvPointMapBindingTests
         AssertBindings(map, LoggerExpected);
         foreach (var param in LoggerMissingDin)
             Assert.False(map.ParamModelLookup.ContainsKey(param), param);
-        Assert.Equal(LoggerExpected.Length, map.ParamModelLookup.Count);
+        // yc20 由插件在读点时计算（仍占 ParamModelLookup 一项，但不是反射路径）
+        Assert.Equal(LoggerExpected.Length + 1, map.ParamModelLookup.Count);
+        Assert.True(map.ParamModelLookup.TryGetValue("yc20", out var maxAdj));
+        Assert.Equal("plugin", maxAdj.ModelType);
+        Assert.Equal("PvLoggerMaxAdjustableKw", maxAdj.Arg1);
     }
 
     [Fact]
@@ -177,16 +179,16 @@ public class PvPointMapBindingTests
     {
         var lines = File.ReadAllLines(InverterCsvPath);
         Assert.Equal("FunctionCode,Address,Type,Size,ParamName,Scale,Description,ModelSim", lines[0]);
-        Assert.Equal(35, lines.Length);
+        Assert.Equal(34, lines.Length);
         Assert.All(lines.Skip(1), line => Assert.Equal(8, line.Split(',').Length));
 
         var map = new ModbusPointMap(InverterCsvPath, "simPvInv17", pvDeviceIdOverride: 2, inverterIndex: 0);
         var entries = Assert.Single(map.RawMaps);
-        Assert.Equal(34, entries.Length);
-        Assert.Equal(31, map.DataMaps.Count);
+        Assert.Equal(33, entries.Length);
+        Assert.Equal(30, map.DataMaps.Count);
         Assert.Equal(3, map.ControlMaps.Count);
-        Assert.Equal(31, map.ParamModelLookup.Count);
-        Assert.Equal(3, map.DefaultBuffer.Count);
+        Assert.Equal(32, map.ParamModelLookup.Count);
+        Assert.Equal(1, map.DefaultBuffer.Count);
         Assert.Equal(entries.Length, entries.Select(e => e.ParamName).Distinct().Count());
 
         var occupied = new HashSet<(int Area, int Address)>();
@@ -209,6 +211,18 @@ public class PvPointMapBindingTests
             }
 
             var template = lines[i + 1].Split(',')[7];
+            if (expected.Param == "yc29")
+            {
+                Assert.Equal(
+                    "model=plugin|arg1=InverterMaxAvailableKw|arg2=pvDeviceId.Inverters[inverterIndex]|arg3=|arg4=1000",
+                    template);
+                var plugin = map.ParamModelLookup["yc29"];
+                Assert.Equal("plugin", plugin.ModelType);
+                Assert.Equal("InverterMaxAvailableKw", plugin.Arg1);
+                Assert.Equal("pv2.Inverters[0]", plugin.Arg2);
+                continue;
+            }
+
             if (expected.Property == null)
             {
                 Assert.Equal("0", template);
@@ -246,7 +260,8 @@ public class PvPointMapBindingTests
         };
         foreach (var map in maps)
         {
-            Assert.Equal(31, map.ParamModelLookup.Count);
+            Assert.Equal(32, map.ParamModelLookup.Count);
+            Assert.Equal($"pv{unitId}.Inverters[{index}]", map.ParamModelLookup["yc29"].Arg2);
             foreach (var expected in InverterExpected.Where(e => e.Property != null))
             {
                 string path = $"Inverters[{index}].Protocol.{expected.Property}";
@@ -292,11 +307,21 @@ public class PvPointMapBindingTests
         var path = Path.Combine(FindRepoRoot(), "pointmaps", "models", "pv", "standard", fileName);
         var legacy = new ModbusPointMap(path, serverName);
         Assert.NotEmpty(legacy.ParamModelLookup);
-        Assert.All(legacy.ParamModelLookup.Values, model => Assert.StartsWith("pv7.", model.Arg1));
+        Assert.All(legacy.ParamModelLookup.Values, model =>
+        {
+            if (string.Equals(model.ModelType, "plugin", StringComparison.OrdinalIgnoreCase))
+                return;
+            Assert.StartsWith("pv7.", model.Arg1);
+        });
 
         var explicitUnit = new ModbusPointMap(path, "pv-endpoint", pvDeviceIdOverride: 2);
         Assert.Equal(legacy.ParamModelLookup.Count, explicitUnit.ParamModelLookup.Count);
-        Assert.All(explicitUnit.ParamModelLookup.Values, model => Assert.StartsWith("pv2.", model.Arg1));
+        Assert.All(explicitUnit.ParamModelLookup.Values, model =>
+        {
+            if (string.Equals(model.ModelType, "plugin", StringComparison.OrdinalIgnoreCase))
+                return;
+            Assert.StartsWith("pv2.", model.Arg1);
+        });
     }
 
     [Theory]
@@ -322,6 +347,7 @@ public class PvPointMapBindingTests
         var catalog = PointCatalogLoader.FromPointMap(map, "simPvInv99");
         Assert.Equal(28, catalog.TelemetryPoints.Count);
         Assert.Equal(3, catalog.ControlPoints.Count);
+        Assert.Equal("yc29", Assert.Single(catalog.PluginPoints).ParamName);
         Assert.All(catalog.ControlPoints, point =>
         {
             Assert.Equal(ControlSemantics.Hold, point.Semantics);

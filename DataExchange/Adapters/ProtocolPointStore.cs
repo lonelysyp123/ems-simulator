@@ -36,19 +36,14 @@ namespace EssSimulator.DataExchange.Adapters
         public Dictionary<string, object> ReadAllControlRaw(IReadOnlyList<string> paramNames, byte? slaveId = null) =>
             _modbus.ReadAllControlRaw(paramNames, slaveId);
 
-        public object? ReadParsedPoint(string paramName, byte? slaveId = null)
-        {
-            if (slaveId.HasValue)
-                return _modbus.ReadParsedPoint(paramName, slaveId);
-
-            lock (_gate)
-            {
-                if (_cache.TryGetValue(paramName, out var cached))
-                    return cached;
-            }
-
-            return _modbus.ReadParsedPoint(paramName);
-        }
+        /// <summary>
+        /// 读取寄存器并解析为工程值。**始终读寄存器，不读写入缓存**：
+        /// 缓存保存的是未量化的模型值，控制反馈回读要的是寄存器量化后的值，
+        /// 否则 shadow 与下一次控制扫描的解析值会永久不一致（缩放点会反复触发控制写入）。
+        /// 需要最近一次写入的缓存工程值时用 <see cref="GetCachedValue"/>。
+        /// </summary>
+        public object? ReadParsedPoint(string paramName, byte? slaveId = null) =>
+            _modbus.ReadParsedPoint(paramName, slaveId);
 
         public object? GetCachedValue(string paramName)
         {
