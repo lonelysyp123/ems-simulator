@@ -162,7 +162,13 @@ public class ControlFeedbackPipelineTests
 
         simulation.Set(binding.Target.FullPath, 3.90625);
         pipeline.RunOnce();
+        Assert.Equal(1, modbus.WriteCount);
+
+        // 模型全精度值 3.90625 与寄存器量化值 3.9 属于同一个设定，不应周期性重写
+        simulation.Set(binding.Target.FullPath, 3.95);
+        pipeline.RunOnce();
         Assert.Equal(2, modbus.WriteCount);
+        Assert.Equal(4.0, modbus.Engineering);
     }
 
     [Fact]

@@ -25,6 +25,10 @@ namespace EssSimulator.EssSimModelApi
             _pcs.Project(ess);
             _em.Project(ess);
             _bms.Project(ess);
+
+            // 步末复查：故障/状态导致的停机、单机上限变化，都要在这一拍把执行设定重新分配
+            Mappers.DeviceControlFacade.RebalancePvExecution(ess);
+            Mappers.DeviceControlFacade.PublishLoggerMaxAdjustable(ess);
         }
 
         public void Dispose()

@@ -85,8 +85,10 @@ public class PvInverterModbusTests : SimulatorHostTestBase
             Assert.InRange(Math.Abs(connection.Read(voltagePoints[i]) - target.Protocol.MpptVoltageV[i]), 0, 0.051);
             Assert.InRange(Math.Abs(connection.Read(currentPoints[i]) - target.Protocol.MpptCurrentA[i]), 0, 0.051);
         }
-        foreach (string point in new[] { "yc19", "yc29", "yc30" })
-            Assert.Equal(0, connection.Read(point));
+        Assert.Equal(0, connection.Read("yc19"));
+        double maxAvailable = Math.Min(target.RatedPowerKw, Math.Max(0, target.AvailableAcPowerKw));
+        await WaitUntil(() => Math.Abs(connection.Read("yc29") - maxAvailable) <= 0.051,
+            "yc29 最大可发未按额定封顶发布");
 
         connection.Master.WriteSingleRegister(1, 5006, PvInverterProtocolData.RunCommandStop);
         await WaitUntil(() => fixture.Capture.Events.Count == 4, "单机停机命令未执行");
