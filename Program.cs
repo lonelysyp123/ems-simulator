@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
@@ -232,6 +233,13 @@ namespace EssSimulator
             }
 
             var builder = WebApplication.CreateBuilder(args);
+
+            // Windows 上 ".NET Runtime" 事件日志源可能不可写，默认 EventLog provider 在写 Warning
+            // 时会抛异常直接终止启动。业务日志本来就走 log4net，这里只保留控制台/调试/EventSource。
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+            builder.Logging.AddDebug();
+            builder.Logging.AddEventSourceLogger();
 
             // 替换默认配置加载为支持 JSON 注释/尾随逗号的版本
             builder.Configuration.Sources.Clear();
